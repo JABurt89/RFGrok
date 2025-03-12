@@ -45,19 +45,36 @@ type STSCombination = {
 type WorkoutView = "setup" | "active";
 
 // Helper function to ensure valid date format
-const ensureValidDate = (dateInput: Date | string): string => {
+const ensureValidDate = (dateInput: Date | string | number): string => {
   try {
-    if (dateInput instanceof Date) {
-      return dateInput.toISOString();
-    } else if (typeof dateInput === 'string') {
-      const parsedDate = new Date(dateInput);
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toISOString();
+    if (dateInput) {
+      if (typeof dateInput === 'object' && dateInput instanceof Date) {
+        return dateInput.toISOString();
+      } else if (typeof dateInput === 'number') {
+        // If it's a number (timestamp in milliseconds), convert to Date then ISO string
+        return new Date(dateInput).toISOString();
+      } else if (typeof dateInput === 'string') {
+        // If it's already a string but not in ISO format, try to parse and convert
+        try {
+          const date = new Date(dateInput);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString();
+          } else {
+            // If parsing fails, use current time
+            return new Date().toISOString();
+          }
+        } catch (e) {
+          // If any error in parsing, use current time
+          return new Date().toISOString();
+        }
+      } else {
+        // If timestamp exists but is of an invalid type, use current time
+        return new Date().toISOString();
       }
+    } else {
+      // If no timestamp exists, use current time
+      return new Date().toISOString();
     }
-    // Fallback to current date if invalid
-    console.warn('Invalid date detected, using current date:', dateInput);
-    return new Date().toISOString();
   } catch (error) {
     console.error('Error formatting date:', error);
     return new Date().toISOString();
@@ -115,7 +132,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
       try {
-        // Create a copy of the data to format
+        // Create a proper workout log with valid timestamps
         const formattedWorkoutLog = {
           ...workoutLog,
           date: ensureValidDate(workoutLog.date || new Date()),
