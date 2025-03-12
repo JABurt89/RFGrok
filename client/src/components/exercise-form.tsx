@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Exercise, InsertExercise, insertExerciseSchema, EquipmentType } from "@shared/schema";
+import { useMutation } from "@tanstack/react-query";
+import { Exercise, InsertExercise, insertExerciseSchema, predefinedEquipment, KG_TO_LB } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 type ExerciseFormProps = {
   exercise?: Exercise;
@@ -17,15 +18,17 @@ type ExerciseFormProps = {
 
 export default function ExerciseForm({ exercise, onComplete }: ExerciseFormProps) {
   const { toast } = useToast();
-  const { data: equipment = [] } = useQuery<EquipmentType[]>({
-    queryKey: ["/api/equipment"],
-  });
+  const { user } = useAuth();
+  const units = user?.preferredUnits ?? "kg";
 
   const form = useForm<InsertExercise>({
     resolver: zodResolver(insertExerciseSchema),
     defaultValues: {
       name: exercise?.name ?? "",
-      equipmentId: exercise?.equipmentId,
+      equipmentName: exercise?.equipmentName ?? "Barbell",
+      startingWeight: exercise?.startingWeight ?? (units === "lb" ? predefinedEquipment.Barbell.startingWeight * KG_TO_LB : predefinedEquipment.Barbell.startingWeight),
+      increment: exercise?.increment ?? (units === "lb" ? predefinedEquipment.Barbell.increment * KG_TO_LB : predefinedEquipment.Barbell.increment),
+      units,
       isArchived: exercise?.isArchived ?? false,
     },
   });
@@ -56,6 +59,22 @@ export default function ExerciseForm({ exercise, onComplete }: ExerciseFormProps
     },
   });
 
+  // Watch equipment type to update default values
+  const selectedEquipment = form.watch("equipmentName");
+
+  const handleEquipmentChange = (value: string) => {
+    form.setValue("equipmentName", value);
+
+    if (value in predefinedEquipment) {
+      const equipment = predefinedEquipment[value as keyof typeof predefinedEquipment];
+      const startingWeight = units === "lb" ? equipment.startingWeight * KG_TO_LB : equipment.startingWeight;
+      const increment = units === "lb" ? equipment.increment * KG_TO_LB : equipment.increment;
+
+      form.setValue("startingWeight", startingWeight);
+      form.setValue("increment", increment);
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-6">
@@ -75,13 +94,13 @@ export default function ExerciseForm({ exercise, onComplete }: ExerciseFormProps
 
         <FormField
           control={form.control}
-          name="equipmentId"
+          name="equipmentName"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Equipment</FormLabel>
               <Select
-                onValueChange={(value) => field.onChange(parseInt(value))}
-                value={field.value?.toString()}
+                onValueChange={handleEquipmentChange}
+                value={field.value}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -89,13 +108,58 @@ export default function ExerciseForm({ exercise, onComplete }: ExerciseFormProps
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {equipment.map((eq) => (
-                    <SelectItem key={eq.id} value={eq.id.toString()}>
+                  {Object.values(predefinedEquipment).map((eq) => (
+                    <SelectItem key={eq.name} value={eq.name}>
                       {eq.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="Custom">Custom Equipment</SelectItem>
                 </SelectContent>
               </Select>
+              {field.value === "Custom" && (
+                <Input
+                  placeholder="Enter custom equipment name"
+                  onChange={(e) => form.setValue("equipmentName", e.target.value)}
+                />
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="startingWeight"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Starting Weight ({units})</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type="number"
+                  step="0.1"
+                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="increment"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Weight Increment ({units})</FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type="number"
+                  step="0.1"
+                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -7,29 +7,19 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  age: integer("age"),
-  weight: real("weight"),
   preferredUnits: text("preferred_units", { enum: ["kg", "lb"] }).default("kg").notNull(),
   goals: text("goals"),
 });
 
-// Equipment types
-export const equipmentTypes = pgTable("equipment_types", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  name: text("name").notNull(),
-  defaultWeight: real("default_weight").notNull(),
-  increment: real("increment").notNull(),
-  units: text("units", { enum: ["kg", "lb"] }).notNull(),
-  isCustom: boolean("is_custom").default(false).notNull(),
-});
-
-// Exercises
+// Exercise model
 export const exercises = pgTable("exercises", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
-  equipmentId: integer("equipment_id").references(() => equipmentTypes.id),
+  equipmentName: text("equipment_name").notNull(),
+  startingWeight: real("starting_weight").notNull(),
+  increment: real("increment").notNull(),
+  units: text("units", { enum: ["kg", "lb"] }).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
 });
 
@@ -60,10 +50,6 @@ export const insertUserSchema = createInsertSchema(users).pick({
   preferredUnits: true,
 });
 
-export const insertEquipmentTypeSchema = createInsertSchema(equipmentTypes).omit({
-  id: true,
-});
-
 export const insertExerciseSchema = createInsertSchema(exercises).omit({
   id: true,
 });
@@ -76,12 +62,10 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs).omit({
   id: true,
 });
 
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
-
-export type EquipmentType = typeof equipmentTypes.$inferSelect;
-export type InsertEquipmentType = z.infer<typeof insertEquipmentTypeSchema>;
 
 export type Exercise = typeof exercises.$inferSelect;
 export type InsertExercise = z.infer<typeof insertExerciseSchema>;
@@ -95,3 +79,22 @@ export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 // Progression Scheme Types
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
 export type ProgressionScheme = typeof progressionSchemes[number];
+
+// Predefined Equipment
+export const predefinedEquipment = {
+  Barbell: {
+    name: "Barbell",
+    startingWeight: 20, // kg
+    increment: 2.5, // kg
+    units: "kg"
+  },
+  Dumbbell: {
+    name: "Dumbbell",
+    startingWeight: 2.5, // kg
+    increment: 1, // kg
+    units: "kg"
+  },
+} as const;
+
+// Unit conversion constant
+export const KG_TO_LB = 2.20462;

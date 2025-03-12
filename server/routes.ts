@@ -2,25 +2,11 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { insertExerciseSchema, insertWorkoutDaySchema, insertWorkoutLogSchema, insertEquipmentTypeSchema } from "@shared/schema";
+import { insertExerciseSchema, insertWorkoutDaySchema, insertWorkoutLogSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
-
-  // Equipment routes
-  app.get("/api/equipment", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const equipment = await storage.getEquipment(req.user.id);
-    res.json(equipment);
-  });
-
-  app.post("/api/equipment", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const parsed = insertEquipmentTypeSchema.parse({ ...req.body, userId: req.user.id });
-    const equipment = await storage.createEquipment(parsed);
-    res.json(equipment);
-  });
 
   // Exercise routes
   app.get("/api/exercises", async (req, res) => {

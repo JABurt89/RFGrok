@@ -1,7 +1,7 @@
 import { IStorage } from "@shared/schema";
-import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog, EquipmentType, InsertEquipmentType } from "@shared/schema";
+import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog } from "@shared/schema";
 import { db } from "./db";
-import { users, equipmentTypes, exercises, workoutDays, workoutLogs } from "@shared/schema";
+import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -32,15 +32,6 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
-  }
-
-  async getEquipment(userId: number | null): Promise<EquipmentType[]> {
-    return db.select().from(equipmentTypes).where(eq(equipmentTypes.userId, userId));
-  }
-
-  async createEquipment(insertEquipment: InsertEquipmentType): Promise<EquipmentType> {
-    const [equipment] = await db.insert(equipmentTypes).values(insertEquipment).returning();
-    return equipment;
   }
 
   async getExercises(userId: number): Promise<Exercise[]> {
