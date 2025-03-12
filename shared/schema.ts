@@ -2,6 +2,10 @@ import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Progression Scheme Types
+export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
+export type ProgressionScheme = typeof progressionSchemes[number];
+
 // User model with profile
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -45,6 +49,7 @@ export const workoutLogs = pgTable("workout_logs", {
 
 // Progression Scheme Types with parameters
 export type STSParameters = {
+  scheme: "STS";
   minSets: number;
   maxSets: number; // Extra set will be one above this
   minReps: number;
@@ -54,6 +59,7 @@ export type STSParameters = {
 };
 
 export type DoubleProgressionParameters = {
+  scheme: "Double Progression";
   targetSets: number;
   minReps: number;
   maxReps: number;
@@ -62,6 +68,7 @@ export type DoubleProgressionParameters = {
 };
 
 export type RPTParameters = {
+  scheme: "RPT Top-Set" | "RPT Individual";
   sets: number;
   targetReps: number;
   dropPercent: number; // e.g., 10 for 10% drop per set
@@ -75,42 +82,61 @@ export type WorkoutExercise = {
   parameters: STSParameters | DoubleProgressionParameters | RPTParameters;
 };
 
-// Zod schemas for validation
-const stsParametersSchema = z.object({
-  minSets: z.number(),
-  maxSets: z.number(),
-  minReps: z.number(),
-  maxReps: z.number(),
-  restBetweenSets: z.number(),
-  restBetweenExercises: z.number(),
-});
+// Default progression parameters
+export const defaultProgressionParameters = {
+  STS: {
+    scheme: "STS" as const,
+    minSets: 3,
+    maxSets: 3, // Extra set will be the 4th set if achieved
+    minReps: 6,
+    maxReps: 8,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "Double Progression": {
+    scheme: "Double Progression" as const,
+    targetSets: 3,
+    minReps: 8,
+    maxReps: 12,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Top-Set": {
+    scheme: "RPT Top-Set" as const,
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Individual": {
+    scheme: "RPT Individual" as const,
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+} as const;
 
-const doubleProgressionParametersSchema = z.object({
-  targetSets: z.number(),
-  minReps: z.number(),
-  maxReps: z.number(),
-  restBetweenSets: z.number(),
-  restBetweenExercises: z.number(),
-});
+// Predefined Equipment
+export const predefinedEquipment = {
+  Barbell: {
+    name: "Barbell",
+    startingWeight: 20, // kg
+    increment: 2.5, // kg
+    units: "kg"
+  },
+  Dumbbell: {
+    name: "Dumbbell",
+    startingWeight: 2.5, // kg
+    increment: 1, // kg
+    units: "kg"
+  },
+} as const;
 
-const rptParametersSchema = z.object({
-  sets: z.number(),
-  targetReps: z.number(),
-  dropPercent: z.number(),
-  restBetweenSets: z.number(),
-  restBetweenExercises: z.number(),
-});
-
-const workoutExerciseSchema = z.object({
-  exerciseId: z.number(),
-  scheme: z.enum(progressionSchemes),
-  parameters: z.discriminatedUnion("scheme", [
-    z.object({ scheme: z.literal("STS"), ...stsParametersSchema.shape }),
-    z.object({ scheme: z.literal("Double Progression"), ...doubleProgressionParametersSchema.shape }),
-    z.object({ scheme: z.literal("RPT Top-Set"), ...rptParametersSchema.shape }),
-    z.object({ scheme: z.literal("RPT Individual"), ...rptParametersSchema.shape }),
-  ]),
-});
+// Unit conversion constant
+export const KG_TO_LB = 2.20462;
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -121,6 +147,46 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export const insertExerciseSchema = createInsertSchema(exercises).omit({
   id: true,
+});
+
+const workoutExerciseSchema = z.object({
+  exerciseId: z.number(),
+  scheme: z.enum(progressionSchemes),
+  parameters: z.discriminatedUnion("scheme", [
+    z.object({
+      scheme: z.literal("STS"),
+      minSets: z.number(),
+      maxSets: z.number(),
+      minReps: z.number(),
+      maxReps: z.number(),
+      restBetweenSets: z.number(),
+      restBetweenExercises: z.number(),
+    }),
+    z.object({
+      scheme: z.literal("Double Progression"),
+      targetSets: z.number(),
+      minReps: z.number(),
+      maxReps: z.number(),
+      restBetweenSets: z.number(),
+      restBetweenExercises: z.number(),
+    }),
+    z.object({
+      scheme: z.literal("RPT Top-Set"),
+      sets: z.number(),
+      targetReps: z.number(),
+      dropPercent: z.number(),
+      restBetweenSets: z.number(),
+      restBetweenExercises: z.number(),
+    }),
+    z.object({
+      scheme: z.literal("RPT Individual"),
+      sets: z.number(),
+      targetReps: z.number(),
+      dropPercent: z.number(),
+      restBetweenSets: z.number(),
+      restBetweenExercises: z.number(),
+    }),
+  ]),
 });
 
 export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
@@ -145,59 +211,3 @@ export type InsertWorkoutDay = z.infer<typeof insertWorkoutDaySchema>;
 
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
-
-// Progression Scheme Types
-export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
-export type ProgressionScheme = typeof progressionSchemes[number];
-
-// Predefined Equipment
-export const predefinedEquipment = {
-  Barbell: {
-    name: "Barbell",
-    startingWeight: 20, // kg
-    increment: 2.5, // kg
-    units: "kg"
-  },
-  Dumbbell: {
-    name: "Dumbbell",
-    startingWeight: 2.5, // kg
-    increment: 1, // kg
-    units: "kg"
-  },
-} as const;
-
-// Unit conversion constant
-export const KG_TO_LB = 2.20462;
-
-// Default progression parameters
-export const defaultProgressionParameters = {
-  STS: {
-    minSets: 3,
-    maxSets: 3, // Extra set will be the 4th set if achieved
-    minReps: 6,
-    maxReps: 8,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "Double Progression": {
-    targetSets: 3,
-    minReps: 8,
-    maxReps: 12,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Top-Set": {
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Individual": {
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-} as const;

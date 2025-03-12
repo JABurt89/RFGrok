@@ -36,10 +36,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/workout-days", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const parsed = insertWorkoutDaySchema.parse({ ...req.body, userId: req.user.id });
-    const workoutDay = await storage.createWorkoutDay(parsed);
-    res.json(workoutDay);
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log("Creating workout day with body:", JSON.stringify(req.body, null, 2));
+
+      const parsed = insertWorkoutDaySchema.parse({
+        ...req.body,
+        userId: req.user.id
+      });
+
+      const workoutDay = await storage.createWorkoutDay(parsed);
+      res.json(workoutDay);
+    } catch (error) {
+      console.error("Error creating workout day:", error);
+      res.status(400).json({ error: error.message });
+    }
   });
 
   // Workout log routes
