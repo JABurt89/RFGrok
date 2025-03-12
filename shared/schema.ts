@@ -6,6 +6,113 @@ import { z } from "zod";
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
 export type ProgressionScheme = typeof progressionSchemes[number];
 
+// Unit conversion constant
+export const KG_TO_LB = 2.20462;
+
+// Equipment definitions
+export const predefinedEquipment = {
+  Barbell: {
+    name: "Barbell",
+    startingWeight: 20,
+    increment: 2.5,
+    units: "kg",
+  },
+  Dumbbell: {
+    name: "Dumbbell",
+    startingWeight: 2.5,
+    increment: 1,
+    units: "kg",
+  },
+} as const;
+
+// Common parameters for all progression schemes
+const commonParameters = {
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+};
+
+// Progression Parameters Schemas
+const stsParameters = z.object({
+  scheme: z.literal("STS"),
+  minSets: z.number().min(1),
+  maxSets: z.number().min(1),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  ...commonParameters,
+}).strict();
+
+const doubleProgressionParameters = z.object({
+  scheme: z.literal("Double Progression"),
+  targetSets: z.number().min(1),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  ...commonParameters,
+}).strict();
+
+const rptTopSetParameters = z.object({
+  scheme: z.literal("RPT Top-Set"),
+  sets: z.number().min(1),
+  targetReps: z.number().min(1),
+  dropPercent: z.number().min(0).max(100),
+  ...commonParameters,
+}).strict();
+
+const rptIndividualParameters = z.object({
+  scheme: z.literal("RPT Individual"),
+  sets: z.number().min(1),
+  targetReps: z.number().min(1),
+  dropPercent: z.number().min(0).max(100),
+  ...commonParameters,
+}).strict();
+
+// Default progression parameters
+export const defaultProgressionParameters = {
+  "STS": {
+    scheme: "STS" as const,
+    minSets: 3,
+    maxSets: 4,
+    minReps: 6,
+    maxReps: 8,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "Double Progression": {
+    scheme: "Double Progression" as const,
+    targetSets: 3,
+    minReps: 8,
+    maxReps: 12,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Top-Set": {
+    scheme: "RPT Top-Set" as const,
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Individual": {
+    scheme: "RPT Individual" as const,
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+} as const;
+
+// Workout Exercise Schema with corrected discriminated union
+const workoutExerciseSchema = z.object({
+  exerciseId: z.number(),
+  parameters: z.discriminatedUnion("scheme", [
+    stsParameters,
+    doubleProgressionParameters,
+    rptTopSetParameters,
+    rptIndividualParameters,
+  ]),
+}).strict();
+
 // Database tables
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -52,112 +159,6 @@ export const workoutLogs = pgTable("workout_logs", {
   }>(),
   isComplete: boolean("is_complete").default(false).notNull(),
 });
-
-// Progression Parameters Schemas
-const commonParameters = {
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
-};
-
-const stsParameters = z.object({
-  scheme: z.literal("STS"),
-  minSets: z.number().min(1),
-  maxSets: z.number().min(1),
-  minReps: z.number().min(1),
-  maxReps: z.number().min(1),
-  ...commonParameters,
-}).strict();
-
-const doubleProgressionParameters = z.object({
-  scheme: z.literal("Double Progression"),
-  targetSets: z.number().min(1),
-  minReps: z.number().min(1),
-  maxReps: z.number().min(1),
-  ...commonParameters,
-}).strict();
-
-const rptTopSetParameters = z.object({
-  scheme: z.literal("RPT Top-Set"),
-  sets: z.number().min(1),
-  targetReps: z.number().min(1),
-  dropPercent: z.number().min(0).max(100),
-  ...commonParameters,
-}).strict();
-
-const rptIndividualParameters = z.object({
-  scheme: z.literal("RPT Individual"),
-  sets: z.number().min(1),
-  targetReps: z.number().min(1),
-  dropPercent: z.number().min(0).max(100),
-  ...commonParameters,
-}).strict();
-
-// Workout Exercise Schema with corrected discriminated union
-const workoutExerciseSchema = z.object({
-  exerciseId: z.number(),
-  parameters: z.discriminatedUnion("scheme", [
-    stsParameters,
-    doubleProgressionParameters,
-    rptTopSetParameters,
-    rptIndividualParameters,
-  ]),
-}).strict();
-
-// Default progression parameters
-export const defaultParameters = {
-  STS: {
-    scheme: "STS" as const,
-    minSets: 3,
-    maxSets: 3,
-    minReps: 6,
-    maxReps: 8,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "Double Progression": {
-    scheme: "Double Progression" as const,
-    targetSets: 3,
-    minReps: 8,
-    maxReps: 12,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Top-Set": {
-    scheme: "RPT Top-Set" as const,
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Individual": {
-    scheme: "RPT Individual" as const,
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-} as const;
-
-// Equipment definitions
-export const predefinedEquipment = {
-  Barbell: {
-    name: "Barbell",
-    startingWeight: 20,
-    increment: 2.5,
-    units: "kg",
-  },
-  Dumbbell: {
-    name: "Dumbbell",
-    startingWeight: 2.5,
-    increment: 1,
-    units: "kg",
-  },
-} as const;
-
-// Unit conversion constant
-export const KG_TO_LB = 2.20462;
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
