@@ -20,7 +20,7 @@ type WorkoutLoggerProps = {
 type ExerciseSet = {
   reps: number;
   weight: number;
-  timestamp: string;
+  timestamp: string | null; // Updated to allow null
   isCompleted?: boolean;
   actualReps?: number;
 };
@@ -44,38 +44,27 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// Standalone helper function for date validation
+// (Keeping ensureValidDate function as is, though it's less critical now)
 const ensureValidDate = (dateInput: Date | string | number): string => {
   try {
     if (dateInput) {
       if (typeof dateInput === 'object' && dateInput instanceof Date) {
         return dateInput.toISOString();
       } else if (typeof dateInput === 'number') {
-        // If it's a number (timestamp in milliseconds), convert to Date then ISO string
         return new Date(dateInput).toISOString();
       } else if (typeof dateInput === 'string') {
-        // If it's already a string but not in ISO format, try to parse and convert
-        try {
-          const date = new Date(dateInput);
-          if (!isNaN(date.getTime())) {
-            return date.toISOString();
-          } else {
-            // If parsing fails, use current time
-            console.warn('Invalid date string, using current time:', dateInput);
-            return new Date().toISOString();
-          }
-        } catch (e) {
-          // If any error in parsing, use current time
-          console.warn('Error parsing date string, using current time:', e);
+        const date = new Date(dateInput);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        } else {
+          console.warn('Invalid date string, using current time:', dateInput);
           return new Date().toISOString();
         }
       } else {
-        // If timestamp exists but is of an invalid type, use current time
         console.warn('Invalid date type, using current time:', typeof dateInput);
         return new Date().toISOString();
       }
     } else {
-      // If no timestamp exists, use current time
       console.warn('No date provided, using current time');
       return new Date().toISOString();
     }
@@ -109,7 +98,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   };
 
   useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
+    if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return;
 
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
@@ -134,26 +123,19 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Create a proper workout log with valid timestamps.  Workaround for missing currentWorkout
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()), 
-        sets: Object.entries(workoutState).map(([exerciseId, data]) => {
-          const processedSets = data.sets.map(set => {
-            let timestamp = ensureValidDate(set.timestamp);
-            return {
-              reps: set.actualReps || set.reps,
-              weight: set.weight,
-              timestamp: timestamp
-            };
-          });
-          return {
-            exerciseId: parseInt(exerciseId),
-            sets: processedSets,
-            extraSetReps: data.extraSetReps,
-            oneRm: data.oneRm,
-          };
-        }),
+        date: new Date().toISOString(), // Simplified
+        sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+          exerciseId: parseInt(exerciseId),
+          sets: data.sets.map(set => ({
+            reps: set.actualReps || set.reps,
+            weight: set.weight,
+            timestamp: set.timestamp // Use directly: string or null
+          })),
+          extraSetReps: data.extraSetReps,
+          oneRm: data.oneRm,
+        })),
         isComplete: false
       };
 
@@ -193,7 +175,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         ...currentSets[setIndex],
         isCompleted: completed,
         actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: ensureValidDate(new Date())
+        timestamp: completed ? new Date().toISOString() : null // Set string only on completion
       };
 
       return {
@@ -221,12 +203,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setWorkoutState(prev => ({
       ...prev,
       [exerciseId]: {
-        sets: Array(combination.sets).fill({
+        sets: Array.from({ length: combination.sets }, () => ({
           weight: combination.weight,
           reps: combination.reps,
-          timestamp: ensureValidDate(new Date()),
-          isCompleted: false
-        }),
+          isCompleted: false,
+          timestamp: null // Null until completed
+        })),
         selectedCombination: combination,
         plannedSets: combination.sets
       }
@@ -390,7 +372,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          const reps = prompt(`Enter actual reps achieved (target: ${set.reps}):`)
+                          const reps = prompt(`Enter actual reps achieved (target: ${set.reps}):`);
                           if (reps !== null) {
                             handleSetComplete(index, true, parseInt(reps));
                           }
