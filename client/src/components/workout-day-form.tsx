@@ -12,33 +12,31 @@ interface WorkoutDayFormProps {
   submitWorkoutDay: (data: Partial<WorkoutDay>) => void;
 }
 
-interface BaseParameters {
-  scheme: string;
-  sets: number;
-  reps: number;
-  restBetweenSets: number;
-  restBetweenExercises: number;
-}
-
-interface STSParameters extends BaseParameters {
+interface STSParameters {
   scheme: "STS";
   minSets: number;
   maxSets: number;
   minReps: number;
   maxReps: number;
+  restBetweenSets: number;
+  restBetweenExercises: number;
 }
 
-interface DoubleProgressionParameters extends BaseParameters {
+interface DoubleProgressionParameters {
   scheme: "Double Progression";
   targetSets: number;
   minReps: number;
   maxReps: number;
+  restBetweenSets: number;
+  restBetweenExercises: number;
 }
 
-interface RPTParameters extends BaseParameters {
+interface RPTParameters {
   scheme: "RPT Top-Set" | "RPT Individual";
   targetReps: number;
   dropPercent: number;
+  restBetweenSets: number;
+  restBetweenExercises: number;
 }
 
 type ExerciseParameters = STSParameters | DoubleProgressionParameters | RPTParameters;
@@ -57,32 +55,32 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
     exerciseId: z.number().min(1, "Exercise selection is required"),
-    parameters: z.object({
-      scheme: z.string(),
-      sets: z.number(),
-      reps: z.number(),
-      restBetweenSets: z.number(),
-      restBetweenExercises: z.number(),
-    }).and(z.union([
+    parameters: z.union([
       z.object({
         scheme: z.literal("STS"),
         minSets: z.number(),
         maxSets: z.number(),
         minReps: z.number(),
         maxReps: z.number(),
+        restBetweenSets: z.number(),
+        restBetweenExercises: z.number(),
       }),
       z.object({
         scheme: z.literal("Double Progression"),
         targetSets: z.number(),
         minReps: z.number(),
         maxReps: z.number(),
+        restBetweenSets: z.number(),
+        restBetweenExercises: z.number(),
       }),
       z.object({
         scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
         targetReps: z.number(),
         dropPercent: z.number(),
+        restBetweenSets: z.number(),
+        restBetweenExercises: z.number(),
       }),
-    ])),
+    ]),
   })),
 });
 
@@ -93,16 +91,12 @@ const defaultParameters: Record<string, ExerciseParameters> = {
     maxSets: 4,
     minReps: 8,
     maxReps: 12,
-    sets: 3,
-    reps: 10,
     restBetweenSets: 90,
     restBetweenExercises: 180
   },
   "Double Progression": {
     scheme: "Double Progression",
     targetSets: 3,
-    sets: 3,
-    reps: 8,
     minReps: 6,
     maxReps: 8,
     restBetweenSets: 90,
@@ -110,8 +104,6 @@ const defaultParameters: Record<string, ExerciseParameters> = {
   },
   "RPT Top-Set": {
     scheme: "RPT Top-Set",
-    sets: 3,
-    reps: 6,
     targetReps: 6,
     dropPercent: 10,
     restBetweenSets: 180,
@@ -119,8 +111,6 @@ const defaultParameters: Record<string, ExerciseParameters> = {
   },
   "RPT Individual": {
     scheme: "RPT Individual",
-    sets: 3,
-    reps: 6,
     targetReps: 6,
     dropPercent: 10,
     restBetweenSets: 180,
