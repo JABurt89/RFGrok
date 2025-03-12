@@ -6,10 +6,13 @@ import { Link } from "wouter";
 import { Home, Plus, DumbbellIcon, Edit, Play } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import WorkoutLogger from "@/components/workout-logger";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 function WorkoutsPage() {
+  const { toast } = useToast();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
@@ -23,12 +26,36 @@ function WorkoutsPage() {
     queryKey: ["/api/exercises"],
   });
 
-  const submitWorkoutDay = (data: WorkoutDay) => {
+  // Create workout mutation
+  const createWorkoutMutation = useMutation({
+    mutationFn: async (data: Partial<WorkoutDay>) => {
+      const response = await apiRequest("POST", "/api/workout-days", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create workout");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
+      toast({
+        title: "Success",
+        description: "Workout day created successfully",
+      });
+      setIsSheetOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitWorkoutDay = (data: Partial<WorkoutDay>) => {
     console.log("Workout day submitted:", data);
-    if (editingWorkout !== null) {
-      setEditingWorkout(null);
-    }
-    setIsSheetOpen(false);
+    createWorkoutMutation.mutate(data);
   };
 
   const handleEdit = (workout: WorkoutDay) => {
@@ -93,6 +120,7 @@ function WorkoutsPage() {
             <SheetContent>
               <WorkoutDayForm 
                 submitWorkoutDay={submitWorkoutDay}
+                key={isSheetOpen ? "open" : "closed"} // Force form reset when sheet opens/closes
               />
             </SheetContent>
           </Sheet>
