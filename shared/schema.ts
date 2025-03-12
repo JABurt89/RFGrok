@@ -179,9 +179,21 @@ export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
     exercises: z.array(workoutExerciseSchema),
   });
 
-export const insertWorkoutLogSchema = createInsertSchema(workoutLogs).omit({
-  id: true,
-});
+export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
+  .omit({ id: true })
+  .extend({
+    date: z.union([z.date(), z.string().datetime()]),
+    sets: z.array(z.object({
+      exerciseId: z.number(),
+      sets: z.array(z.object({
+        reps: z.number(),
+        weight: z.number(),
+        timestamp: z.string().datetime()
+      })),
+      extraSetReps: z.number().optional(),
+      oneRm: z.number().optional()
+    }))
+  });
 
 // TypeScript types
 export type User = typeof users.$inferSelect;
@@ -193,7 +205,23 @@ export type InsertExercise = z.infer<typeof insertExerciseSchema>;
 export type WorkoutDay = typeof workoutDays.$inferSelect;
 export type InsertWorkoutDay = z.infer<typeof insertWorkoutDaySchema>;
 
-export type WorkoutLog = typeof workoutLogs.$inferSelect;
+export type WorkoutLog = {
+  id?: number;
+  userId?: number;
+  workoutDayId: number;
+  date: Date | string;
+  sets: {
+    exerciseId: number;
+    sets: Array<{
+      reps: number;
+      weight: number;
+      timestamp: string;
+    }>;
+    extraSetReps?: number;
+    oneRm?: number;
+  }[];
+  isComplete?: boolean;
+};
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;

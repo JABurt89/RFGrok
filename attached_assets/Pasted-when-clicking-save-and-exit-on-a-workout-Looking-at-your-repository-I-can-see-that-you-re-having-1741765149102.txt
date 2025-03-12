@@ -1,0 +1,34 @@
+when clicking "save and exit" on a workout.
+Looking at your repository, I can see that you're having an issue with date validation when saving workouts. The error indicates that the API is expecting a date type but receiving a string instead.
+Let's examine the relevant code from your repository and fix this issue:
+Fix for Workout Save ErrorClick to open codeTap to open
+Updated WorkoutLog Type DefinitionClick to open codeTap to open
+Explanation of the Issue
+The error you're encountering (Expected date, received string) indicates that your backend API is expecting a Date object for the date field, but you're sending a string instead. This is a common issue when working with dates in JavaScript/TypeScript applications.
+Why Your Previous Attempts Didn't Work
+Looking at your recent commits, I notice you tried to fix this by:
+
+Modifying the type definition to allow string dates
+Using new Date() in some places
+
+However, the problem is likely in how the data is being processed before sending it to the server. When you serialize an object to JSON using JSON.stringify(), Date objects get converted to ISO string format. Then, when your API receives this, it expects a Date object but gets a string.
+The Solution
+The fix I provided does the following:
+
+Creates a copy of the workout data to avoid mutating the original
+Checks if the date is a string and converts it to a Date object
+Also checks each set's timestamp and converts those if they're strings
+Updates the WorkoutLog type to accept both Date and string for flexibility
+
+This approach ensures that:
+
+The data sent to the server has proper Date objects
+The type definitions are consistent with the actual data
+
+Implementation Steps
+
+Update your workoutService.ts file with the fixed saveWorkout function
+Make sure your WorkoutLog type definition includes both Date and string as possible types
+If you're using a validation library like Zod or Joi on the backend, you might need to update the validation schema there too
+
+This solution should resolve the 400 error you're receiving when trying to save workouts.

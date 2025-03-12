@@ -46,17 +46,22 @@ type WorkoutView = "setup" | "active";
 
 // Helper function to ensure valid date format
 const ensureValidDate = (dateInput: Date | string): string => {
-  if (dateInput instanceof Date) {
-    return dateInput.toISOString();
-  } else if (typeof dateInput === 'string') {
-    const parsedDate = new Date(dateInput);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate.toISOString();
+  try {
+    if (dateInput instanceof Date) {
+      return dateInput.toISOString();
+    } else if (typeof dateInput === 'string') {
+      const parsedDate = new Date(dateInput);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toISOString();
+      }
     }
+    // Fallback to current date if invalid
+    console.warn('Invalid date detected, using current date:', dateInput);
+    return new Date().toISOString();
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return new Date().toISOString();
   }
-  // Fallback to current date if invalid
-  console.warn('Invalid date detected, using current date:', dateInput);
-  return new Date().toISOString();
 };
 
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
@@ -110,15 +115,30 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
       try {
-        console.log('Attempting to save workout with data:', JSON.stringify(workoutLog, null, 2));
-        const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+        // Create a copy of the data to format
+        const formattedWorkoutLog = {
+          ...workoutLog,
+          date: ensureValidDate(workoutLog.date || new Date()),
+          sets: workoutLog.sets?.map(set => ({
+            ...set,
+            sets: set.sets.map(s => ({
+              ...s,
+              timestamp: ensureValidDate(s.timestamp)
+            }))
+          }))
+        };
+
+        console.log('Attempting to save workout with formatted data:',
+          JSON.stringify(formattedWorkoutLog, null, 2));
+
+        const response = await apiRequest("POST", "/api/workout-logs", formattedWorkoutLog);
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
         }
         return response.json();
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Error saving workout:', error);
         throw error;
       }
     },
@@ -175,7 +195,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()),
+        date: new Date().toISOString(), // Send as ISO string
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
           sets: data.sets.map(set => ({
