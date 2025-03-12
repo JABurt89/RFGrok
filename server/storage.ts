@@ -1,135 +1,94 @@
 import { IStorage } from "@shared/schema";
 import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog, EquipmentType, InsertEquipmentType } from "@shared/schema";
+import { db } from "./db";
+import { users, equipmentTypes, exercises, workoutDays, workoutLogs } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private equipment: Map<number, EquipmentType>;
-  private exercises: Map<number, Exercise>;
-  private workoutDays: Map<number, WorkoutDay>;
-  private workoutLogs: Map<number, WorkoutLog>;
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
-  currentId: number;
 
   constructor() {
-    this.users = new Map();
-    this.equipment = new Map();
-    this.exercises = new Map();
-    this.workoutDays = new Map();
-    this.workoutLogs = new Map();
-    this.currentId = 1;
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000,
-    });
-
-    // Add default equipment
-    this.equipment.set(1, {
-      id: 1,
-      userId: null,
-      name: "Barbell",
-      defaultWeight: 20,
-      increment: 2.5,
-      units: "kg",
-      isCustom: false,
-    });
-    this.equipment.set(2, {
-      id: 2,
-      userId: null,
-      name: "Dumbbell",
-      defaultWeight: 2.5,
-      increment: 1,
-      units: "kg",
-      isCustom: false,
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     });
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.email === email,
-    );
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getEquipment(userId: number | null): Promise<EquipmentType[]> {
-    return Array.from(this.equipment.values()).filter(
-      (eq) => eq.userId === userId || eq.userId === null,
-    );
+    return db.select().from(equipmentTypes).where(eq(equipmentTypes.userId, userId));
   }
 
   async createEquipment(insertEquipment: InsertEquipmentType): Promise<EquipmentType> {
-    const id = this.currentId++;
-    const equipment: EquipmentType = { ...insertEquipment, id };
-    this.equipment.set(id, equipment);
+    const [equipment] = await db.insert(equipmentTypes).values(insertEquipment).returning();
     return equipment;
   }
 
   async getExercises(userId: number): Promise<Exercise[]> {
-    return Array.from(this.exercises.values()).filter(
-      (ex) => ex.userId === userId,
-    );
+    return db.select().from(exercises).where(eq(exercises.userId, userId));
   }
 
   async createExercise(insertExercise: InsertExercise): Promise<Exercise> {
-    const id = this.currentId++;
-    const exercise: Exercise = { ...insertExercise, id };
-    this.exercises.set(id, exercise);
+    const [exercise] = await db.insert(exercises).values(insertExercise).returning();
     return exercise;
   }
 
   async updateExercise(id: number, exercise: Partial<Exercise>): Promise<Exercise> {
-    const existing = this.exercises.get(id);
-    if (!existing) throw new Error("Exercise not found");
-    const updated = { ...existing, ...exercise };
-    this.exercises.set(id, updated);
+    const [updated] = await db
+      .update(exercises)
+      .set(exercise)
+      .where(eq(exercises.id, id))
+      .returning();
+    if (!updated) throw new Error("Exercise not found");
     return updated;
   }
 
   async getWorkoutDays(userId: number): Promise<WorkoutDay[]> {
-    return Array.from(this.workoutDays.values()).filter(
-      (wd) => wd.userId === userId,
-    );
+    return db.select().from(workoutDays).where(eq(workoutDays.userId, userId));
   }
 
   async createWorkoutDay(insertWorkoutDay: InsertWorkoutDay): Promise<WorkoutDay> {
-    const id = this.currentId++;
-    const workoutDay: WorkoutDay = { ...insertWorkoutDay, id };
-    this.workoutDays.set(id, workoutDay);
+    const [workoutDay] = await db.insert(workoutDays).values(insertWorkoutDay).returning();
     return workoutDay;
   }
 
   async getWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
-    return Array.from(this.workoutLogs.values()).filter(
-      (wl) => wl.userId === userId,
-    );
+    return db.select().from(workoutLogs).where(eq(workoutLogs.userId, userId));
   }
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
-    const id = this.currentId++;
-    const workoutLog: WorkoutLog = { ...insertWorkoutLog, id };
-    this.workoutLogs.set(id, workoutLog);
+    const [workoutLog] = await db.insert(workoutLogs).values(insertWorkoutLog).returning();
     return workoutLog;
   }
 
   async updateWorkoutLog(id: number, workoutLog: Partial<WorkoutLog>): Promise<WorkoutLog> {
-    const existing = this.workoutLogs.get(id);
-    if (!existing) throw new Error("Workout log not found");
-    const updated = { ...existing, ...workoutLog };
-    this.workoutLogs.set(id, updated);
+    const [updated] = await db
+      .update(workoutLogs)
+      .set(workoutLog)
+      .where(eq(workoutLogs.id, id))
+      .returning();
+    if (!updated) throw new Error("Workout log not found");
     return updated;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
