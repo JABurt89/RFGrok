@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise, STSParameters, DoubleProgressionParameters, RPTParameters } from "@shared/schema";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { WorkoutDay, WorkoutLog, Exercise, STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type WorkoutLoggerProps = {
   workoutDay: WorkoutDay;
@@ -36,15 +36,21 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
 
-  const currentExercise = workoutDay.exercises[currentExerciseIndex];
-  const exerciseProgress = workoutState[currentExercise?.exerciseId];
+  // Fetch exercises data
+  const { data: exercises, isLoading } = useQuery<Exercise[]>({
+    queryKey: ["/api/exercises"],
+  });
+
+  const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
+  const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
+  const exerciseProgress = workoutState[currentExerciseData?.exerciseId || 0];
 
   // Get rest times from the current exercise's parameters
   const getRestTimes = () => {
-    if (!currentExercise) return { setRest: 90, exerciseRest: 180 };
+    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
     return {
-      setRest: currentExercise.parameters.restBetweenSets,
-      exerciseRest: currentExercise.parameters.restBetweenExercises,
+      setRest: currentExerciseData.parameters.restBetweenSets,
+      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
     };
   };
 
@@ -100,12 +106,13 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
   const handleSetComplete = (reps: number, weight: number) => {
     const timestamp = new Date().toISOString();
-    const exerciseId = currentExercise.exerciseId;
+    const exerciseId = currentExerciseData?.exerciseId;
 
     setWorkoutState(prev => ({
       ...prev,
-      [exerciseId]: {
-        sets: [...(prev[exerciseId]?.sets || []), { reps, weight, timestamp }],
+      [exerciseId || 0]: {
+        ...prev[exerciseId || 0],
+        sets: [...(prev[exerciseId || 0]?.sets || []), { reps, weight, timestamp }],
       },
     }));
 
@@ -114,18 +121,20 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setRestTimer(setRest);
 
     // Check if all planned sets are complete for STS
-    if (currentExercise.parameters.scheme === "STS" && 
-        workoutState[exerciseId]?.sets.length === (currentExercise.parameters as STSParameters).maxSets) {
-      setShowExtraSetPrompt(true);
+    if (currentExerciseData?.parameters.scheme === "STS") {
+      const stsParams = currentExerciseData.parameters as STSParameters;
+      if (workoutState[exerciseId || 0]?.sets.length === stsParams.maxSets -1 ) {
+        setShowExtraSetPrompt(true);
+      }
     }
   };
 
   const handleExtraSet = (reps: number) => {
-    const exerciseId = currentExercise.exerciseId;
+    const exerciseId = currentExerciseData?.exerciseId;
     setWorkoutState(prev => ({
       ...prev,
-      [exerciseId]: {
-        ...prev[exerciseId],
+      [exerciseId || 0]: {
+        ...prev[exerciseId || 0],
         extraSetReps: reps,
       },
     }));
@@ -140,7 +149,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       setRestTimer(exerciseRest);
     } else {
       // Workout complete, prepare workout log
-      const workoutLog: Partial<WorkoutLog> = {
+      const workoutLog = {
         workoutDayId: workoutDay.id,
         date: new Date(),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
@@ -157,7 +166,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   };
 
   const handleSaveAndExit = () => {
-    const workoutLog: Partial<WorkoutLog> = {
+    const workoutLog = {
       workoutDayId: workoutDay.id,
       date: new Date(),
       sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
@@ -171,6 +180,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
     saveWorkoutMutation.mutate(workoutLog);
   };
+
+  if (!currentExercise || isLoading) return <div>Loading...</div>;
 
   return (
     <div className="space-y-6">
@@ -192,7 +203,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       <Card>
         <CardHeader>
           <CardTitle>
-            {currentExercise?.name} - Set {(workoutState[currentExercise?.exerciseId]?.sets.length ?? 0) + 1}
+            {currentExercise.name} - Set {(workoutState[currentExerciseData.exerciseId || 0]?.sets.length ?? 0) + 1}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -211,8 +222,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           <Button 
             className="w-full"
             onClick={() => {
-              const weight = parseFloat((document.getElementById("weight") as HTMLInputElement).value);
-              const reps = parseInt((document.getElementById("reps") as HTMLInputElement).value);
+              const weight = parseFloat((document.getElementById("weight") as HTMLInputElement)?.value || "0");
+              const reps = parseInt((document.getElementById("reps") as HTMLInputElement)?.value || "0");
               if (!isNaN(weight) && !isNaN(reps)) {
                 handleSetComplete(reps, weight);
               }
@@ -239,7 +250,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
               Skip
             </Button>
             <Button onClick={() => {
-              const reps = parseInt((document.getElementById("extraSetReps") as HTMLInputElement).value);
+              const reps = parseInt((document.getElementById("extraSetReps") as HTMLInputElement)?.value || "0");
               if (!isNaN(reps)) {
                 handleExtraSet(reps);
               }

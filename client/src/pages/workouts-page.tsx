@@ -3,61 +3,51 @@ import { WorkoutDayForm } from "../components/workout-day-form";
 import { Sheet, SheetContent, SheetTrigger } from "../components/ui/sheet";
 import { Button } from "../components/ui/button";
 import { Link } from "wouter";
-import { Home, Plus, DumbbellIcon, Edit } from "lucide-react";
-
-interface WorkoutDay {
-  name: string;
-  exercises: {
-    exerciseId: number;
-    progression: {
-      scheme: string;
-      sets: number;
-      reps: number;
-      restBetweenSets: number;
-      restBetweenExercises: number;
-      [key: string]: any; // For additional scheme-specific parameters
-    };
-  }[];
-}
+import { Home, Plus, DumbbellIcon, Edit, Play } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import WorkoutLogger from "@/components/workout-logger";
+import { useQuery } from "@tanstack/react-query";
+import { WorkoutDay } from "@shared/schema";
 
 function WorkoutsPage() {
-  const [workouts, setWorkouts] = useState<WorkoutDay[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
+
+  // Fetch workouts
+  const { data: workouts = [] } = useQuery<WorkoutDay[]>({
+    queryKey: ["/api/workout-days"],
+  });
 
   const submitWorkoutDay = (data: WorkoutDay) => {
     console.log("Workout day submitted:", data);
     if (editingWorkout !== null) {
       // Update existing workout
-      setWorkouts(prev => {
-        const updated = [...prev];
-        updated[editingWorkout.index] = data;
-        return updated;
-      });
       setEditingWorkout(null);
-    } else {
-      // Add new workout
-      setWorkouts(prev => [...prev, data]);
     }
     setIsSheetOpen(false);
   };
 
-  const handleEdit = (index: number, workout: WorkoutDay) => {
-    setEditingWorkout({ index, workout });
+  const handleEdit = (workout: WorkoutDay) => {
+    setEditingWorkout({ index: workouts.findIndex(w => w.id === workout.id), workout });
     setIsSheetOpen(true);
   };
 
-  const formatSchemeDetails = (progression: WorkoutDay["exercises"][0]["progression"]) => {
-    const base = `${progression.sets} sets × ${progression.reps} reps`;
+  const handleBeginWorkout = (workout: WorkoutDay) => {
+    setActiveWorkout(workout);
+  };
+
+  const formatSchemeDetails = (progression: WorkoutDay["exercises"][0]["parameters"]) => {
+    const base = `${progression.scheme}`;
 
     switch (progression.scheme) {
       case "STS":
-        return `${base} (${progression.minReps}-${progression.maxReps} reps range)`;
+        return `${base} (${progression.minReps}-${progression.maxReps} reps)`;
       case "Double Progression":
         return `${base} (Target: ${progression.targetSets} sets)`;
       case "RPT Top-Set":
       case "RPT Individual":
-        return `${base} (${progression.dropPercent}% drop per set)`;
+        return `${base} (${progression.dropPercent}% drop)`;
       default:
         return base;
     }
@@ -96,8 +86,7 @@ function WorkoutsPage() {
             </SheetTrigger>
             <SheetContent>
               <WorkoutDayForm 
-                submitWorkoutDay={submitWorkoutDay} 
-                workoutDay={editingWorkout?.workout}
+                submitWorkoutDay={submitWorkoutDay}
               />
             </SheetContent>
           </Sheet>
@@ -109,28 +98,38 @@ function WorkoutsPage() {
               <p className="text-muted-foreground">No workouts yet. Click "Add Workout Day" to create your first workout.</p>
             </div>
           ) : (
-            workouts.map((workout, index) => (
-              <div key={index} className="border rounded-lg p-4 space-y-4">
+            workouts.map((workout) => (
+              <div key={workout.id} className="border rounded-lg p-4 space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                   <h3 className="text-xl font-semibold">{workout.name}</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEdit(index, workout)}
-                    className="flex items-center gap-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(workout)}
+                      className="flex items-center gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleBeginWorkout(workout)}
+                      className="flex items-center gap-2"
+                    >
+                      <Play className="h-4 w-4" />
+                      Begin Workout
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   {workout.exercises.map((exercise, idx) => (
                     <div key={idx} className="pl-4 py-2 border-l-2">
                       <p className="font-medium">Exercise {idx + 1}</p>
                       <div className="text-sm text-muted-foreground space-y-1">
-                        <p>Scheme: {exercise.progression.scheme}</p>
-                        <p>{formatSchemeDetails(exercise.progression)}</p>
-                        <p>Rest: {exercise.progression.restBetweenSets}s between sets / {exercise.progression.restBetweenExercises}s between exercises</p>
+                        <p>Scheme: {formatSchemeDetails(exercise.parameters)}</p>
+                        <p>Rest: {exercise.parameters.restBetweenSets}s between sets / {exercise.parameters.restBetweenExercises}s between exercises</p>
                       </div>
                     </div>
                   ))}
@@ -140,6 +139,18 @@ function WorkoutsPage() {
           )}
         </div>
       </div>
+
+      {/* Active Workout Dialog */}
+      <Dialog open={activeWorkout !== null} onOpenChange={(open) => !open && setActiveWorkout(null)}>
+        <DialogContent className="max-w-lg">
+          {activeWorkout && (
+            <WorkoutLogger
+              workoutDay={activeWorkout}
+              onComplete={() => setActiveWorkout(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
