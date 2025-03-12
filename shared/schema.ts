@@ -12,7 +12,8 @@ export const KG_TO_LB = 2.20462;
 // Equipment definitions
 export const predefinedEquipment = {
   Barbell: { name: "Barbell", startingWeight: 20, increment: 2.5, units: "kg" },
-  Dumbbell: { name: "Dumbbell", startingWeight: 2.5, increment: 1, units: "kg" },
+  Dumbbell: { name: "Dumbbell", startingWeight: 2.5, increment: 2.5, units: "kg" }
+  Cables: { name: "Cables", startingWeight: 25, increment: 15, units: "kg" },
 } as const;
 
 // Common parameters for all progression schemes
@@ -21,7 +22,7 @@ const commonParameters = {
   restBetweenExercises: z.number().min(0),
 };
 
-// Make timestamp validation more flexible
+// Flexible timestamp validation for ISO 8601 strings
 const timestampSchema = z.string().datetime({
   message: "Invalid timestamp format. Must be an ISO 8601 datetime string.",
 });
@@ -119,7 +120,7 @@ export type WorkoutSet = {
   sets: Array<{
     reps: number;
     weight: number;
-    timestamp: string;
+    timestamp: string | null; // Allow null for uncompleted sets
   }>;
   extraSetReps?: number;
   oneRm?: number;
@@ -158,17 +159,17 @@ export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
 export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
   .omit({ id: true })
   .extend({
-    date: z.union([z.date(), timestampSchema]),
+    date: timestampSchema, // Expect ISO 8601 string
     sets: z.array(z.object({
       exerciseId: z.number(),
       sets: z.array(z.object({
         reps: z.number(),
         weight: z.number(),
-        timestamp: timestampSchema
+        timestamp: timestampSchema.nullable(), // Allow null for uncompleted sets
       })),
       extraSetReps: z.number().optional(),
       oneRm: z.number().optional(),
-    }))
+    })),
   });
 
 // TypeScript types
@@ -185,7 +186,7 @@ export type WorkoutLog = {
   id?: number;
   userId?: number;
   workoutDayId: number;
-  date: Date | string;
+  date: string; // ISO 8601 string
   sets: WorkoutSet[];
   isComplete?: boolean;
 };
