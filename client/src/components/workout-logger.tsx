@@ -62,7 +62,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
 
   // Get last workout log for the current exercise
-  const lastWorkoutLog = workoutLogs?.find(log => 
+  const lastWorkoutLog = workoutLogs?.find(log =>
     log.sets.find(s => s.exerciseId === currentExerciseData?.exerciseId) && log.isComplete
   );
 
@@ -75,7 +75,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
   // Generate STS combinations
   useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters.scheme === "STS") return;
+    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
 
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
@@ -141,17 +141,17 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const handleSetComplete = (reps: number, weight: number) => {
     if (!currentExerciseData) return;
 
-    const timestamp = new Date().toISOString();
     const exerciseId = currentExerciseData.exerciseId;
-
     setWorkoutState(prev => {
-      const updatedSets = [...(prev[exerciseId]?.sets || []), { reps, weight, timestamp }];
+      // Initialize the exercise state if it doesn't exist
+      const currentExerciseState = prev[exerciseId] || { sets: [], oneRm: undefined, extraSetReps: undefined };
+      const updatedSets = [...currentExerciseState.sets, { reps, weight, timestamp: new Date().toISOString() }];
       const oneRm = calculate1RM(weight, reps, updatedSets.length);
 
       return {
         ...prev,
         [exerciseId]: {
-          ...prev[exerciseId],
+          ...currentExerciseState,
           sets: updatedSets,
           oneRm
         }
@@ -165,7 +165,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     // Check if all planned sets are complete for STS
     if (currentExerciseData.parameters.scheme === "STS") {
       const stsParams = currentExerciseData.parameters as STSParameters;
-      if (workoutState[exerciseId]?.sets.length === stsParams.maxSets - 1) {
+      if ((workoutState[exerciseId]?.sets?.length || 0) === stsParams.maxSets - 1) {
         setShowExtraSetPrompt(true);
       }
     }
@@ -219,7 +219,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  const lastSet = workoutState[currentExerciseData.exerciseId]?.sets.slice(-1)[0];
+  // Safe lastSet access with fallback to empty array
+  const lastSet = (workoutState[currentExerciseData?.exerciseId || 0]?.sets || []).slice(-1)[0];
 
   return (
     <div className="space-y-6">
@@ -268,8 +269,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
             <div className="space-y-2">
               <Label>Select a combination:</Label>
               <RadioGroup
-                value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ? 
-                  JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) : 
+                value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ?
+                  JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) :
                   undefined}
                 onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
               >
@@ -312,7 +313,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           </div>
 
           {/* Complete Set Button */}
-          <Button 
+          <Button
             className="w-full"
             onClick={() => {
               const weight = parseFloat((document.getElementById("weight") as HTMLInputElement)?.value || "0");
