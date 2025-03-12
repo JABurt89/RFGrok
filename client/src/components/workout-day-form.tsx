@@ -2,24 +2,25 @@ import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Exercise } from "../types";
-import { useExercises } from "../hooks/useExercises";
+import { Exercise } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface WorkoutDayFormProps {
-  submitWorkoutDay: (data: WorkoutDayFormData) => void;
+  submitWorkoutDay: (data: Partial<WorkoutDay>) => void;
 }
 
-interface ProgressionParameters {
+interface BaseParameters {
+  scheme: string;
   sets: number;
   reps: number;
   restBetweenSets: number;
   restBetweenExercises: number;
 }
 
-interface STSParameters extends ProgressionParameters {
+interface STSParameters extends BaseParameters {
   scheme: "STS";
   minSets: number;
   maxSets: number;
@@ -27,21 +28,24 @@ interface STSParameters extends ProgressionParameters {
   maxReps: number;
 }
 
-interface DoubleProgressionParameters extends ProgressionParameters {
+interface DoubleProgressionParameters extends BaseParameters {
   scheme: "Double Progression";
   targetSets: number;
+  minReps: number;
+  maxReps: number;
 }
 
-interface RPTParameters extends ProgressionParameters {
+interface RPTParameters extends BaseParameters {
   scheme: "RPT Top-Set" | "RPT Individual";
+  targetReps: number;
   dropPercent: number;
 }
 
-type SchemeParameters = STSParameters | DoubleProgressionParameters | RPTParameters;
+type ExerciseParameters = STSParameters | DoubleProgressionParameters | RPTParameters;
 
 interface WorkoutExercise {
   exerciseId: number;
-  progression: SchemeParameters;
+  parameters: ExerciseParameters;
 }
 
 interface WorkoutDayFormData {
@@ -53,7 +57,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
     exerciseId: z.number().min(1, "Exercise selection is required"),
-    progression: z.object({
+    parameters: z.object({
       scheme: z.string(),
       sets: z.number(),
       reps: z.number(),
@@ -70,16 +74,19 @@ const formSchema = z.object({
       z.object({
         scheme: z.literal("Double Progression"),
         targetSets: z.number(),
+        minReps: z.number(),
+        maxReps: z.number(),
       }),
       z.object({
         scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
+        targetReps: z.number(),
         dropPercent: z.number(),
       }),
     ])),
   })),
 });
 
-const defaultProgressionParameters: Record<string, SchemeParameters> = {
+const defaultParameters: Record<string, ExerciseParameters> = {
   "STS": {
     scheme: "STS",
     minSets: 3,
@@ -96,6 +103,8 @@ const defaultProgressionParameters: Record<string, SchemeParameters> = {
     targetSets: 3,
     sets: 3,
     reps: 8,
+    minReps: 6,
+    maxReps: 8,
     restBetweenSets: 90,
     restBetweenExercises: 180
   },
@@ -103,6 +112,7 @@ const defaultProgressionParameters: Record<string, SchemeParameters> = {
     scheme: "RPT Top-Set",
     sets: 3,
     reps: 6,
+    targetReps: 6,
     dropPercent: 10,
     restBetweenSets: 180,
     restBetweenExercises: 240
@@ -111,6 +121,7 @@ const defaultProgressionParameters: Record<string, SchemeParameters> = {
     scheme: "RPT Individual",
     sets: 3,
     reps: 6,
+    targetReps: 6,
     dropPercent: 10,
     restBetweenSets: 180,
     restBetweenExercises: 240
@@ -118,14 +129,17 @@ const defaultProgressionParameters: Record<string, SchemeParameters> = {
 };
 
 export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
-  const { exercises } = useExercises();
+  const { data: exercises = [] } = useQuery<Exercise[]>({
+    queryKey: ["/api/exercises"],
+  });
+
   const form = useForm<WorkoutDayFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       exercises: [{
         exerciseId: 0,
-        progression: defaultProgressionParameters["STS"]
+        parameters: defaultParameters["STS"]
       }]
     },
   });
@@ -135,13 +149,13 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
     submitWorkoutDay(data);
   };
 
-  const renderProgressionFields = (index: number, scheme: string) => {
+  const renderParameterFields = (index: number, scheme: string) => {
     const currentExercise = form.getValues("exercises")[index];
-    const currentProgression = currentExercise.progression;
+    const currentParameters = currentExercise.parameters;
 
     switch (scheme) {
       case "STS": {
-        const stsParams = currentProgression as STSParameters;
+        const stsParams = currentParameters as STSParameters;
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -152,7 +166,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                   value={stsParams.minSets}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
+                    exercises[index].parameters = {
                       ...stsParams,
                       minSets: parseInt(e.target.value)
                     };
@@ -167,7 +181,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                   value={stsParams.maxSets}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
+                    exercises[index].parameters = {
                       ...stsParams,
                       maxSets: parseInt(e.target.value)
                     };
@@ -184,7 +198,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                   value={stsParams.minReps}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
+                    exercises[index].parameters = {
                       ...stsParams,
                       minReps: parseInt(e.target.value)
                     };
@@ -199,7 +213,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                   value={stsParams.maxReps}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
+                    exercises[index].parameters = {
                       ...stsParams,
                       maxReps: parseInt(e.target.value)
                     };
@@ -212,7 +226,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
         );
       }
       case "Double Progression": {
-        const dpParams = currentProgression as DoubleProgressionParameters;
+        const dpParams = currentParameters as DoubleProgressionParameters;
         return (
           <div className="space-y-4">
             <div>
@@ -222,7 +236,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                 value={dpParams.targetSets}
                 onChange={(e) => {
                   const exercises = [...form.getValues("exercises")];
-                  exercises[index].progression = {
+                  exercises[index].parameters = {
                     ...dpParams,
                     targetSets: parseInt(e.target.value)
                   };
@@ -230,14 +244,61 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                 }}
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium">Min Reps</label>
+                <Input
+                  type="number"
+                  value={dpParams.minReps}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].parameters = {
+                      ...dpParams,
+                      minReps: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">Max Reps</label>
+                <Input
+                  type="number"
+                  value={dpParams.maxReps}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].parameters = {
+                      ...dpParams,
+                      maxReps: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+            </div>
           </div>
         );
       }
       case "RPT Top-Set":
       case "RPT Individual": {
-        const rptParams = currentProgression as RPTParameters;
+        const rptParams = currentParameters as RPTParameters;
         return (
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium">Target Reps</label>
+              <Input
+                type="number"
+                value={rptParams.targetReps}
+                onChange={(e) => {
+                  const exercises = [...form.getValues("exercises")];
+                  exercises[index].parameters = {
+                    ...rptParams,
+                    targetReps: parseInt(e.target.value)
+                  };
+                  form.setValue("exercises", exercises);
+                }}
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium">Drop Percentage</label>
               <Input
@@ -245,7 +306,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                 value={rptParams.dropPercent}
                 onChange={(e) => {
                   const exercises = [...form.getValues("exercises")];
-                  exercises[index].progression = {
+                  exercises[index].parameters = {
                     ...rptParams,
                     dropPercent: parseInt(e.target.value)
                   };
@@ -306,10 +367,10 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
             <div>
               <label className="block text-sm font-medium">Progression Scheme</label>
               <Select
-                value={exercise.progression.scheme}
+                value={exercise.parameters.scheme}
                 onValueChange={(value) => {
                   const exercises = [...form.getValues("exercises")];
-                  exercises[index].progression = defaultProgressionParameters[value];
+                  exercises[index].parameters = defaultParameters[value];
                   form.setValue("exercises", exercises);
                 }}
               >
@@ -325,18 +386,18 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
               </Select>
             </div>
 
-            {renderProgressionFields(index, exercise.progression.scheme)}
+            {renderParameterFields(index, exercise.parameters.scheme)}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium">Rest Between Sets (s)</label>
                 <Input
                   type="number"
-                  value={exercise.progression.restBetweenSets}
+                  value={exercise.parameters.restBetweenSets}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
-                      ...exercise.progression,
+                    exercises[index].parameters = {
+                      ...exercise.parameters,
                       restBetweenSets: parseInt(e.target.value)
                     };
                     form.setValue("exercises", exercises);
@@ -347,11 +408,11 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
                 <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
                 <Input
                   type="number"
-                  value={exercise.progression.restBetweenExercises}
+                  value={exercise.parameters.restBetweenExercises}
                   onChange={(e) => {
                     const exercises = [...form.getValues("exercises")];
-                    exercises[index].progression = {
-                      ...exercise.progression,
+                    exercises[index].parameters = {
+                      ...exercise.parameters,
                       restBetweenExercises: parseInt(e.target.value)
                     };
                     form.setValue("exercises", exercises);
@@ -380,7 +441,7 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
             const exercises = [...form.getValues("exercises")];
             exercises.push({
               exerciseId: 0,
-              progression: defaultProgressionParameters["STS"]
+              parameters: defaultParameters["STS"]
             });
             form.setValue("exercises", exercises);
           }}
