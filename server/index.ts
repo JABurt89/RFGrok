@@ -2,7 +2,7 @@ import express from 'express';
 import { registerRoutes } from './routes';
 import { storage } from './storage';
 import { setupVite } from './vite';
-import { createServer as createHttpServer, type Server } from 'http'; // Import Server type
+import { createServer as createHttpServer, type Server } from 'http';
 
 const app = express();
 app.use(express.json());
@@ -20,19 +20,28 @@ async function testPort(port: number): Promise<boolean> {
   });
 }
 
+async function findAvailablePort(startPort: number): Promise<number> {
+  // Try ports in sequence until we find an available one
+  for (let port = startPort; port < startPort + 10; port++) {
+    const isAvailable = await testPort(port);
+    if (isAvailable) {
+      return port;
+    }
+    console.log(`[Port ${port}] is in use, trying next port...`);
+  }
+  throw new Error('No available ports found');
+}
+
 async function main() {
   try {
     console.log('[Startup] Starting server initialization...');
 
-    // Check if port is available
-    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-    console.log('[Startup] Testing port availability:', PORT);
+    // Try to find an available port starting from the preferred port
+    const preferredPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+    console.log('[Startup] Searching for available port starting from:', preferredPort);
 
-    const portAvailable = await testPort(PORT);
-    if (!portAvailable) {
-      console.error(`[Error] Port ${PORT} is already in use. Unable to start server.`);
-      process.exit(1);
-    }
+    const PORT = await findAvailablePort(preferredPort);
+    console.log('[Startup] Found available port:', PORT);
 
     // Add test endpoint
     app.get('/api/health', (_req, res) => {
@@ -43,17 +52,6 @@ async function main() {
     console.log('[Startup] Creating HTTP server...');
     const server = createHttpServer(app);
 
-    // Enable Vite for development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[Startup] Setting up Vite middleware...');
-      await setupVite(app, server);
-    }
-
-    console.log('[Startup] Attempting to bind to port', PORT);
-    server.listen({ port: PORT, host: '0.0.0.0' }, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-
     // Handle server errors
     server.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
@@ -63,6 +61,17 @@ async function main() {
         console.error('Server error:', error);
         process.exit(1);
       }
+    });
+
+    // Enable Vite for development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Startup] Setting up Vite middleware...');
+      await setupVite(app, server);
+    }
+
+    console.log('[Startup] Attempting to bind to port', PORT);
+    server.listen({ port: PORT, host: '0.0.0.0' }, () => {
+      console.log(`Server running on port ${PORT}`);
     });
 
     // Handle process termination signals
@@ -83,7 +92,6 @@ async function main() {
       process.exit(0);
     };
 
-    // Handle various termination signals
     process.on('SIGTERM', cleanup);
     process.on('SIGINT', cleanup);
     process.on('SIGUSR2', cleanup); // For nodemon restarts
