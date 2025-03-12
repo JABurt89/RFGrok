@@ -110,14 +110,15 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
       try {
+        console.log('Attempting to save workout with data:', JSON.stringify(workoutLog, null, 2));
         const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to save workout');
+          const errorData = await response.json();
+          throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
         }
         return response.json();
       } catch (error) {
-        console.error('Error saving workout:', error);
+        console.error('Error:', error);
         throw error;
       }
     },
@@ -125,11 +126,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
       toast({
         title: "Success",
-        description: "Workout saved successfully",
+        description: "Workout saved successfully!",
       });
       onComplete();
     },
     onError: (error: Error) => {
+      console.error('Error saving workout:', error);
       toast({
         title: "Error saving workout",
         description: error.message,
