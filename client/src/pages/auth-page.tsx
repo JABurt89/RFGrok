@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,9 +36,15 @@ export default function AuthPage() {
     },
   });
 
-  // Redirect if already logged in
+  // Move navigation to useEffect
+  useEffect(() => {
+    if (user) {
+      setLocation("/");
+    }
+  }, [user, setLocation]);
+
+  // If user is logged in, render nothing while redirect happens
   if (user) {
-    setLocation("/");
     return null;
   }
 
