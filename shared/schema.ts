@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   preferredUnits: text("preferred_units", { enum: ["kg", "lb"] }).default("kg").notNull(),
+  age: integer("age"),
+  weight: real("weight"),
   goals: text("goals"),
 });
 
@@ -43,9 +45,10 @@ export const workoutLogs = pgTable("workout_logs", {
     sets: Array<{
       reps: number;
       weight: number;
-      timestamp: string;
+      timestamp: string; // ISO 8601 timestamp for rest time tracking
     }>;
-    extraSetReps?: number;
+    extraSetReps?: number; // For STS progression tracking
+    oneRm?: number; // Calculated 1RM for the exercise
   }>(),
   isComplete: boolean("is_complete").default(false).notNull(),
 });
@@ -155,6 +158,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
   preferredUnits: true,
+  age: true,
+  weight: true,
 });
 
 export const insertExerciseSchema = createInsertSchema(exercises).omit({

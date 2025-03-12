@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise } from "@shared/schema";
+import { WorkoutDay, WorkoutLog, Exercise, STSParameters, DoubleProgressionParameters, RPTParameters } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ type WorkoutState = {
   [exerciseId: number]: {
     sets: ExerciseSet[];
     extraSetReps?: number;
+    oneRm?: number;
   };
 };
 
@@ -37,6 +38,15 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
   const currentExercise = workoutDay.exercises[currentExerciseIndex];
   const exerciseProgress = workoutState[currentExercise?.exerciseId];
+
+  // Get rest times from the current exercise's parameters
+  const getRestTimes = () => {
+    if (!currentExercise) return { setRest: 90, exerciseRest: 180 };
+    return {
+      setRest: currentExercise.parameters.restBetweenSets,
+      exerciseRest: currentExercise.parameters.restBetweenExercises,
+    };
+  };
 
   // Calculate 1RM for STS
   const calculateSTS1RM = (weight: number, reps: number, sets: number, extraReps?: number) => {
@@ -91,7 +101,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const handleSetComplete = (reps: number, weight: number) => {
     const timestamp = new Date().toISOString();
     const exerciseId = currentExercise.exerciseId;
-    
+
     setWorkoutState(prev => ({
       ...prev,
       [exerciseId]: {
@@ -100,11 +110,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     }));
 
     // Start rest timer
-    setRestTimer(currentExercise.restBetweenSets);
+    const { setRest } = getRestTimes();
+    setRestTimer(setRest);
 
-    // Check if all planned sets are complete
-    if (currentExercise.scheme === "STS" && 
-        workoutState[exerciseId]?.sets.length === 3) {
+    // Check if all planned sets are complete for STS
+    if (currentExercise.parameters.scheme === "STS" && 
+        workoutState[exerciseId]?.sets.length === (currentExercise.parameters as STSParameters).maxSets) {
       setShowExtraSetPrompt(true);
     }
   };
@@ -125,33 +136,40 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const moveToNextExercise = () => {
     if (currentExerciseIndex < workoutDay.exercises.length - 1) {
       setCurrentExerciseIndex(prev => prev + 1);
-      setRestTimer(currentExercise.restBetweenExercises);
+      const { exerciseRest } = getRestTimes();
+      setRestTimer(exerciseRest);
     } else {
-      // Workout complete
-      saveWorkoutMutation.mutate({
+      // Workout complete, prepare workout log
+      const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: new Date().toISOString(),
+        date: new Date(),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
           sets: data.sets,
           extraSetReps: data.extraSetReps,
+          oneRm: data.oneRm,
         })),
         isComplete: true,
-      });
+      };
+
+      saveWorkoutMutation.mutate(workoutLog);
     }
   };
 
   const handleSaveAndExit = () => {
-    saveWorkoutMutation.mutate({
+    const workoutLog: Partial<WorkoutLog> = {
       workoutDayId: workoutDay.id,
-      date: new Date().toISOString(),
+      date: new Date(),
       sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
         exerciseId: parseInt(exerciseId),
         sets: data.sets,
         extraSetReps: data.extraSetReps,
+        oneRm: data.oneRm,
       })),
       isComplete: false,
-    });
+    };
+
+    saveWorkoutMutation.mutate(workoutLog);
   };
 
   return (
@@ -174,7 +192,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       <Card>
         <CardHeader>
           <CardTitle>
-            {currentExercise?.exerciseId} - Set {(workoutState[currentExercise?.exerciseId]?.sets.length ?? 0) + 1}
+            {currentExercise?.name} - Set {(workoutState[currentExercise?.exerciseId]?.sets.length ?? 0) + 1}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
