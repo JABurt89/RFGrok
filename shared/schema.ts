@@ -2,11 +2,11 @@ import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Progression Scheme Types
+// Available progression schemes
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
 export type ProgressionScheme = typeof progressionSchemes[number];
 
-// User model
+// Database tables
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -15,7 +15,6 @@ export const users = pgTable("users", {
   goals: text("goals"),
 });
 
-// Exercise model
 export const exercises = pgTable("exercises", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -27,7 +26,6 @@ export const exercises = pgTable("exercises", {
   isArchived: boolean("is_archived").default(false).notNull(),
 });
 
-// Workout Days
 export const workoutDays = pgTable("workout_days", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -35,63 +33,71 @@ export const workoutDays = pgTable("workout_days", {
   exercises: jsonb("exercises").notNull().$type<WorkoutExercise[]>(),
 });
 
-// Workout Logs
 export const workoutLogs = pgTable("workout_logs", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   workoutDayId: integer("workout_day_id").references(() => workoutDays.id),
   date: timestamp("date").notNull(),
-  sets: jsonb("sets").notNull(),
+  sets: jsonb("sets").notNull().$type<{
+    exerciseId: number;
+    sets: Array<{
+      reps: number;
+      weight: number;
+      timestamp: string;
+    }>;
+    extraSetReps?: number;
+  }>(),
   isComplete: boolean("is_complete").default(false).notNull(),
-  oneRm: real("one_rm"),
-  extraSetReps: integer("extra_set_reps"),
 });
 
-// Progression Scheme Parameters
-const stsParametersSchema = z.object({
+// Progression Parameters Schemas
+const commonParameters = {
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+};
+
+const stsParameters = z.object({
+  ...commonParameters,
   scheme: z.literal("STS"),
   minSets: z.number().min(1),
   maxSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
 });
 
-const doubleProgressionParametersSchema = z.object({
+const doubleProgressionParameters = z.object({
+  ...commonParameters,
   scheme: z.literal("Double Progression"),
   targetSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
 });
 
-const rptParametersSchema = z.object({
+const rptParameters = z.object({
+  ...commonParameters,
   scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
   sets: z.number().min(1),
   targetReps: z.number().min(1),
   dropPercent: z.number().min(0).max(100),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
 });
 
+// Workout Exercise Schema
 const workoutExerciseSchema = z.object({
   exerciseId: z.number(),
   scheme: z.enum(progressionSchemes),
   parameters: z.discriminatedUnion("scheme", [
-    stsParametersSchema,
-    doubleProgressionParametersSchema,
-    rptParametersSchema,
+    stsParameters,
+    doubleProgressionParameters,
+    rptParameters,
   ]),
 });
 
 // Default progression parameters
-export const defaultProgressionParameters = {
+export const defaultParameters = {
   STS: {
     scheme: "STS" as const,
     minSets: 3,
-    maxSets: 3, // Extra set will be the 4th set if achieved
+    maxSets: 3,
     minReps: 6,
     maxReps: 8,
     restBetweenSets: 90,
@@ -123,7 +129,7 @@ export const defaultProgressionParameters = {
   },
 } as const;
 
-// Predefined Equipment
+// Equipment definitions
 export const predefinedEquipment = {
   Barbell: {
     name: "Barbell",
@@ -163,7 +169,7 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs).omit({
   id: true,
 });
 
-// Types
+// TypeScript types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -177,6 +183,6 @@ export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
-export type STSParameters = z.infer<typeof stsParametersSchema>;
-export type DoubleProgressionParameters = z.infer<typeof doubleProgressionParametersSchema>;
-export type RPTParameters = z.infer<typeof rptParametersSchema>;
+export type STSParameters = z.infer<typeof stsParameters>;
+export type DoubleProgressionParameters = z.infer<typeof doubleProgressionParameters>;
+export type RPTParameters = z.infer<typeof rptParameters>;
