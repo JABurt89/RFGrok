@@ -12,7 +12,7 @@ export const KG_TO_LB = 2.20462;
 // Equipment definitions
 export const predefinedEquipment = {
   Barbell: { name: "Barbell", startingWeight: 20, increment: 2.5, units: "kg" },
-  Dumbbell: { name: "Dumbbell", startingWeight: 2.5, increment: 2.5, units: "kg" }
+  Dumbbell: { name: "Dumbbell", startingWeight: 2.5, increment: 2.5, units: "kg" },
   Cables: { name: "Cables", startingWeight: 25, increment: 15, units: "kg" },
 } as const;
 
