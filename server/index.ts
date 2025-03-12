@@ -10,9 +10,15 @@ async function main() {
   try {
     console.log('[Startup] Starting server initialization...');
 
-    // Create the server
-    console.log('[Startup] Registering routes...');
-    const server = await registerRoutes(app);
+    // Add test endpoint
+    app.get('/api/health', (_req, res) => {
+      res.json({ status: 'ok', message: 'Server is running' });
+    });
+
+    // Create the server with minimal configuration
+    console.log('[Startup] Creating HTTP server...');
+    const { createServer } = await import('http');
+    const server = createServer(app);
 
     // Temporarily disable Vite for debugging
     // if (process.env.NODE_ENV !== 'production') {
@@ -21,7 +27,7 @@ async function main() {
     // }
 
     // Start listening on port 5000 as required
-    const PORT = 5000; // Always use port 5000
+    const PORT = 5001; // Temporarily try a different port for testing
     console.log('[Startup] Attempting to bind to port', PORT);
     server.listen({ port: PORT, host: '0.0.0.0' }, () => {
       console.log(`Server running on port ${PORT}`);
