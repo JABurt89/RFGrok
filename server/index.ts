@@ -38,13 +38,39 @@ async function main() {
       }
     });
 
-    // Handle process termination
-    process.on('SIGTERM', () => {
-      console.log('Received SIGTERM signal. Shutting down gracefully...');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
+    // Handle process termination signals
+    const cleanup = async () => {
+      console.log('\n[Shutdown] Initiating graceful shutdown...');
+
+      // Close the HTTP server first
+      await new Promise<void>((resolve) => {
+        console.log('[Shutdown] Closing HTTP server...');
+        server.close(() => {
+          console.log('[Shutdown] HTTP server closed.');
+          resolve();
+        });
       });
+
+      // Additional cleanup if needed
+      console.log('[Shutdown] Cleanup complete. Exiting...');
+      process.exit(0);
+    };
+
+    // Handle various termination signals
+    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup);
+    process.on('SIGUSR2', cleanup); // For nodemon restarts
+
+    // Catch uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error('[Error] Uncaught Exception:', error);
+      cleanup().catch(() => process.exit(1));
+    });
+
+    // Catch unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('[Error] Unhandled Rejection at:', promise, 'reason:', reason);
+      cleanup().catch(() => process.exit(1));
     });
 
   } catch (error) {
