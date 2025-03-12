@@ -49,15 +49,15 @@ export default function AuthPage() {
         <div className="space-y-6">
           <div className="flex items-center gap-2">
             <Dumbbell className="h-10 w-10 text-primary" />
-            <h1 className="text-4xl font-bold">FitTrack Pro</h1>
+            <h1 className="text-4xl font-bold text-foreground">FitTrack Pro</h1>
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-semibold">Track Your Progress</h2>
+            <h2 className="text-2xl font-semibold text-foreground">Track Your Progress</h2>
             <p className="text-muted-foreground">
               Advanced workout tracking with custom progression schemes, offline support, and detailed analytics.
             </p>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2 text-foreground">
             <li>✓ Multiple progression schemes</li>
             <li>✓ Customizable equipment</li>
             <li>✓ Offline support</li>
@@ -149,8 +149,8 @@ export default function AuthPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Preferred Units</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
+                          <Select
+                            onValueChange={field.onChange}
                             defaultValue={field.value}
                           >
                             <FormControl>
@@ -174,11 +174,11 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Age (optional)</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              {...field} 
-                              value={field.value ?? ''} 
-                              onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)} 
+                            <Input
+                              type="number"
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -192,12 +192,12 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Weight (optional)</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.1" 
-                              {...field} 
-                              value={field.value ?? ''} 
-                              onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)} 
+                            <Input
+                              type="number"
+                              step="0.1"
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                             />
                           </FormControl>
                           <FormMessage />
