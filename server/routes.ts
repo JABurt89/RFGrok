@@ -110,13 +110,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       res.setHeader('Content-Type', 'application/json');
-
-      // Parse the request body with the schema expecting date as a string
       const parsed = insertWorkoutLogSchema.parse({ ...req.body, userId: req.user.id });
-
-      // Pass the parsed data directly to storage, no need for date conversion here
       const workoutLog = await storage.createWorkoutLog(parsed);
-
       res.json(workoutLog);
     } catch (error) {
       res.setHeader('Content-Type', 'application/json');
