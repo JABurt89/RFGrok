@@ -44,6 +44,21 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
+// Helper function to ensure valid date format
+const ensureValidDate = (dateInput: Date | string): string => {
+  if (dateInput instanceof Date) {
+    return dateInput.toISOString();
+  } else if (typeof dateInput === 'string') {
+    const parsedDate = new Date(dateInput);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString();
+    }
+  }
+  // Fallback to current date if invalid
+  console.warn('Invalid date detected, using current date:', dateInput);
+  return new Date().toISOString();
+};
+
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
@@ -91,33 +106,26 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
-  // Rest timer
-  useEffect(() => {
-    let interval: number;
-    if (restTimer !== null && restTimer > 0) {
-      interval = window.setInterval(() => {
-        setRestTimer(prev => (prev ?? 0) - 1);
-      }, 1000);
-
-      if (restTimer === 1) {
-        const audio = new Audio("/notification.mp3");
-        audio.play().catch(console.error);
-      }
-    }
-    return () => clearInterval(interval);
-  }, [restTimer]);
-
   // Save workout mutation
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
-      const res = await apiRequest("POST", "/api/workout-logs", workoutLog);
-      return res.json();
+      try {
+        const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to save workout');
+        }
+        return response.json();
+      } catch (error) {
+        console.error('Error saving workout:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
       toast({
-        title: "Workout saved",
-        description: "Your workout has been saved successfully",
+        title: "Success",
+        description: "Workout saved successfully",
       });
       onComplete();
     },
@@ -129,6 +137,67 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       });
     },
   });
+
+  const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
+    if (!currentExerciseData) return;
+
+    const exerciseId = currentExerciseData.exerciseId;
+    setWorkoutState(prev => {
+      const currentSets = [...(prev[exerciseId]?.sets || [])];
+      currentSets[setIndex] = {
+        ...currentSets[setIndex],
+        isCompleted: completed,
+        actualReps: actualReps || currentSets[setIndex].reps,
+        timestamp: ensureValidDate(new Date())
+      };
+
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...prev[exerciseId],
+          sets: currentSets,
+          oneRm: calculate1RM(
+            currentSets[setIndex].weight,
+            currentSets[setIndex].actualReps || currentSets[setIndex].reps,
+            setIndex + 1
+          )
+        }
+      };
+    });
+
+    const { setRest } = getRestTimes();
+    setRestTimer(setRest);
+  };
+
+  const handleSaveWorkout = (isComplete: boolean = false) => {
+    try {
+      const workoutLog: Partial<WorkoutLog> = {
+        workoutDayId: workoutDay.id,
+        date: ensureValidDate(new Date()),
+        sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+          exerciseId: parseInt(exerciseId),
+          sets: data.sets.map(set => ({
+            reps: set.actualReps || set.reps,
+            weight: set.weight,
+            timestamp: ensureValidDate(set.timestamp)
+          })),
+          extraSetReps: data.extraSetReps,
+          oneRm: data.oneRm,
+        })),
+        isComplete
+      };
+
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+      saveWorkoutMutation.mutate(workoutLog);
+    } catch (error) {
+      console.error('Error preparing workout data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare workout data",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleCombinationSelect = (combination: STSCombination) => {
     if (!currentExerciseData) return;
@@ -162,37 +231,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setCurrentView("active");
   };
 
-  const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
-    if (!currentExerciseData) return;
-
-    const exerciseId = currentExerciseData.exerciseId;
-    setWorkoutState(prev => {
-      const currentSets = [...(prev[exerciseId]?.sets || [])];
-      currentSets[setIndex] = {
-        ...currentSets[setIndex],
-        isCompleted: completed,
-        actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: new Date().toISOString() // Ensure timestamp is ISO string
-      };
-
-      return {
-        ...prev,
-        [exerciseId]: {
-          ...prev[exerciseId],
-          sets: currentSets,
-          oneRm: calculate1RM(
-            currentSets[setIndex].weight,
-            currentSets[setIndex].actualReps || currentSets[setIndex].reps,
-            setIndex + 1
-          )
-        }
-      };
-    });
-
-    const { setRest } = getRestTimes();
-    setRestTimer(setRest);
-  };
-
   const getRestTimes = () => {
     if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
     return {
@@ -201,24 +239,21 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     };
   };
 
-  const handleSaveWorkout = (isComplete: boolean = false) => {
-    const workoutLog: Partial<WorkoutLog> = {
-      workoutDayId: workoutDay.id,
-      date: new Date().toISOString(), // Format date as ISO string
-      sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
-        exerciseId: parseInt(exerciseId),
-        sets: data.sets.map(set => ({
-          reps: set.actualReps || set.reps,
-          weight: set.weight,
-          timestamp: set.timestamp // Already ISO string from handleSetComplete
-        })),
-        extraSetReps: data.extraSetReps,
-        oneRm: data.oneRm,
-      })),
-      isComplete
-    };
-    saveWorkoutMutation.mutate(workoutLog);
-  };
+
+  useEffect(() => {
+    let interval: number;
+    if (restTimer !== null && restTimer > 0) {
+      interval = window.setInterval(() => {
+        setRestTimer(prev => (prev ?? 0) - 1);
+      }, 1000);
+
+      if (restTimer === 1) {
+        const audio = new Audio("/notification.mp3");
+        audio.play().catch(console.error);
+      }
+    }
+    return () => clearInterval(interval);
+  }, [restTimer]);
 
   if (exercisesLoading) {
     return (
