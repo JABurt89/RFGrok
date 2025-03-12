@@ -1,0 +1,212 @@
+Solution Approach
+To fix this, we need to:
+
+Manage State: Track the selected progression for each exercise in the workout.
+Handle Selection: Update the state when a progression is selected.
+Render Options: Conditionally display the customization options based on the selected progression.
+I’ll provide a React-based implementation, as it’s a popular choice and aligns with the complexity of a workout builder. The solution will include a WorkoutBuilder component to manage the list of exercises and a mechanism to display progression-specific customization fields.
+
+Assumptions
+The app uses React (or can be adapted to React-like patterns).
+Each exercise in the workout can have its own progression scheme.
+The PRD defines progression schemes like STS and RPT with specific parameters, but doesn’t specify an API dependency for this feature, suggesting client-side logic.
+The UI involves selecting an exercise and then a progression scheme, followed by displaying input fields for customization.
+Complete Fix with Copy-Pastable Code
+Below is a complete React component that implements the workout builder with progression selection and customizable options. You can integrate this into your project by replacing or modifying the relevant file (e.g., WorkoutBuilder.js or a similar component in your repository).
+
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+import React, { useState } from 'react';
+
+// Component for STS progression customization options
+const STSOptions = () => (
+  <div className="progression-options">
+    <label>
+      Sets: <input type="number" min="1" defaultValue="3" />
+    </label>
+    <label>
+      Reps: <input type="number" min="1" defaultValue="10" />
+    </label>
+    <label>
+      Weight Increment (lbs): <input type="number" step="2.5" defaultValue="5" />
+    </label>
+  </div>
+);
+
+// Component for RPT progression customization options
+const RPTOptions = () => (
+  <div className="progression-options">
+    <label>
+      Back-off Percentage (%): <input type="number" min="0" max="100" defaultValue="10" />
+    </label>
+    <label>
+      Rep Range (e.g., 4-6): <input type="text" defaultValue="4-6" />
+    </label>
+  </div>
+);
+
+// Main WorkoutBuilder component
+const WorkoutBuilder = () => {
+  // Initial state with a sample exercise; expand this as needed
+  const [exercises, setExercises] = useState([
+    { id: 1, name: 'Squats', progression: null },
+    // Add more exercises here, e.g., { id: 2, name: 'Bench Press', progression: null }
+  ]);
+
+  // Handle progression selection for an exercise
+  const handleProgressionChange = (exerciseId, progression) => {
+    setExercises(exercises.map(ex =>
+      ex.id === exerciseId ? { ...ex, progression } : ex
+    ));
+  };
+
+  return (
+    <div className="workout-builder">
+      <h2>Build Your Workout</h2>
+      {exercises.map(ex => (
+        <div key={ex.id} className="exercise-section">
+          <h3>{ex.name}</h3>
+          <label>
+            Select Progression:
+            <select
+              value={ex.progression || ''}
+              onChange={(e) => handleProgressionChange(ex.id, e.target.value)}
+            >
+              <option value="">-- Choose a Progression --</option>
+              <option value="STS">STS (Straight Sets)</option>
+              <option value="RPT">RPT (Reverse Pyramid Training)</option>
+              {/* Add more progression options as defined in your PRD */}
+            </select>
+          </label>
+          {/* Conditionally render customization options based on selected progression */}
+          {ex.progression === 'STS' && <STSOptions />}
+          {ex.progression === 'RPT' && <RPTOptions />}
+          {/* Add more conditions for other progressions as needed */}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Optional CSS for better presentation (add to your CSS file, e.g., WorkoutBuilder.css)
+const styles = `
+  .workout-builder {
+    padding: 20px;
+  }
+  .exercise-section {
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+  }
+  .progression-options {
+    margin-top: 10px;
+  }
+  .progression-options label {
+    display: block;
+    margin: 5px 0;
+  }
+  .progression-options input {
+    margin-left: 10px;
+  }
+`;
+
+export default WorkoutBuilder;
+Instructions to Implement
+Replace or Create the Component:
+Locate the file in your repository responsible for the workout builder (e.g., src/components/WorkoutBuilder.js).
+Replace its contents with the code above, or create a new file if it doesn’t exist.
+If your app uses a different directory structure, adjust the file path accordingly (e.g., src/WorkoutBuilder.js).
+Integrate into Your App:
+Import and use the WorkoutBuilder component in your main app file (e.g., App.js):
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+import React from 'react';
+import WorkoutBuilder from './components/WorkoutBuilder';
+
+function App() {
+  return (
+    <div>
+      <WorkoutBuilder />
+    </div>
+  );
+}
+
+export default App;
+Add CSS (Optional):
+If you want the suggested styling, add the CSS from the styles constant to your stylesheet (e.g., WorkoutBuilder.css) and import it:
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+import './WorkoutBuilder.css';
+Alternatively, integrate it with your existing CSS setup (e.g., Tailwind, styled-components).
+Expand the Exercise List:
+Modify the initial exercises state array to include all exercises available in your app:
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+const [exercises, setExercises] = useState([
+  { id: 1, name: 'Squats', progression: null },
+  { id: 2, name: 'Bench Press', progression: null },
+  { id: 3, name: 'Deadlifts', progression: null },
+  // Add more as needed
+]);
+Add More Progression Schemes:
+If your PRD includes additional schemes beyond STS and RPT, add them to the <select> options and create corresponding components:
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+<option value="DTP">DTP (Dramatic Transformation Principle)</option>
+Then define the component:
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+const DTPOptions = () => (
+  <div className="progression-options">
+    <label>Reps: <input type="number" defaultValue="50" /></label>
+    <label>Weight: <input type="number" defaultValue="20" /></label>
+  </div>
+);
+And add the condition:
+jsx
+
+Collapse
+
+Wrap
+
+Copy
+{ex.progression === 'DTP' && <DTPOptions />}
+Test the Fix:
+Run your app (npm start or equivalent).
+Select an exercise and a progression scheme (e.g., STS for Squats).
+Verify that the customization options appear below the dropdown.
+How It Works
+State Management: The exercises state array holds objects with id, name, and progression properties. The progression property is updated when a scheme is selected.
+Event Handling: The handleProgressionChange function updates the state for the specific exercise based on its id.
+Rendering: For each exercise, a <select> element allows progression selection, and conditional rendering ({ex.progression === 'STS' && <STSOptions />}) displays the appropriate options when a progression is chosen.
