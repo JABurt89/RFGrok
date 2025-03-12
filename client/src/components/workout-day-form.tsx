@@ -9,7 +9,11 @@ import {
   ProgressionScheme, 
   progressionSchemes,
   defaultProgressionParameters,
-  WorkoutExercise
+  WorkoutExercise,
+  STSParameters,
+  DoubleProgressionParameters,
+  RPTTopSetParameters,
+  RPTIndividualParameters
 } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -17,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
 
 type WorkoutDayFormProps = {
   workoutDay?: WorkoutDay;
@@ -64,7 +68,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
     },
   });
 
-  const handleDragEnd = (result: any) => {
+  const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
     const items = Array.from(form.getValues("exercises"));
     const [reorderedItem] = items.splice(result.source.index, 1);
@@ -75,10 +79,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
   const renderSchemeParameters = (index: number, scheme: ProgressionScheme) => {
     const exercises = form.getValues("exercises");
     const exercise = exercises[index];
-    const parameters = exercise?.parameters ?? defaultProgressionParameters[scheme];
+    const parameters = exercise?.parameters;
 
     switch (scheme) {
-      case "STS":
+      case "STS": {
+        const stsParams = parameters as STSParameters;
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -87,12 +92,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.minSets}
+                    value={stsParams.minSets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         minSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -101,16 +105,15 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 </FormControl>
               </FormItem>
               <FormItem>
-                <FormLabel>Max Sets (Extra set is one above this)</FormLabel>
+                <FormLabel>Max Sets</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.maxSets}
+                    value={stsParams.maxSets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         maxSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -125,12 +128,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.minReps}
+                    value={stsParams.minReps}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         minReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -143,12 +145,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.maxReps}
+                    value={stsParams.maxReps}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         maxReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -163,12 +164,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenSets}
+                    value={stsParams.restBetweenSets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -181,12 +181,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenExercises}
+                    value={stsParams.restBetweenExercises}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "STS",
+                        ...stsParams,
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -197,8 +196,10 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
             </div>
           </div>
         );
+      }
 
-      case "Double Progression":
+      case "Double Progression": {
+        const dpParams = parameters as DoubleProgressionParameters;
         return (
           <div className="space-y-4">
             <FormItem>
@@ -206,12 +207,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
               <FormControl>
                 <Input
                   type="number"
-                  value={parameters.targetSets}
+                  value={dpParams.targetSets}
                   onChange={(e) => {
                     const exercises = form.getValues("exercises");
                     exercises[index].parameters = {
-                      ...parameters,
-                      scheme: "Double Progression",
+                      ...dpParams,
                       targetSets: parseInt(e.target.value),
                     };
                     form.setValue("exercises", exercises);
@@ -225,12 +225,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.minReps}
+                    value={dpParams.minReps}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "Double Progression",
+                        ...dpParams,
                         minReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -243,12 +242,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.maxReps}
+                    value={dpParams.maxReps}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "Double Progression",
+                        ...dpParams,
                         maxReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -263,12 +261,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenSets}
+                    value={dpParams.restBetweenSets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "Double Progression",
+                        ...dpParams,
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -281,12 +278,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenExercises}
+                    value={dpParams.restBetweenExercises}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: "Double Progression",
+                        ...dpParams,
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -297,9 +293,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
             </div>
           </div>
         );
+      }
 
       case "RPT Top-Set":
-      case "RPT Individual":
+      case "RPT Individual": {
+        const rptParams = parameters as RPTTopSetParameters | RPTIndividualParameters;
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -308,12 +306,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.sets}
+                    value={rptParams.sets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: scheme,
+                        ...rptParams,
                         sets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -326,12 +323,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.targetReps}
+                    value={rptParams.targetReps}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: scheme,
+                        ...rptParams,
                         targetReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -345,12 +341,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
               <FormControl>
                 <Input
                   type="number"
-                  value={parameters.dropPercent}
+                  value={rptParams.dropPercent}
                   onChange={(e) => {
                     const exercises = form.getValues("exercises");
                     exercises[index].parameters = {
-                      ...parameters,
-                      scheme: scheme,
+                      ...rptParams,
                       dropPercent: parseInt(e.target.value),
                     };
                     form.setValue("exercises", exercises);
@@ -364,12 +359,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenSets}
+                    value={rptParams.restBetweenSets}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: scheme,
+                        ...rptParams,
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -382,12 +376,11 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 <FormControl>
                   <Input
                     type="number"
-                    value={parameters.restBetweenExercises}
+                    value={rptParams.restBetweenExercises}
                     onChange={(e) => {
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
-                        ...parameters,
-                        scheme: scheme,
+                        ...rptParams,
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -398,6 +391,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
             </div>
           </div>
         );
+      }
       default:
         return null;
     }

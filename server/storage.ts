@@ -1,4 +1,3 @@
-import { IStorage } from "@shared/schema";
 import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog } from "@shared/schema";
 import { db } from "./db";
 import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
@@ -8,7 +7,7 @@ import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
 
-export class DatabaseStorage implements IStorage {
+export class DatabaseStorage {
   private _sessionStore: session.Store | null = null;
 
   get sessionStore(): session.Store {
@@ -69,6 +68,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
+    console.log("Creating workout log:", insertWorkoutLog);
     const [workoutLog] = await db.insert(workoutLogs).values(insertWorkoutLog).returning();
     return workoutLog;
   }
