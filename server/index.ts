@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { log } from "./vite";
 
 const app = express();
 app.use(express.json());
@@ -33,13 +33,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  log("Starting server initialization...");
+  const startTime = Date.now();
+  log(`[${new Date().toISOString()}] Starting server initialization...`);
 
   // First register API routes
-  log("Registering API routes...");
+  log(`[${new Date().toISOString()}] Registering API routes...`);
   const server = await registerRoutes(app);
 
-  // Error handling middleware
+  // Error handling middleware must be after routes but before static files
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -53,23 +54,16 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Finally, setup vite/static files as the last middleware
-  log("Setting up static file handling...");
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
   // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
+  // this serves both the API and the client 
   const port = 5000;
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`Server started and listening on port ${port}`);
+    const duration = Date.now() - startTime;
+    log(`[${new Date().toISOString()}] Server started and listening on port ${port} (startup took ${duration}ms)`);
   });
 })().catch(err => {
   log(`Failed to start server: ${err.message}`);

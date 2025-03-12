@@ -40,22 +40,10 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
 
   const mutation = useMutation({
     mutationFn: async (data: InsertWorkoutDay) => {
-      // Add the scheme field to parameters for proper discrimination
-      const formattedData = {
-        ...data,
-        exercises: data.exercises.map(exercise => ({
-          ...exercise,
-          parameters: {
-            scheme: exercise.scheme,
-            ...exercise.parameters
-          }
-        }))
-      };
-
       const res = await apiRequest(
         workoutDay ? "PATCH" : "POST",
         workoutDay ? `/api/workout-days/${workoutDay.id}` : "/api/workout-days",
-        formattedData
+        data
       );
       return res.json();
     },
@@ -78,11 +66,9 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
 
   const handleDragEnd = (result: any) => {
     if (!result.destination) return;
-
     const items = Array.from(form.getValues("exercises"));
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
-
     form.setValue("exercises", items);
   };
 
@@ -106,6 +92,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         minSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -123,6 +110,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         maxSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -142,6 +130,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         minReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -159,6 +148,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         maxReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -178,6 +168,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -195,6 +186,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "STS",
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -219,6 +211,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                     const exercises = form.getValues("exercises");
                     exercises[index].parameters = {
                       ...parameters,
+                      scheme: "Double Progression",
                       targetSets: parseInt(e.target.value),
                     };
                     form.setValue("exercises", exercises);
@@ -237,6 +230,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "Double Progression",
                         minReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -254,6 +248,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "Double Progression",
                         maxReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -273,6 +268,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "Double Progression",
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -290,6 +286,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: "Double Progression",
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -316,6 +313,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: scheme,
                         sets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -333,6 +331,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: scheme,
                         targetReps: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -351,6 +350,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                     const exercises = form.getValues("exercises");
                     exercises[index].parameters = {
                       ...parameters,
+                      scheme: scheme,
                       dropPercent: parseInt(e.target.value),
                     };
                     form.setValue("exercises", exercises);
@@ -369,6 +369,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: scheme,
                         restBetweenSets: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -386,6 +387,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                       const exercises = form.getValues("exercises");
                       exercises[index].parameters = {
                         ...parameters,
+                        scheme: scheme,
                         restBetweenExercises: parseInt(e.target.value),
                       };
                       form.setValue("exercises", exercises);
@@ -465,8 +467,15 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                             value={exercise.scheme}
                             onValueChange={(value) => {
                               const exercises = form.getValues("exercises");
-                              exercises[index].scheme = value as ProgressionScheme;
-                              exercises[index].parameters = defaultProgressionParameters[value as ProgressionScheme];
+                              const scheme = value as ProgressionScheme;
+                              exercises[index] = {
+                                ...exercise,
+                                scheme,
+                                parameters: {
+                                  ...defaultProgressionParameters[scheme],
+                                  scheme,
+                                },
+                              };
                               form.setValue("exercises", exercises);
                             }}
                           >
@@ -502,7 +511,10 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 {
                   exerciseId: exercises[0]?.id ?? 0,
                   scheme: "STS",
-                  parameters: defaultProgressionParameters.STS,
+                  parameters: {
+                    ...defaultProgressionParameters.STS,
+                    scheme: "STS",
+                  },
                 },
               ])
             }
