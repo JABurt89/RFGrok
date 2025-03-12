@@ -50,25 +50,31 @@ const ensureValidDate = (dateInput: Date | string | number): string => {
       if (typeof dateInput === 'object' && dateInput instanceof Date) {
         return dateInput.toISOString();
       } else if (typeof dateInput === 'number') {
+        // If it's a number (timestamp in milliseconds), convert to Date then ISO string
         return new Date(dateInput).toISOString();
       } else if (typeof dateInput === 'string') {
+        // If it's already a string but not in ISO format, try to parse and convert
         try {
           const date = new Date(dateInput);
           if (!isNaN(date.getTime())) {
             return date.toISOString();
           } else {
+            // If parsing fails, use current time
             console.warn('Invalid date string, using current time:', dateInput);
             return new Date().toISOString();
           }
         } catch (e) {
+          // If any error in parsing, use current time
           console.warn('Error parsing date string, using current time:', e);
           return new Date().toISOString();
         }
       } else {
+        // If timestamp exists but is of an invalid type, use current time
         console.warn('Invalid date type, using current time:', typeof dateInput);
         return new Date().toISOString();
       }
     } else {
+      // If no timestamp exists, use current time
       console.warn('No date provided, using current time');
       return new Date().toISOString();
     }
@@ -260,15 +266,19 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      const workoutLog: Partial<WorkoutLog> = {
+      // Create a proper workout log with valid timestamps
+      const workoutLog = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()),
+        date: ensureValidDate(new Date()), // Ensure this is a proper ISO string
         sets: Object.entries(workoutState).map(([exerciseId, data]) => {
-          const processedSets = data.sets.map(set => ({
-            reps: set.actualReps || set.reps,
-            weight: set.weight,
-            timestamp: ensureValidDate(set.timestamp)
-          }));
+          // Process each set to ensure valid timestamps
+          const processedSets = data.sets.map(set => {
+            return {
+              reps: set.actualReps || set.reps,
+              weight: set.weight,
+              timestamp: ensureValidDate(set.timestamp)
+            };
+          });
 
           return {
             exerciseId: parseInt(exerciseId),
@@ -282,12 +292,14 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
       console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
 
+      // Save the workout to the API
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
       }
 
+      // Success handling
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
       toast({
         title: "Success",
