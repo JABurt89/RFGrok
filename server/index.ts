@@ -1,71 +1,60 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { log } from "./vite";
 
 const app = express();
+
+// Record startup timing
+const startupTiming: Record<string, number> = {
+  start: Date.now()
+};
+
+// Basic health check that doesn't require auth or DB
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
+
+// Essential middleware only
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
 (async () => {
-  const startTime = Date.now();
-  log(`[${new Date().toISOString()}] Starting server initialization...`);
-
-  // First register API routes
-  log(`[${new Date().toISOString()}] Registering API routes...`);
-  const server = await registerRoutes(app);
-
-  // Error handling middleware must be after routes but before static files
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    if (res.headersSent) {
-      return;
+  try {
+    // Verify critical environment variables
+    const requiredEnvVars = ['DATABASE_URL', 'SESSION_SECRET'];
+    const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
     }
 
-    res.status(status).json({ message });
-    log(`Error: ${message}`);
-    throw err;
-  });
+    startupTiming.envCheck = Date.now();
+    log(`[${new Date().toISOString()}] Environment variables verified (${startupTiming.envCheck - startupTiming.start}ms)`);
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client 
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    const duration = Date.now() - startTime;
-    log(`[${new Date().toISOString()}] Server started and listening on port ${port} (startup took ${duration}ms)`);
-  });
-})().catch(err => {
-  log(`Failed to start server: ${err.message}`);
-  process.exit(1);
-});
+    // Start server
+    const port = 5000;
+    const server = app.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      startupTiming.listen = Date.now();
+      const totalDuration = startupTiming.listen - startupTiming.start;
+      log(`[${new Date().toISOString()}] Server started on port ${port} (total startup: ${totalDuration}ms)`);
+    });
+
+    // Basic error handling - Improved from edited code to include logging
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      console.error('Server error:', err); //Keep this line for detailed error logging
+
+      if (!res.headersSent) {
+        res.status(status).json({ message });
+      }
+      log(`Error: ${message}`);
+
+    });
+
+  } catch (err) {
+    log(`Failed to start server: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+})();

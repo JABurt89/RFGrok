@@ -57,40 +57,42 @@ const commonParameters = {
 };
 
 const stsParameters = z.object({
-  ...commonParameters,
   scheme: z.literal("STS"),
   minSets: z.number().min(1),
   maxSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-});
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+}).strict();
 
 const doubleProgressionParameters = z.object({
-  ...commonParameters,
   scheme: z.literal("Double Progression"),
   targetSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-});
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+}).strict();
 
 const rptParameters = z.object({
-  ...commonParameters,
   scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
   sets: z.number().min(1),
   targetReps: z.number().min(1),
   dropPercent: z.number().min(0).max(100),
-});
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+}).strict();
 
-// Workout Exercise Schema
+// Workout Exercise Schema with discriminatedUnion
 const workoutExerciseSchema = z.object({
   exerciseId: z.number(),
-  scheme: z.enum(progressionSchemes),
   parameters: z.discriminatedUnion("scheme", [
     stsParameters,
     doubleProgressionParameters,
     rptParameters,
   ]),
-});
+}).strict();
 
 // Default progression parameters
 export const defaultParameters = {

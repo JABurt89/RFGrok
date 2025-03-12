@@ -6,6 +6,21 @@ import { insertExerciseSchema, insertWorkoutDaySchema, insertWorkoutLogSchema } 
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Add additional health check with DB status
+  app.get("/api/health/db", async (_req, res) => {
+    try {
+      // Test DB connection with a simple query
+      await storage.getUser(1);
+      res.json({ status: "ok", database: "connected" });
+    } catch (error) {
+      res.status(503).json({ 
+        status: "error", 
+        database: "disconnected",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   setupAuth(app);
 
   // Exercise routes
