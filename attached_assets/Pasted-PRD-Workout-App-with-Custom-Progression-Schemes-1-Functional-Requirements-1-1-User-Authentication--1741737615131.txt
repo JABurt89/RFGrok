@@ -1,0 +1,168 @@
+PRD: Workout App with Custom Progression Schemes
+1. Functional Requirements
+1.1 User Authentication
+Signup/Login: Email and password-based authentication with no complexity requirements.
+Password Recovery: Email-based recovery with a reset link valid for 24 hours.
+Data Syncing: Automatically sync user data across devices on login. Prompt user to choose between local or cloud data in case of conflicts.
+Security: Basic email/password login without additional measures (e.g., rate-limiting, CAPTCHA).
+1.2 Exercise Management
+Exercise Creation:
+Users define exercises with:
+Units: Enum (kg, lb)
+Equipment:
+Predefined options:
+Barbell: 20kg (converted to ~44.09 lb if units are lb, using 1 kg = 2.20462 lb)
+Dumbbell: 2.5kg (converted to ~5.51 lb if units are lb)
+Custom equipment: User-defined name (string) and starting weight (float, in selected units)
+Increment: Float (in selected units)
+Starting Weight:
+For predefined equipment: Set to equipment’s default weight (e.g., 20kg for Barbell).
+For custom equipment: User-entered value in selected units.
+Editing/Archiving:
+Exercises can be edited or archived (not deleted permanently).
+Archived exercises are restorable and displayed as "[Archived] ExerciseName" in historic logs.
+Multiple Instances:
+Same exercise (e.g., "Squats") can appear multiple times in a workout day with different progression schemes (e.g., "Squats (STS)", "Squats (RPT)"), each tracked independently with unique 1RMs.
+1.3 Workout Day Construction
+Creation:
+Name workout days (string) and add exercises in order via drag-and-drop.
+Assign one progression scheme per exercise instance:
+STS (Set-Training-System)
+Double Progression
+RPT Top-Set Dependent
+RPT Individual Progression
+Rest Times:
+Set rest times (integer, seconds) between sets and exercises.
+Locked once workout starts.
+Rest Timer Behavior:
+Auto-starts when a set is marked complete.
+Resets if the next set is completed before expiration.
+Plays a single chime when expired.
+1.4 Progression Schemes
+STS (Set-Training-System):
+1RM Calculation:
+Without extra set:
+text
+
+Collapse
+
+Wrap
+
+Copy
+1RM = W × (1 + 0.025 × R) × (1 + 0.025 × (S - 1))
+With extra set to failure:
+text
+
+Collapse
+
+Wrap
+
+Copy
+C = W × (1 + 0.025 × R) × (1 + 0.025 × (S - 1))
+F = W × (1 + 0.025 × R) × (1 + 0.025 × S)
+1RM = C + (failedRep / R) × (F - C)
+If failedRep = 0, use the without extra set formula.
+Where:
+W: Weight lifted (float, kg/lb)
+R: Target reps per set (integer)
+S: Completed sets (integer)
+failedRep: Reps in extra set (integer)
+Suggestions: Generate 10 combinations of sets, reps, and weights yielding the smallest 1RM increases (>0) over the last logged 1RM, using available weights (starting weight + N × increment).
+Double Progression:
+Increase weight by increment when max reps are hit for all sets in one workout (e.g., 3 sets of 10 reps).
+RPT Top-Set Dependent:
+User-defined back-off percentages (e.g., 85%, 60%).
+Increase top-set weight by increment when target reps are met; adjust back-off sets proportionally.
+RPT Individual Progression:
+User sets rep range (e.g., 6-8):
+Reps < 6: Decrease weight next time.
+Reps = 6-7: Keep weight same.
+Reps = 8: Increase weight next time.
+1.5 Workout Suggestions
+STS Edge Case:
+If no combination increases the 1RM, prompt user to manually enter sets, reps, and weight (no constraints, but reject illogical values like negatives or >1000kg).
+First-Time Workouts:
+Default to equipment’s starting weight (e.g., 20kg for Barbell).
+1.6 Workout Logging
+Logging:
+Record reps (integer), weight (float), and completion timestamp (ISO 8601) per set.
+STS Extra Set:
+After last planned set, prompt: "Attempt an extra set?"
+If yes, wait for manual rep entry after rest period.
+If failedRep = 0, use standard 1RM formula.
+Offline Logging:
+Save locally and sync when online.
+1.7 Rest Timers
+Behavior:
+Locked during workout.
+Single chime at expiration, using device volume (no customization).
+1.8 Workout History
+Data:
+Store sets, reps, weights, 1RMs, and rest times (calculated from timestamps).
+Export:
+Unified CSV with all logged data.
+Incomplete Workouts:
+Prompt: "Save and exit," "Discard," or "Resume later."
+Saved incomplete workouts flagged as "incomplete."
+1.9 User Profiles
+Editable Fields:
+Age (integer), weight (float, kg/lb), fitness goals (string).
+Impact:
+Profile changes do not affect past data or progression calculations.
+2. Technical Considerations
+Integration Points:
+Authentication API: Email/password login with reset link.
+Local Storage: IndexedDB for offline support.
+Cloud Database: PostgreSQL for syncing.
+Data Storage & Privacy:
+Encrypt credentials and logs (AES-256).
+Comply with GDPR/CCPA.
+Performance:
+STS suggestions must generate in <500ms.
+3. User Interface (UI)
+Mobile Mode:
+Web app must include a mobile mode with a collapsible sidebar for navigation.
+Dark Mode:
+Default theme is dark mode, with a toggleable light mode option.
+Exercise Display:
+Archived exercises appear as "[Archived] ExerciseName" in historic logs.
+Multiple instances distinguished by scheme (e.g., "Squats (STS)").
+4. User Stories
+US-001: Email/password signup/login with 24-hour reset link.
+US-002: Create exercises with equipment (predefined or custom), starting weight, increment, and units.
+US-003: Archive and restore exercises; display as "[Archived] ExerciseName" in logs.
+US-004: Build workout days with drag-and-drop exercises, schemes, and locked rest times.
+US-005: Implement STS with 1RM calculation and extra set logic.
+US-006: Generate STS suggestions in <500ms.
+US-007: Double progression weight increase on max reps in one workout.
+US-008: RPT schemes with user-adjustable percentages and rep range logic.
+US-009: Log workouts with timestamps and STS extra set prompt.
+US-010: Support offline logging and syncing.
+US-011: Export workout history as a unified CSV.
+US-012: Rest timers with auto-start, reset, and single chime.
+US-013: Handle incomplete workouts with save/discard/resume options.
+US-014: Implement default dark mode with light mode toggle.
+5. Data Models
+User:
+email (string)
+password (hashed string)
+profile { age (integer), weight (float), goals (string) }
+Exercise:
+user_id (foreign key)
+equipment_name (string)
+starting_weight (float, in selected units)
+increment (float, in selected units)
+units (enum: kg, lb)
+archived (boolean)
+WorkoutDay:
+user_id (foreign key)
+name (string)
+exercises [{ exercise_id, scheme, rest_between_sets (integer), rest_between_exercises (integer) }]
+WorkoutLog:
+user_id (foreign key)
+date (ISO 8601)
+exercise_id (foreign key)
+scheme (string)
+sets [{ reps (integer), weight (float), timestamp (ISO 8601) }]
+one_rm (float)
+extra_set_reps (integer, for STS)
