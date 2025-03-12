@@ -6,9 +6,33 @@ import { setupVite } from './vite';
 const app = express();
 app.use(express.json());
 
+async function testPort(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const { createServer } = await import('http'); // Use dynamic import instead of require
+    const testServer = createServer();
+    testServer.once('error', () => {
+      resolve(false);
+    });
+    testServer.once('listening', () => {
+      testServer.close(() => resolve(true));
+    });
+    testServer.listen(port);
+  });
+}
+
 async function main() {
   try {
     console.log('[Startup] Starting server initialization...');
+
+    // Check if port is available
+    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+    console.log('[Startup] Testing port availability:', PORT);
+
+    const portAvailable = await testPort(PORT);
+    if (!portAvailable) {
+      console.error(`[Error] Port ${PORT} is already in use. Unable to start server.`);
+      process.exit(1);
+    }
 
     // Add test endpoint
     app.get('/api/health', (_req, res) => {
@@ -26,8 +50,6 @@ async function main() {
       await setupVite(app, server);
     }
 
-    // Get port from environment variable with fallback
-    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
     console.log('[Startup] Attempting to bind to port', PORT);
     server.listen({ port: PORT, host: '0.0.0.0' }, () => {
       console.log(`Server running on port ${PORT}`);
