@@ -7,91 +7,81 @@ import { createServer as createHttpServer, type Server } from 'http';
 const app = express();
 app.use(express.json());
 
-async function testPort(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const testServer = createHttpServer();
-    testServer.once('error', () => {
-      resolve(false);
-    });
-    testServer.once('listening', () => {
-      testServer.close(() => resolve(true));
-    });
-    testServer.listen(port);
-  });
-}
-
-async function findAvailablePort(startPort: number): Promise<number> {
-  // Try ports in sequence until we find an available one
-  for (let port = startPort; port < startPort + 10; port++) {
-    const isAvailable = await testPort(port);
-    if (isAvailable) {
-      return port;
-    }
-    console.log(`[Port ${port}] is in use, trying next port...`);
-  }
-  throw new Error('No available ports found');
-}
-
 async function main() {
+  let server: Server | null = null;
+
   try {
     console.log('[Startup] Starting server initialization...');
 
-    // Try to find an available port starting from the preferred port
-    const preferredPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-    console.log('[Startup] Searching for available port starting from:', preferredPort);
+    // Create the server first
+    console.log('[Startup] Creating HTTP server...');
+    server = createHttpServer(app);
 
-    const PORT = await findAvailablePort(preferredPort);
-    console.log('[Startup] Found available port:', PORT);
-
-    // Add test endpoint
+    // Add health check endpoint
     app.get('/api/health', (_req, res) => {
       res.json({ status: 'ok', message: 'Server is running' });
     });
 
-    // Create the server with minimal configuration
-    console.log('[Startup] Creating HTTP server...');
-    const server = createHttpServer(app);
-
-    // Handle server errors
+    // Handle server errors with detailed logging
     server.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use. Please ensure no other instances are running.`);
+        console.error(`Port 5000 is already in use. This could be due to:
+1. Another instance of the server is already running
+2. The Vite development server is running separately
+3. Another service is using port 5000
+
+Error details:
+- Code: ${error.code}
+- Message: ${error.message}
+- Stack: ${error.stack}
+`);
         process.exit(1);
       } else {
-        console.error('Server error:', error);
+        console.error('Server error:', {
+          code: error.code,
+          message: error.message,
+          stack: error.stack
+        });
         process.exit(1);
       }
     });
 
-    // Enable Vite for development
+    // Setup Vite first in development mode
     if (process.env.NODE_ENV !== 'production') {
       console.log('[Startup] Setting up Vite middleware...');
-      await setupVite(app, server);
+      try {
+        await setupVite(app, server);
+        console.log('[Startup] Vite middleware setup complete');
+      } catch (error) {
+        console.error('[Error] Failed to setup Vite:', error);
+        process.exit(1);
+      }
     }
 
-    console.log('[Startup] Attempting to bind to port', PORT);
-    server.listen({ port: PORT, host: '0.0.0.0' }, () => {
-      console.log(`Server running on port ${PORT}`);
+    // Now attempt to bind to port 5000
+    console.log('[Startup] Attempting to bind to port 5000');
+    server.listen({ port: 5000, host: '0.0.0.0' }, () => {
+      console.log('[Startup] Server bound successfully to port 5000');
+      console.log('[Startup] Server initialization complete');
     });
 
     // Handle process termination signals
     const cleanup = async () => {
-      console.log('\n[Shutdown] Initiating graceful shutdown...');
+      if (!server) return;
 
-      // Close the HTTP server first
+      console.log('\n[Shutdown] Initiating graceful shutdown...');
       await new Promise<void>((resolve) => {
         console.log('[Shutdown] Closing HTTP server...');
-        server.close(() => {
+        server!.close(() => {
           console.log('[Shutdown] HTTP server closed.');
           resolve();
         });
       });
-
-      // Additional cleanup if needed
       console.log('[Shutdown] Cleanup complete. Exiting...');
       process.exit(0);
     };
 
+    // Ensure proper cleanup on various signals
     process.on('SIGTERM', cleanup);
     process.on('SIGINT', cleanup);
     process.on('SIGUSR2', cleanup); // For nodemon restarts
@@ -110,6 +100,9 @@ async function main() {
 
   } catch (error) {
     console.error('Failed to start server:', error);
+    if (server) {
+      server.close();
+    }
     process.exit(1);
   }
 }

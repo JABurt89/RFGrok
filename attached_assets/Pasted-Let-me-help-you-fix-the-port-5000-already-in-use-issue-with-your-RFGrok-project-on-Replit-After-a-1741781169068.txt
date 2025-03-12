@@ -1,0 +1,101 @@
+Let me help you fix the "port 5000 already in use" issue with your RFGrok project on Replit. After analyzing your GitHub repository (https://github.com/JABurt89/RFGrok) and considering the Replit environment, this error typically occurs because either another process is using port 5000 or a previous instance of your Vite server didn't properly shut down.
+Here are two solutions, starting with the simplest fix:
+Solution 1: Change the Port in Your Configuration
+Since Replit might have multiple processes competing for ports, let's configure your Vite server to use a different port (e.g., 3000, which is more common for frontend development).
+Modify your package.json:
+Open package.json in your RFGrok project and update the dev script to specify a different port. Here's the corrected version:
+json
+{
+  "name": "rfgrok",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "vite": "^5.2.0"
+  }
+}
+Stop and Restart the Server:
+In Replit, click the "Stop" button (red square) to terminate any running processes.
+Then click "Run" again to start the server on port 3000.
+Update Replit Configuration (if needed):
+If you're using a .replit file, ensure it aligns with the new port. Add or modify this file in your project root:
+bash
+# .replit
+run = "npm run dev"
+Solution 2: Kill the Existing Process on Port 5000
+If you prefer to keep using port 5000, we can kill whatever's occupying it in Replit.
+Open Replit Shell:
+In your Replit workspace, open the "Shell" tab (usually on the right side).
+Find and Kill the Process:
+Run these commands in the shell:
+bash
+# Find the process using port 5000
+lsof -i :5000
+
+# If you see a process, note its PID (second column) and kill it
+kill -9 <PID>
+Replace <PID> with the actual process ID number shown in the lsof output.
+Restart Your App:
+Go back to the main Replit interface and click "Run" again.
+Additional Replit-Specific Fix
+Replit sometimes keeps processes running in the background. To ensure a clean start:
+Add a Kill Command to package.json:
+Modify your package.json to include a predev script that kills any process on port 5000 before starting:
+json
+{
+  "name": "rfgrok",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "kill -9 $(lsof -t -i:5000) || true",
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "vite": "^5.2.0"
+  }
+}
+The || true ensures the script continues even if no process is found.
+Now when you run npm run dev, it will automatically clear port 5000 first.
+Verification
+After applying either solution:
+Run your project in Replit (npm run dev).
+Check the Replit console output - it should show something like:
+VITE v5.2.0  ready in XXX ms
+➜  Local:   http://localhost:3000/  (or 5000 if you kept it)
+➜  Network: http://<repl-id>.repl.co/
+Click the URL provided by Replit (usually in the webview pane) to verify it loads.
+Recommendation
+I recommend Solution 1 (changing to port 3000) as it's simpler and avoids potential Replit port conflicts. Port 5000 is commonly used by other services in shared environments like Replit, while 3000 is a standard for React/Vite apps.
+Let me know if you need further assistance after trying this!
