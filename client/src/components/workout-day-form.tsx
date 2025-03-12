@@ -40,10 +40,22 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
 
   const mutation = useMutation({
     mutationFn: async (data: InsertWorkoutDay) => {
+      // Add the scheme field to parameters for proper discrimination
+      const formattedData = {
+        ...data,
+        exercises: data.exercises.map(exercise => ({
+          ...exercise,
+          parameters: {
+            scheme: exercise.scheme,
+            ...exercise.parameters
+          }
+        }))
+      };
+
       const res = await apiRequest(
         workoutDay ? "PATCH" : "POST",
         workoutDay ? `/api/workout-days/${workoutDay.id}` : "/api/workout-days",
-        data
+        formattedData
       );
       return res.json();
     },
@@ -102,7 +114,7 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
                 </FormControl>
               </FormItem>
               <FormItem>
-                <FormLabel>Max Sets</FormLabel>
+                <FormLabel>Max Sets (Extra set is one above this)</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
@@ -194,8 +206,196 @@ export default function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFor
           </div>
         );
 
-      // Add similar parameter inputs for other schemes
-      // Double Progression, RPT Top-Set, and RPT Individual
+      case "Double Progression":
+        return (
+          <div className="space-y-4">
+            <FormItem>
+              <FormLabel>Target Sets</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  value={parameters.targetSets}
+                  onChange={(e) => {
+                    const exercises = form.getValues("exercises");
+                    exercises[index].parameters = {
+                      ...parameters,
+                      targetSets: parseInt(e.target.value),
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </FormControl>
+            </FormItem>
+            <div className="grid grid-cols-2 gap-4">
+              <FormItem>
+                <FormLabel>Min Reps</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.minReps}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        minReps: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Max Reps</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.maxReps}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        maxReps: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormItem>
+                <FormLabel>Rest Between Sets (s)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.restBetweenSets}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        restBetweenSets: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Rest Between Exercises (s)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.restBetweenExercises}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        restBetweenExercises: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            </div>
+          </div>
+        );
+
+      case "RPT Top-Set":
+      case "RPT Individual":
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormItem>
+                <FormLabel>Sets</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.sets}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        sets: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Target Reps</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.targetReps}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        targetReps: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            </div>
+            <FormItem>
+              <FormLabel>Drop Percent (%)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  value={parameters.dropPercent}
+                  onChange={(e) => {
+                    const exercises = form.getValues("exercises");
+                    exercises[index].parameters = {
+                      ...parameters,
+                      dropPercent: parseInt(e.target.value),
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </FormControl>
+            </FormItem>
+            <div className="grid grid-cols-2 gap-4">
+              <FormItem>
+                <FormLabel>Rest Between Sets (s)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.restBetweenSets}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        restBetweenSets: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Rest Between Exercises (s)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={parameters.restBetweenExercises}
+                    onChange={(e) => {
+                      const exercises = form.getValues("exercises");
+                      exercises[index].parameters = {
+                        ...parameters,
+                        restBetweenExercises: parseInt(e.target.value),
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            </div>
+          </div>
+        );
       default:
         return null;
     }
