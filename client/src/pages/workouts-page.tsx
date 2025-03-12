@@ -7,22 +7,25 @@ import { Home, Plus, DumbbellIcon, Edit, Play } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import WorkoutLogger from "@/components/workout-logger";
 import { useQuery } from "@tanstack/react-query";
-import { WorkoutDay } from "@shared/schema";
+import { WorkoutDay, Exercise } from "@shared/schema";
 
 function WorkoutsPage() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
 
-  // Fetch workouts
+  // Fetch workouts and exercises
   const { data: workouts = [] } = useQuery<WorkoutDay[]>({
     queryKey: ["/api/workout-days"],
+  });
+
+  const { data: exercises = [] } = useQuery<Exercise[]>({
+    queryKey: ["/api/exercises"],
   });
 
   const submitWorkoutDay = (data: WorkoutDay) => {
     console.log("Workout day submitted:", data);
     if (editingWorkout !== null) {
-      // Update existing workout
       setEditingWorkout(null);
     }
     setIsSheetOpen(false);
@@ -37,20 +40,23 @@ function WorkoutsPage() {
     setActiveWorkout(workout);
   };
 
-  const formatSchemeDetails = (progression: WorkoutDay["exercises"][0]["parameters"]) => {
-    const base = `${progression.scheme}`;
-
-    switch (progression.scheme) {
+  const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
+    switch (parameters.scheme) {
       case "STS":
-        return `${base} (${progression.minReps}-${progression.maxReps} reps)`;
+        return `${parameters.scheme} (${parameters.minSets}-${parameters.maxSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
       case "Double Progression":
-        return `${base} (Target: ${progression.targetSets} sets)`;
+        return `${parameters.scheme} (${parameters.targetSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
       case "RPT Top-Set":
       case "RPT Individual":
-        return `${base} (${progression.dropPercent}% drop)`;
+        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.targetReps} target reps, ${parameters.dropPercent}% drop)`;
       default:
-        return base;
+        return parameters.scheme;
     }
+  };
+
+  const getExerciseName = (exerciseId: number) => {
+    const exercise = exercises.find(e => e.id === exerciseId);
+    return exercise?.name || "Unknown Exercise";
   };
 
   return (
@@ -99,9 +105,14 @@ function WorkoutsPage() {
             </div>
           ) : (
             workouts.map((workout) => (
-              <div key={workout.id} className="border rounded-lg p-4 space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <h3 className="text-xl font-semibold">{workout.name}</h3>
+              <div key={workout.id} className="border rounded-lg p-4 bg-card">
+                <div className="flex items-center justify-between border-b pb-4 mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold">{workout.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -123,16 +134,31 @@ function WorkoutsPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  {workout.exercises.map((exercise, idx) => (
-                    <div key={idx} className="pl-4 py-2 border-l-2">
-                      <p className="font-medium">Exercise {idx + 1}</p>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>Scheme: {formatSchemeDetails(exercise.parameters)}</p>
-                        <p>Rest: {exercise.parameters.restBetweenSets}s between sets / {exercise.parameters.restBetweenExercises}s between exercises</p>
+                <div className="space-y-4">
+                  {workout.exercises.map((exercise, idx) => {
+                    const exerciseName = getExerciseName(exercise.exerciseId);
+                    const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
+
+                    return (
+                      <div key={idx} className="p-4 rounded-md bg-muted/50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-lg">{exerciseName}</h4>
+                          {exerciseDetails && (
+                            <span className="text-sm text-muted-foreground">
+                              {exerciseDetails.equipmentName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                          <p>{formatSchemeDetails(exercise.parameters)}</p>
+                          <p>Rest periods: {exercise.parameters.restBetweenSets}s between sets, {exercise.parameters.restBetweenExercises}s between exercises</p>
+                          {exerciseDetails && (
+                            <p>Equipment details: Starting weight {exerciseDetails.startingWeight}{exerciseDetails.units}, {exerciseDetails.increment}{exerciseDetails.units} increments</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))
