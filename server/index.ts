@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { log } from "./vite";
+import { setupVite, serveStatic } from "./vite";
+import { registerRoutes } from "./routes";
 
 const app = express();
 
@@ -29,6 +31,22 @@ app.use(express.urlencoded({ extended: false }));
     startupTiming.envCheck = Date.now();
     log(`[${new Date().toISOString()}] Environment variables verified (${startupTiming.envCheck - startupTiming.start}ms)`);
 
+    // Setup Vite/static file serving
+    log(`[${new Date().toISOString()}] Setting up Vite...`);
+    if (app.get("env") === "development") {
+      await setupVite(app);
+    } else {
+      serveStatic(app);
+    }
+    startupTiming.vite = Date.now();
+    log(`[${new Date().toISOString()}] Vite setup complete (${startupTiming.vite - startupTiming.envCheck}ms)`);
+
+    // Setup API routes
+    log(`[${new Date().toISOString()}] Setting up API routes...`);
+    await registerRoutes(app);
+    startupTiming.routes = Date.now();
+    log(`[${new Date().toISOString()}] API routes setup complete (${startupTiming.routes - startupTiming.vite}ms)`);
+
     // Start server
     const port = 5000;
     const server = app.listen({
@@ -40,17 +58,16 @@ app.use(express.urlencoded({ extended: false }));
       log(`[${new Date().toISOString()}] Server started on port ${port} (total startup: ${totalDuration}ms)`);
     });
 
-    // Basic error handling - Improved from edited code to include logging
+    // Basic error handling
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
-      console.error('Server error:', err); //Keep this line for detailed error logging
+      console.error('Server error:', err);
 
       if (!res.headersSent) {
         res.status(status).json({ message });
       }
       log(`Error: ${message}`);
-
     });
 
   } catch (err) {
