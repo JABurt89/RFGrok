@@ -20,8 +20,8 @@ type WorkoutLoggerProps = {
 type ExerciseSet = {
   reps: number;
   weight: number;
-  timestamp: string | null; // Updated to allow null
-  isCompleted?: boolean;
+  timestamp: string | null;
+  isCompleted: boolean;
   actualReps?: number;
 };
 
@@ -44,46 +44,15 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// (Keeping ensureValidDate function as is, though it's less critical now)
-const ensureValidDate = (dateInput: Date | string | number): string => {
-  try {
-    if (dateInput) {
-      if (typeof dateInput === 'object' && dateInput instanceof Date) {
-        return dateInput.toISOString();
-      } else if (typeof dateInput === 'number') {
-        return new Date(dateInput).toISOString();
-      } else if (typeof dateInput === 'string') {
-        const date = new Date(dateInput);
-        if (!isNaN(date.getTime())) {
-          return date.toISOString();
-        } else {
-          console.warn('Invalid date string, using current time:', dateInput);
-          return new Date().toISOString();
-        }
-      } else {
-        console.warn('Invalid date type, using current time:', typeof dateInput);
-        return new Date().toISOString();
-      }
-    } else {
-      console.warn('No date provided, using current time');
-      return new Date().toISOString();
-    }
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return new Date().toISOString();
-  }
-};
-
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [workoutState, setWorkoutState] = useState<WorkoutState>({});
   const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
@@ -92,8 +61,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
 
-  const calculate1RM = (weight: number, reps: number, sets: number) => {
-    const baseRM = weight * (36 / (37 - reps));
+  const calculate1RM = (weight: number, reps: number, sets: number): number => {
+    const baseRM = weight * (1 + 0.025 * reps);
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
@@ -105,10 +74,10 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
+        const targetWeight = editable1RM / (1 + 0.025 * reps) / (1 + 0.025 * (sets - 1));
         const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
-
         const calculated1RM = calculate1RM(weight, reps, sets);
+
         if (calculated1RM > editable1RM) {
           combinations.push({ sets, reps, weight, calculated1RM });
         }
@@ -120,44 +89,42 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   }, [editable1RM, currentExercise, currentExerciseData]);
 
   const saveAndExitWorkout = async () => {
-    try {
-      setIsLoading(true);
+    if (!currentExerciseData) return;
 
+    setIsLoading(true);
+    try {
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: new Date().toISOString(), // Simplified
+        date: new Date().toISOString(),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
           sets: data.sets.map(set => ({
-            reps: set.actualReps || set.reps,
+            reps: set.actualReps ?? set.reps,
             weight: set.weight,
-            timestamp: set.timestamp // Use directly: string or null
+            timestamp: set.timestamp, // Already string | null
           })),
           extraSetReps: data.extraSetReps,
           oneRm: data.oneRm,
         })),
-        isComplete: false
+        isComplete: false,
       };
 
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
-
+      console.log('Sending workout log:', JSON.stringify(workoutLog, null, 2));
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
+        throw new Error(`Server error: ${JSON.stringify(errorData)}`);
       }
 
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
-      toast({
-        title: "Success",
-        description: "Workout saved successfully!",
-      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+      toast({ title: "Success", description: "Workout saved successfully!" });
       onComplete();
     } catch (error) {
-      console.error('Error saving workout:', error);
+      console.error("Failed to save workout:", error);
       toast({
-        title: "Error saving workout",
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save workout",
         variant: "destructive",
       });
     } finally {
@@ -174,22 +141,29 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       currentSets[setIndex] = {
         ...currentSets[setIndex],
         isCompleted: completed,
-        actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: completed ? new Date().toISOString() : null // Set string only on completion
+        actualReps: actualReps ?? currentSets[setIndex].reps,
+        timestamp: completed ? new Date().toISOString() : null,
       };
 
-      return {
+      const updatedState = {
         ...prev,
         [exerciseId]: {
           ...prev[exerciseId],
           sets: currentSets,
           oneRm: calculate1RM(
             currentSets[setIndex].weight,
-            currentSets[setIndex].actualReps || currentSets[setIndex].reps,
-            setIndex + 1
-          )
-        }
+            currentSets[setIndex].actualReps ?? currentSets[setIndex].reps,
+            currentSets.filter(s => s.isCompleted).length
+          ),
+        },
       };
+
+      // Check if all sets are complete and prompt for next exercise
+      if (currentSets.every(set => set.isCompleted) && currentExerciseIndex < workoutDay.exercises.length - 1) {
+        setTimeout(() => setCurrentExerciseIndex(prev => prev + 1), 1000);
+      }
+
+      return updatedState;
     });
 
     const { setRest } = getRestTimes();
@@ -203,25 +177,26 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setWorkoutState(prev => ({
       ...prev,
       [exerciseId]: {
-        sets: Array.from({ length: combination.sets }, () => ({
+        ...prev[exerciseId],
+        sets: Array(combination.sets).fill(null).map(() => ({
           weight: combination.weight,
           reps: combination.reps,
           isCompleted: false,
-          timestamp: null // Null until completed
+          timestamp: null,
         })),
         selectedCombination: combination,
-        plannedSets: combination.sets
-      }
+        plannedSets: combination.sets,
+      },
     }));
   };
 
   const handleStartWorkout = () => {
-    const currentState = workoutState[currentExerciseData.exerciseId];
+    const currentState = workoutState[currentExerciseData?.exerciseId];
     if (!currentState?.sets?.length) {
       toast({
-        title: "Select a combination",
-        description: "Please select a set/weight combination before starting the workout",
-        variant: "destructive"
+        title: "Setup Required",
+        description: "Please select a set/weight combination first.",
+        variant: "destructive",
       });
       return;
     }
@@ -229,25 +204,23 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   };
 
   const getRestTimes = () => {
-    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
     return {
-      setRest: currentExerciseData.parameters.restBetweenSets,
-      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
+      setRest: currentExerciseData?.parameters.restBetweenSets ?? 90,
+      exerciseRest: currentExerciseData?.parameters.restBetweenExercises ?? 180,
     };
   };
 
   useEffect(() => {
-    let interval: number;
-    if (restTimer !== null && restTimer > 0) {
-      interval = window.setInterval(() => {
-        setRestTimer(prev => (prev ?? 0) - 1);
-      }, 1000);
+    if (restTimer === null || restTimer <= 0) return;
 
-      if (restTimer === 1) {
-        const audio = new Audio("/notification.mp3");
-        audio.play().catch(console.error);
-      }
+    const interval = setInterval(() => {
+      setRestTimer(prev => (prev !== null && prev > 0 ? prev - 1 : null));
+    }, 1000);
+
+    if (restTimer === 1) {
+      new Audio("/notification.mp3").play().catch(err => console.error("Audio error:", err));
     }
+
     return () => clearInterval(interval);
   }, [restTimer]);
 
@@ -263,9 +236,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   if (!currentExercise) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>
-          Error: Could not find exercise data. Please try again.
-        </AlertDescription>
+        <AlertDescription>Exercise data not found. Please try again.</AlertDescription>
       </Alert>
     );
   }
@@ -276,55 +247,44 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         <Card>
           <CardHeader>
             <CardTitle>{currentExercise.name} - Setup</CardTitle>
-            <CardDescription>
-              Select your target sets and weights for this exercise
-            </CardDescription>
+            <CardDescription>Select your target sets and weights</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {currentExerciseData.parameters.scheme === "STS" && (
-              <div className="space-y-4">
+              <>
                 <div className="space-y-2">
                   <Label>Current 1RM ({currentExercise.units})</Label>
                   <Input
                     type="number"
                     value={editable1RM}
-                    onChange={(e) => setEditable1RM(parseFloat(e.target.value) || 0)}
+                    onChange={e => setEditable1RM(parseFloat(e.target.value) || 0)}
                     step={currentExercise.increment}
+                    min={0}
                   />
                 </div>
-
                 {stsCombinations.length > 0 && (
                   <div className="space-y-2">
                     <Label>Select a combination:</Label>
                     <RadioGroup
-                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ?
-                        JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) :
-                        undefined}
-                      onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination
+                        ? JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination)
+                        : undefined}
+                      onValueChange={value => handleCombinationSelect(JSON.parse(value))}
                     >
-                      <div className="space-y-2">
-                        {stsCombinations.map((combo, idx) => (
-                          <div key={idx} className="flex items-center space-x-2">
-                            <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                            <Label htmlFor={`combo-${idx}`}>
-                              {combo.sets} sets × {combo.reps} reps @ {combo.weight}{currentExercise.units}
-                              <span className="text-sm text-muted-foreground ml-2">
-                                (1RM: {combo.calculated1RM.toFixed(1)}{currentExercise.units})
-                              </span>
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                      {stsCombinations.map((combo, idx) => (
+                        <div key={idx} className="flex items-center space-x-2">
+                          <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
+                          <Label htmlFor={`combo-${idx}`}>
+                            {combo.sets} sets × {combo.reps} reps @ {combo.weight} {currentExercise.units} (1RM: {combo.calculated1RM.toFixed(1)})
+                          </Label>
+                        </div>
+                      ))}
                     </RadioGroup>
                   </div>
                 )}
-              </div>
+              </>
             )}
-
-            <Button
-              className="w-full"
-              onClick={handleStartWorkout}
-            >
+            <Button className="w-full" onClick={handleStartWorkout}>
               Start Exercise
             </Button>
           </CardContent>
@@ -334,104 +294,70 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   }
 
   const currentState = workoutState[currentExerciseData.exerciseId];
-  const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
+  const remainingSets = currentState.sets.filter(set => !set.isCompleted);
 
   return (
     <div className="space-y-6">
       {restTimer !== null && (
         <Alert>
           <AlertDescription className="flex items-center justify-between">
-            <span>Rest Time: {restTimer}s</span>
-            {restTimer > 0 ? (
-              <PauseCircle className="h-5 w-5 animate-pulse" />
-            ) : (
-              <PlayCircle className="h-5 w-5" />
-            )}
+            <span>Rest: {restTimer}s</span>
+            {restTimer > 0 ? <PauseCircle className="h-5 w-5 animate-pulse" /> : <PlayCircle className="h-5 w-5" />}
           </AlertDescription>
         </Alert>
       )}
-
       <Card>
         <CardHeader>
-          <CardTitle>
-            {currentExercise.name} - Active Workout
-          </CardTitle>
+          <CardTitle>{currentExercise.name}</CardTitle>
           <CardDescription>
-            {currentState?.sets.filter(set => set.isCompleted).length || 0} of {currentState?.plannedSets || 0} sets completed
+            {currentState.sets.filter(s => s.isCompleted).length} of {currentState.plannedSets} sets completed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {currentState?.sets.map((set, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium">Set {index + 1}</h3>
-                <div className="flex items-center gap-2">
-                  {!set.isCompleted ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const reps = prompt(`Enter actual reps achieved (target: ${set.reps}):`);
-                          if (reps !== null) {
-                            handleSetComplete(index, true, parseInt(reps));
-                          }
-                        }}
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Failed Set
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetComplete(index, true)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Complete Set
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      {set.actualReps || set.reps} reps @ {set.weight}{currentExercise.units}
-                    </span>
-                  )}
+          {currentState.sets.map((set, index) => (
+            <div key={index} className="border rounded-lg p-4 flex items-center justify-between">
+              <h3 className="font-medium">Set {index + 1}</h3>
+              {!set.isCompleted ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const reps = prompt(`Enter reps (target: ${set.reps}):`);
+                      if (reps !== null) handleSetComplete(index, true, parseInt(reps));
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" /> Failed
+                  </Button>
+                  <Button size="sm" onClick={() => handleSetComplete(index, true)}>
+                    <CheckCircle className="h-4 w-4 mr-2" /> Complete
+                  </Button>
                 </div>
-              </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {set.actualReps ?? set.reps} reps @ {set.weight} {currentExercise.units}
+                </span>
+              )}
             </div>
           ))}
-
-          {remainingSets.length === 0 && (
-            <Button
-              className="w-full"
-              onClick={() => setCurrentExerciseIndex(prev => prev + 1)}
-            >
+          {remainingSets.length === 0 && currentExerciseIndex < workoutDay.exercises.length - 1 && (
+            <Button className="w-full" onClick={() => setCurrentExerciseIndex(prev => prev + 1)}>
               Next Exercise
             </Button>
           )}
         </CardContent>
       </Card>
-
       <div className="flex gap-4">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={saveAndExitWorkout}
-          disabled={isLoading}
-        >
+        <Button variant="outline" className="w-full" onClick={saveAndExitWorkout} disabled={isLoading}>
           {isLoading ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...
             </>
           ) : (
-            'Save & Exit'
+            "Save & Exit"
           )}
         </Button>
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={onComplete}
-          disabled={isLoading}
-        >
+        <Button variant="destructive" className="w-full" onClick={onComplete} disabled={isLoading}>
           Discard
         </Button>
       </div>

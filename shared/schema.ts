@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -11,18 +11,8 @@ export const KG_TO_LB = 2.20462;
 
 // Equipment definitions
 export const predefinedEquipment = {
-  Barbell: {
-    name: "Barbell",
-    startingWeight: 20,
-    increment: 2.5,
-    units: "kg",
-  },
-  Dumbbell: {
-    name: "Dumbbell",
-    startingWeight: 2.5,
-    increment: 1,
-    units: "kg",
-  },
+  Barbell: { name: "Barbell", startingWeight: 20, increment: 2.5, units: "kg" },
+  Dumbbell: { name: "Dumbbell", startingWeight: 2.5, increment: 1, units: "kg" },
 } as const;
 
 // Common parameters for all progression schemes
@@ -30,6 +20,11 @@ const commonParameters = {
   restBetweenSets: z.number().min(0),
   restBetweenExercises: z.number().min(0),
 };
+
+// Make timestamp validation more flexible
+const timestampSchema = z.string().datetime({
+  message: "Invalid timestamp format. Must be an ISO 8601 datetime string.",
+});
 
 // Progression Parameters Schemas
 const stsParameters = z.object({
@@ -39,7 +34,7 @@ const stsParameters = z.object({
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
   ...commonParameters,
-}).strict();
+});
 
 const doubleProgressionParameters = z.object({
   scheme: z.literal("Double Progression"),
@@ -47,7 +42,7 @@ const doubleProgressionParameters = z.object({
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
   ...commonParameters,
-}).strict();
+});
 
 const rptTopSetParameters = z.object({
   scheme: z.literal("RPT Top-Set"),
@@ -55,7 +50,7 @@ const rptTopSetParameters = z.object({
   targetReps: z.number().min(1),
   dropPercent: z.number().min(0).max(100),
   ...commonParameters,
-}).strict();
+});
 
 const rptIndividualParameters = z.object({
   scheme: z.literal("RPT Individual"),
@@ -63,47 +58,18 @@ const rptIndividualParameters = z.object({
   targetReps: z.number().min(1),
   dropPercent: z.number().min(0).max(100),
   ...commonParameters,
-}).strict();
+});
 
 // Default progression parameters
 export const defaultProgressionParameters = {
-  "STS": {
-    scheme: "STS" as const,
-    minSets: 3,
-    maxSets: 4,
-    minReps: 6,
-    maxReps: 8,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "Double Progression": {
-    scheme: "Double Progression" as const,
-    targetSets: 3,
-    minReps: 8,
-    maxReps: 12,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Top-Set": {
-    scheme: "RPT Top-Set" as const,
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
-  "RPT Individual": {
-    scheme: "RPT Individual" as const,
-    sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
-  },
+  "STS": { scheme: "STS" as const, minSets: 3, maxSets: 4, minReps: 6, maxReps: 8, restBetweenSets: 90, restBetweenExercises: 180 },
+  "Double Progression": { scheme: "Double Progression" as const, targetSets: 3, minReps: 8, maxReps: 12, restBetweenSets: 90, restBetweenExercises: 180 },
+  "RPT Top-Set": { scheme: "RPT Top-Set" as const, sets: 3, targetReps: 6, dropPercent: 10, restBetweenSets: 90, restBetweenExercises: 180 },
+  "RPT Individual": { scheme: "RPT Individual" as const, sets: 3, targetReps: 6, dropPercent: 10, restBetweenSets: 90, restBetweenExercises: 180 },
 } as const;
 
-// Workout Exercise Schema with corrected discriminated union
-const workoutExerciseSchema = z.object({
+// Workout Exercise Schema
+export const workoutExerciseSchema = z.object({
   exerciseId: z.number(),
   parameters: z.discriminatedUnion("scheme", [
     stsParameters,
@@ -111,9 +77,9 @@ const workoutExerciseSchema = z.object({
     rptTopSetParameters,
     rptIndividualParameters,
   ]),
-}).strict();
+});
 
-// Database tables
+// Database tables with indexes
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -122,7 +88,9 @@ export const users = pgTable("users", {
   age: integer("age"),
   weight: real("weight"),
   goals: text("goals"),
-});
+}, (table) => ({
+  emailIdx: index("email_idx").on(table.email),
+}));
 
 export const exercises = pgTable("exercises", {
   id: serial("id").primaryKey(),
@@ -133,32 +101,42 @@ export const exercises = pgTable("exercises", {
   increment: real("increment").notNull(),
   units: text("units", { enum: ["kg", "lb"] }).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("user_id_idx").on(table.userId),
+}));
 
 export const workoutDays = pgTable("workout_days", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
-  exercises: jsonb("exercises").notNull().$type<WorkoutExercise[]>(),
-});
+  exercises: jsonb("exercises").notNull().$type<z.infer<typeof workoutExerciseSchema>[]>(),
+}, (table) => ({
+  userIdIdx: index("user_id_idx").on(table.userId),
+}));
+
+export type WorkoutSet = {
+  exerciseId: number;
+  sets: Array<{
+    reps: number;
+    weight: number;
+    timestamp: string;
+  }>;
+  extraSetReps?: number;
+  oneRm?: number;
+};
 
 export const workoutLogs = pgTable("workout_logs", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   workoutDayId: integer("workout_day_id").references(() => workoutDays.id),
   date: timestamp("date").notNull(),
-  sets: jsonb("sets").notNull().$type<{
-    exerciseId: number;
-    sets: Array<{
-      reps: number;
-      weight: number;
-      timestamp: string; // ISO 8601 timestamp for rest time tracking
-    }>;
-    extraSetReps?: number; // For STS progression tracking
-    oneRm?: number; // Calculated 1RM for the exercise
-  }>(),
+  sets: jsonb("sets").notNull().$type<WorkoutSet[]>(),
   isComplete: boolean("is_complete").default(false).notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("user_id_idx").on(table.userId),
+  workoutDayIdIdx: index("workout_day_id_idx").on(table.workoutDayId),
+  dateIdx: index("date_idx").on(table.date),
+}));
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -169,9 +147,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   weight: true,
 });
 
-export const insertExerciseSchema = createInsertSchema(exercises).omit({
-  id: true,
-});
+export const insertExerciseSchema = createInsertSchema(exercises).omit({ id: true });
 
 export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
   .omit({ id: true })
@@ -182,16 +158,16 @@ export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
 export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
   .omit({ id: true })
   .extend({
-    date: z.union([z.date(), z.string().datetime()]),
+    date: z.union([z.date(), timestampSchema]),
     sets: z.array(z.object({
       exerciseId: z.number(),
       sets: z.array(z.object({
         reps: z.number(),
         weight: z.number(),
-        timestamp: z.string().datetime()
+        timestamp: timestampSchema
       })),
       extraSetReps: z.number().optional(),
-      oneRm: z.number().optional()
+      oneRm: z.number().optional(),
     }))
   });
 
@@ -210,16 +186,7 @@ export type WorkoutLog = {
   userId?: number;
   workoutDayId: number;
   date: Date | string;
-  sets: {
-    exerciseId: number;
-    sets: Array<{
-      reps: number;
-      weight: number;
-      timestamp: string;
-    }>;
-    extraSetReps?: number;
-    oneRm?: number;
-  }[];
+  sets: WorkoutSet[];
   isComplete?: boolean;
 };
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
