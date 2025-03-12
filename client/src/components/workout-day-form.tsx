@@ -4,9 +4,12 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Exercise } from "../types";
 import { useExercises } from "../hooks/useExercises";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface WorkoutDayFormProps {
-  onSubmit: (data: WorkoutDayFormData) => void;
+  submitWorkoutDay: (data: WorkoutDayFormData) => void;
 }
 
 interface ProgressionParameters {
@@ -46,6 +49,36 @@ interface WorkoutDayFormData {
   exercises: WorkoutExercise[];
 }
 
+const formSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  exercises: z.array(z.object({
+    exerciseId: z.number().min(1, "Exercise selection is required"),
+    progression: z.object({
+      scheme: z.string(),
+      sets: z.number(),
+      reps: z.number(),
+      restBetweenSets: z.number(),
+      restBetweenExercises: z.number(),
+    }).and(z.union([
+      z.object({
+        scheme: z.literal("STS"),
+        minSets: z.number(),
+        maxSets: z.number(),
+        minReps: z.number(),
+        maxReps: z.number(),
+      }),
+      z.object({
+        scheme: z.literal("Double Progression"),
+        targetSets: z.number(),
+      }),
+      z.object({
+        scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
+        dropPercent: z.number(),
+      }),
+    ])),
+  })),
+});
+
 const defaultProgressionParameters: Record<string, SchemeParameters> = {
   "STS": {
     scheme: "STS",
@@ -84,9 +117,10 @@ const defaultProgressionParameters: Record<string, SchemeParameters> = {
   }
 };
 
-export function WorkoutDayForm({ onSubmit }: WorkoutDayFormProps) {
+export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
   const { exercises } = useExercises();
   const form = useForm<WorkoutDayFormData>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       exercises: [{
@@ -95,6 +129,11 @@ export function WorkoutDayForm({ onSubmit }: WorkoutDayFormProps) {
       }]
     },
   });
+
+  const onSubmit = (data: WorkoutDayFormData) => {
+    console.log("Form submitted with data:", data);
+    submitWorkoutDay(data);
+  };
 
   const renderProgressionFields = (index: number, scheme: string) => {
     const currentExercise = form.getValues("exercises")[index];
@@ -223,128 +262,136 @@ export function WorkoutDayForm({ onSubmit }: WorkoutDayFormProps) {
   };
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium">Workout Name</label>
-        <Input
-          {...form.register("name", { required: true })}
-          placeholder="e.g., Push Day A"
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Workout Name</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="e.g., Push Day A" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
 
-      {form.watch("exercises").map((exercise, index) => (
-        <div key={index} className="space-y-4 p-4 border rounded">
-          <div>
-            <label className="block text-sm font-medium">Exercise</label>
-            <Select
-              value={exercise.exerciseId.toString()}
-              onValueChange={(value) => {
+        {form.watch("exercises").map((exercise, index) => (
+          <div key={index} className="space-y-4 p-4 border rounded">
+            <div>
+              <label className="block text-sm font-medium">Exercise</label>
+              <Select
+                value={exercise.exerciseId.toString()}
+                onValueChange={(value) => {
+                  const exercises = [...form.getValues("exercises")];
+                  exercises[index].exerciseId = parseInt(value);
+                  form.setValue("exercises", exercises);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an exercise" />
+                </SelectTrigger>
+                <SelectContent>
+                  {exercises.map((e) => (
+                    <SelectItem key={e.id} value={e.id.toString()}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Progression Scheme</label>
+              <Select
+                value={exercise.progression.scheme}
+                onValueChange={(value) => {
+                  const exercises = [...form.getValues("exercises")];
+                  exercises[index].progression = defaultProgressionParameters[value];
+                  form.setValue("exercises", exercises);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select progression scheme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STS">Straight Sets (STS)</SelectItem>
+                  <SelectItem value="Double Progression">Double Progression</SelectItem>
+                  <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
+                  <SelectItem value="RPT Individual">RPT Individual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {renderProgressionFields(index, exercise.progression.scheme)}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium">Rest Between Sets (s)</label>
+                <Input
+                  type="number"
+                  value={exercise.progression.restBetweenSets}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].progression = {
+                      ...exercise.progression,
+                      restBetweenSets: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
+                <Input
+                  type="number"
+                  value={exercise.progression.restBetweenExercises}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].progression = {
+                      ...exercise.progression,
+                      restBetweenExercises: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
                 const exercises = [...form.getValues("exercises")];
-                exercises[index].exerciseId = parseInt(value);
+                exercises.splice(index, 1);
                 form.setValue("exercises", exercises);
               }}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select an exercise" />
-              </SelectTrigger>
-              <SelectContent>
-                {exercises.map((e) => (
-                  <SelectItem key={e.id} value={e.id.toString()}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              Remove Exercise
+            </Button>
           </div>
+        ))}
 
-          <div>
-            <label className="block text-sm font-medium">Progression Scheme</label>
-            <Select
-              value={exercise.progression.scheme}
-              onValueChange={(value) => {
-                const exercises = [...form.getValues("exercises")];
-                exercises[index].progression = defaultProgressionParameters[value];
-                form.setValue("exercises", exercises);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select progression scheme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="STS">Straight Sets (STS)</SelectItem>
-                <SelectItem value="Double Progression">Double Progression</SelectItem>
-                <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
-                <SelectItem value="RPT Individual">RPT Individual</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Button
+          type="button"
+          onClick={() => {
+            const exercises = [...form.getValues("exercises")];
+            exercises.push({
+              exerciseId: 0,
+              progression: defaultProgressionParameters["STS"]
+            });
+            form.setValue("exercises", exercises);
+          }}
+        >
+          Add Exercise
+        </Button>
 
-          {renderProgressionFields(index, exercise.progression.scheme)}
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Rest Between Sets (s)</label>
-              <Input
-                type="number"
-                value={exercise.progression.restBetweenSets}
-                onChange={(e) => {
-                  const exercises = [...form.getValues("exercises")];
-                  exercises[index].progression = {
-                    ...exercise.progression,
-                    restBetweenSets: parseInt(e.target.value)
-                  };
-                  form.setValue("exercises", exercises);
-                }}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
-              <Input
-                type="number"
-                value={exercise.progression.restBetweenExercises}
-                onChange={(e) => {
-                  const exercises = [...form.getValues("exercises")];
-                  exercises[index].progression = {
-                    ...exercise.progression,
-                    restBetweenExercises: parseInt(e.target.value)
-                  };
-                  form.setValue("exercises", exercises);
-                }}
-              />
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => {
-              const exercises = [...form.getValues("exercises")];
-              exercises.splice(index, 1);
-              form.setValue("exercises", exercises);
-            }}
-          >
-            Remove Exercise
-          </Button>
-        </div>
-      ))}
-
-      <Button
-        type="button"
-        onClick={() => {
-          const exercises = [...form.getValues("exercises")];
-          exercises.push({
-            exerciseId: 0,
-            progression: defaultProgressionParameters["STS"]
-          });
-          form.setValue("exercises", exercises);
-        }}
-      >
-        Add Exercise
-      </Button>
-
-      <Button type="submit" className="w-full">
-        Create Workout
-      </Button>
-    </form>
+        <Button type="submit" className="w-full">
+          Create Workout
+        </Button>
+      </form>
+    </Form>
   );
 }
