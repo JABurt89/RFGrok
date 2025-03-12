@@ -65,8 +65,7 @@ const stsParameters = z.object({
   maxSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
+  ...commonParameters,
 }).strict();
 
 const doubleProgressionParameters = z.object({
@@ -74,26 +73,33 @@ const doubleProgressionParameters = z.object({
   targetSets: z.number().min(1),
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
+  ...commonParameters,
 }).strict();
 
-const rptParameters = z.object({
-  scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
+const rptTopSetParameters = z.object({
+  scheme: z.literal("RPT Top-Set"),
   sets: z.number().min(1),
   targetReps: z.number().min(1),
   dropPercent: z.number().min(0).max(100),
-  restBetweenSets: z.number().min(0),
-  restBetweenExercises: z.number().min(0),
+  ...commonParameters,
 }).strict();
 
-// Workout Exercise Schema with discriminatedUnion
+const rptIndividualParameters = z.object({
+  scheme: z.literal("RPT Individual"),
+  sets: z.number().min(1),
+  targetReps: z.number().min(1),
+  dropPercent: z.number().min(0).max(100),
+  ...commonParameters,
+}).strict();
+
+// Workout Exercise Schema with corrected discriminated union
 const workoutExerciseSchema = z.object({
   exerciseId: z.number(),
   parameters: z.discriminatedUnion("scheme", [
     stsParameters,
     doubleProgressionParameters,
-    rptParameters,
+    rptTopSetParameters,
+    rptIndividualParameters,
   ]),
 }).strict();
 
@@ -192,4 +198,5 @@ export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
 export type STSParameters = z.infer<typeof stsParameters>;
 export type DoubleProgressionParameters = z.infer<typeof doubleProgressionParameters>;
-export type RPTParameters = z.infer<typeof rptParameters>;
+export type RPTTopSetParameters = z.infer<typeof rptTopSetParameters>;
+export type RPTIndividualParameters = z.infer<typeof rptIndividualParameters>;
