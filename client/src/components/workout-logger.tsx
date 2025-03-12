@@ -44,6 +44,7 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
+// Standalone helper function for date validation
 const ensureValidDate = (dateInput: Date | string | number): string => {
   try {
     if (dateInput) {
@@ -93,7 +94,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // Added loading state
+  const [isLoading, setIsLoading] = useState(false);
 
   const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
@@ -129,52 +130,58 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
-  const saveWorkoutMutation = useMutation({
-    mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
-      try {
-        const formattedWorkoutLog = {
-          ...workoutLog,
-          date: ensureValidDate(workoutLog.date || new Date()),
-          sets: workoutLog.sets?.map(set => ({
-            ...set,
-            sets: set.sets.map(s => ({
-              ...s,
-              timestamp: ensureValidDate(s.timestamp)
-            }))
-          }))
-        };
+  const saveAndExitWorkout = async () => {
+    try {
+      setIsLoading(true);
 
-        console.log('Attempting to save workout with formatted data:',
-          JSON.stringify(formattedWorkoutLog, null, 2));
+      // Create a proper workout log with valid timestamps.  Workaround for missing currentWorkout
+      const workoutLog: Partial<WorkoutLog> = {
+        workoutDayId: workoutDay.id,
+        date: ensureValidDate(new Date()), 
+        sets: Object.entries(workoutState).map(([exerciseId, data]) => {
+          const processedSets = data.sets.map(set => {
+            let timestamp = ensureValidDate(set.timestamp);
+            return {
+              reps: set.actualReps || set.reps,
+              weight: set.weight,
+              timestamp: timestamp
+            };
+          });
+          return {
+            exerciseId: parseInt(exerciseId),
+            sets: processedSets,
+            extraSetReps: data.extraSetReps,
+            oneRm: data.oneRm,
+          };
+        }),
+        isComplete: false
+      };
 
-        const response = await apiRequest("POST", "/api/workout-logs", formattedWorkoutLog);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
-        }
-        return response.json();
-      } catch (error) {
-        console.error('Error saving workout:', error);
-        throw error;
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
       }
-    },
-    onSuccess: () => {
+
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
       toast({
         title: "Success",
         description: "Workout saved successfully!",
       });
       onComplete();
-    },
-    onError: (error: Error) => {
+    } catch (error) {
       console.error('Error saving workout:', error);
       toast({
         title: "Error saving workout",
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: "destructive",
       });
-    },
-  });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
@@ -217,7 +224,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         sets: Array(combination.sets).fill({
           weight: combination.weight,
           reps: combination.reps,
-          timestamp: new Date().toISOString(),
+          timestamp: ensureValidDate(new Date()),
           isCompleted: false
         }),
         selectedCombination: combination,
@@ -261,63 +268,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     }
     return () => clearInterval(interval);
   }, [restTimer]);
-
-  const saveAndExitWorkout = async () => {
-    try {
-      setIsLoading(true);
-
-      // Create a proper workout log with valid timestamps
-      const workoutLog = {
-        workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()), // Ensure this is a proper ISO string
-        sets: Object.entries(workoutState).map(([exerciseId, data]) => {
-          // Process each set to ensure valid timestamps
-          const processedSets = data.sets.map(set => {
-            return {
-              reps: set.actualReps || set.reps,
-              weight: set.weight,
-              timestamp: ensureValidDate(set.timestamp)
-            };
-          });
-
-          return {
-            exerciseId: parseInt(exerciseId),
-            sets: processedSets,
-            extraSetReps: data.extraSetReps,
-            oneRm: data.oneRm,
-          };
-        }),
-        isComplete: false
-      };
-
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
-
-      // Save the workout to the API
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
-      }
-
-      // Success handling
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
-      toast({
-        title: "Success",
-        description: "Workout saved successfully!",
-      });
-      onComplete();
-    } catch (error) {
-      console.error('Error saving workout:', error);
-      toast({
-        title: "Error saving workout",
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   if (exercisesLoading) {
     return (
