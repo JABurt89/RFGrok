@@ -2,14 +2,14 @@ import express from 'express';
 import { registerRoutes } from './routes';
 import { storage } from './storage';
 import { setupVite } from './vite';
+import { createServer as createHttpServer, type Server } from 'http'; // Import Server type
 
 const app = express();
 app.use(express.json());
 
 async function testPort(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const { createServer } = await import('http'); // Use dynamic import instead of require
-    const testServer = createServer();
+    const testServer = createHttpServer();
     testServer.once('error', () => {
       resolve(false);
     });
@@ -41,8 +41,7 @@ async function main() {
 
     // Create the server with minimal configuration
     console.log('[Startup] Creating HTTP server...');
-    const { createServer } = await import('http');
-    const server = createServer(app);
+    const server = createHttpServer(app);
 
     // Enable Vite for development
     if (process.env.NODE_ENV !== 'production') {
