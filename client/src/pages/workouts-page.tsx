@@ -3,7 +3,7 @@ import { WorkoutDayForm } from "../components/workout-day-form";
 import { Sheet, SheetContent, SheetTrigger } from "../components/ui/sheet";
 import { Button } from "../components/ui/button";
 import { Link } from "wouter";
-import { Home, Plus, DumbbellIcon } from "lucide-react";
+import { Home, Plus, DumbbellIcon, Edit } from "lucide-react";
 
 interface WorkoutDay {
   name: string;
@@ -23,11 +23,28 @@ interface WorkoutDay {
 function WorkoutsPage() {
   const [workouts, setWorkouts] = useState<WorkoutDay[]>([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
 
   const submitWorkoutDay = (data: WorkoutDay) => {
     console.log("Workout day submitted:", data);
-    setWorkouts((prev) => [...prev, data]);
+    if (editingWorkout !== null) {
+      // Update existing workout
+      setWorkouts(prev => {
+        const updated = [...prev];
+        updated[editingWorkout.index] = data;
+        return updated;
+      });
+      setEditingWorkout(null);
+    } else {
+      // Add new workout
+      setWorkouts(prev => [...prev, data]);
+    }
     setIsSheetOpen(false);
+  };
+
+  const handleEdit = (index: number, workout: WorkoutDay) => {
+    setEditingWorkout({ index, workout });
+    setIsSheetOpen(true);
   };
 
   const formatSchemeDetails = (progression: WorkoutDay["exercises"][0]["progression"]) => {
@@ -67,7 +84,10 @@ function WorkoutsPage() {
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Workouts</h2>
-          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+          <Sheet open={isSheetOpen} onOpenChange={(open) => {
+            setIsSheetOpen(open);
+            if (!open) setEditingWorkout(null);
+          }}>
             <SheetTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -75,7 +95,10 @@ function WorkoutsPage() {
               </Button>
             </SheetTrigger>
             <SheetContent>
-              <WorkoutDayForm submitWorkoutDay={submitWorkoutDay} />
+              <WorkoutDayForm 
+                submitWorkoutDay={submitWorkoutDay} 
+                workoutDay={editingWorkout?.workout}
+              />
             </SheetContent>
           </Sheet>
         </div>
@@ -88,7 +111,18 @@ function WorkoutsPage() {
           ) : (
             workouts.map((workout, index) => (
               <div key={index} className="border rounded-lg p-4 space-y-4">
-                <h3 className="text-xl font-semibold border-b pb-2">{workout.name}</h3>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h3 className="text-xl font-semibold">{workout.name}</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(index, workout)}
+                    className="flex items-center gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
                 <div className="space-y-3">
                   {workout.exercises.map((exercise, idx) => (
                     <div key={idx} className="pl-4 py-2 border-l-2">
