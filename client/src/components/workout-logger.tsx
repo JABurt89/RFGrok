@@ -172,7 +172,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         ...currentSets[setIndex],
         isCompleted: completed,
         actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString() // Ensure timestamp is ISO string
       };
 
       return {
@@ -189,7 +189,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       };
     });
 
-    // Start rest timer
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
   };
@@ -200,6 +199,25 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       setRest: currentExerciseData.parameters.restBetweenSets,
       exerciseRest: currentExerciseData.parameters.restBetweenExercises,
     };
+  };
+
+  const handleSaveWorkout = (isComplete: boolean = false) => {
+    const workoutLog: Partial<WorkoutLog> = {
+      workoutDayId: workoutDay.id,
+      date: new Date().toISOString(), // Format date as ISO string
+      sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+        exerciseId: parseInt(exerciseId),
+        sets: data.sets.map(set => ({
+          reps: set.actualReps || set.reps,
+          weight: set.weight,
+          timestamp: set.timestamp // Already ISO string from handleSetComplete
+        })),
+        extraSetReps: data.extraSetReps,
+        oneRm: data.oneRm,
+      })),
+      isComplete
+    };
+    saveWorkoutMutation.mutate(workoutLog);
   };
 
   if (exercisesLoading) {
@@ -249,8 +267,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                   <div className="space-y-2">
                     <Label>Select a combination:</Label>
                     <RadioGroup
-                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ? 
-                        JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) : 
+                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ?
+                        JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) :
                         undefined}
                       onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
                     >
@@ -369,22 +387,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           variant="outline"
           className="w-full"
           onClick={() => {
-            const workoutLog: Partial<WorkoutLog> = {
-              workoutDayId: workoutDay.id,
-              date: new Date(),
-              sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
-                exerciseId: parseInt(exerciseId),
-                sets: data.sets.map(set => ({
-                  reps: set.actualReps || set.reps,
-                  weight: set.weight,
-                  timestamp: set.timestamp
-                })),
-                extraSetReps: data.extraSetReps,
-                oneRm: data.oneRm,
-              })),
-              isComplete: false
-            };
-            saveWorkoutMutation.mutate(workoutLog);
+            handleSaveWorkout(false);
           }}
         >
           Save & Exit
