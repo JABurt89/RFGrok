@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, PlayCircle, PauseCircle } from "lucide-react";
+import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -21,6 +21,8 @@ type ExerciseSet = {
   reps: number;
   weight: number;
   timestamp: string;
+  isCompleted?: boolean;
+  actualReps?: number;
 };
 
 type WorkoutState = {
@@ -29,6 +31,7 @@ type WorkoutState = {
     extraSetReps?: number;
     oneRm?: number;
     selectedCombination?: STSCombination;
+    plannedSets?: number;
   };
 };
 
@@ -39,13 +42,16 @@ type STSCombination = {
   calculated1RM: number;
 };
 
+type WorkoutView = "setup" | "active";
+
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
   const { toast } = useToast();
+  const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [workoutState, setWorkoutState] = useState<WorkoutState>({});
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
-  const [editable1RM, setEditable1RM] = useState<number>(100); // Default 1RM
+  const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
 
   // Fetch exercises data
@@ -53,22 +59,11 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     queryKey: ["/api/exercises"],
   });
 
-  // Fetch workout logs to check history
-  const { data: workoutLogs, isLoading: logsLoading } = useQuery<WorkoutLog[]>({
-    queryKey: ["/api/workout-logs"],
-  });
-
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
 
-  // Get last workout log for the current exercise
-  const lastWorkoutLog = workoutLogs?.find(log =>
-    log.sets.find(s => s.exerciseId === currentExerciseData?.exerciseId) && log.isComplete
-  );
-
-  // Calculate 1RM for progression schemes
+  // Calculate 1RM
   const calculate1RM = (weight: number, reps: number, sets: number) => {
-    // Brzycki Formula with set multiplier
     const baseRM = weight * (36 / (37 - reps));
     return baseRM * (1 + 0.025 * (sets - 1));
   };
@@ -80,10 +75,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
 
-    // Generate combinations based on the editable 1RM
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        // Calculate weight that would give slightly higher 1RM
         const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
         const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
 
@@ -94,7 +87,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       }
     }
 
-    // Sort by smallest 1RM increase and take top 10
     combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
@@ -138,22 +130,61 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     },
   });
 
-  const handleSetComplete = (reps: number, weight: number) => {
+  const handleCombinationSelect = (combination: STSCombination) => {
+    if (!currentExerciseData) return;
+
+    const exerciseId = currentExerciseData.exerciseId;
+    setWorkoutState(prev => ({
+      ...prev,
+      [exerciseId]: {
+        sets: Array(combination.sets).fill({
+          weight: combination.weight,
+          reps: combination.reps,
+          timestamp: new Date().toISOString(),
+          isCompleted: false
+        }),
+        selectedCombination: combination,
+        plannedSets: combination.sets
+      }
+    }));
+  };
+
+  const handleStartWorkout = () => {
+    const currentState = workoutState[currentExerciseData.exerciseId];
+    if (!currentState?.sets?.length) {
+      toast({
+        title: "Select a combination",
+        description: "Please select a set/weight combination before starting the workout",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentView("active");
+  };
+
+  const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
 
     const exerciseId = currentExerciseData.exerciseId;
     setWorkoutState(prev => {
-      // Initialize the exercise state if it doesn't exist
-      const currentExerciseState = prev[exerciseId] || { sets: [], oneRm: undefined, extraSetReps: undefined };
-      const updatedSets = [...currentExerciseState.sets, { reps, weight, timestamp: new Date().toISOString() }];
-      const oneRm = calculate1RM(weight, reps, updatedSets.length);
+      const currentSets = [...(prev[exerciseId]?.sets || [])];
+      currentSets[setIndex] = {
+        ...currentSets[setIndex],
+        isCompleted: completed,
+        actualReps: actualReps || currentSets[setIndex].reps,
+        timestamp: new Date().toISOString()
+      };
 
       return {
         ...prev,
         [exerciseId]: {
-          ...currentExerciseState,
-          sets: updatedSets,
-          oneRm
+          ...prev[exerciseId],
+          sets: currentSets,
+          oneRm: calculate1RM(
+            currentSets[setIndex].weight,
+            currentSets[setIndex].actualReps || currentSets[setIndex].reps,
+            setIndex + 1
+          )
         }
       };
     });
@@ -161,14 +192,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     // Start rest timer
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
-
-    // Check if all planned sets are complete for STS
-    if (currentExerciseData.parameters.scheme === "STS") {
-      const stsParams = currentExerciseData.parameters as STSParameters;
-      if ((workoutState[exerciseId]?.sets?.length || 0) === stsParams.maxSets - 1) {
-        setShowExtraSetPrompt(true);
-      }
-    }
   };
 
   const getRestTimes = () => {
@@ -179,28 +202,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     };
   };
 
-  const handleCombinationSelect = (combination: STSCombination) => {
-    if (!currentExerciseData) return;
-
-    const exerciseId = currentExerciseData.exerciseId;
-    setWorkoutState(prev => ({
-      ...prev,
-      [exerciseId]: {
-        ...prev[exerciseId],
-        selectedCombination: combination
-      }
-    }));
-
-    // Auto-fill the input fields
-    const weightInput = document.getElementById("weight") as HTMLInputElement;
-    const repsInput = document.getElementById("reps") as HTMLInputElement;
-    if (weightInput && repsInput) {
-      weightInput.value = combination.weight.toString();
-      repsInput.value = combination.reps.toString();
-    }
-  };
-
-  if (exercisesLoading || logsLoading) {
+  if (exercisesLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -219,8 +221,73 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  // Safe lastSet access with fallback to empty array
-  const lastSet = (workoutState[currentExerciseData?.exerciseId || 0]?.sets || []).slice(-1)[0];
+  // Render Setup View
+  if (currentView === "setup") {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{currentExercise.name} - Setup</CardTitle>
+            <CardDescription>
+              Select your target sets and weights for this exercise
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {currentExerciseData.parameters.scheme === "STS" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Current 1RM ({currentExercise.units})</Label>
+                  <Input
+                    type="number"
+                    value={editable1RM}
+                    onChange={(e) => setEditable1RM(parseFloat(e.target.value) || 0)}
+                    step={currentExercise.increment}
+                  />
+                </div>
+
+                {stsCombinations.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Select a combination:</Label>
+                    <RadioGroup
+                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ? 
+                        JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) : 
+                        undefined}
+                      onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+                    >
+                      <div className="space-y-2">
+                        {stsCombinations.map((combo, idx) => (
+                          <div key={idx} className="flex items-center space-x-2">
+                            <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
+                            <Label htmlFor={`combo-${idx}`}>
+                              {combo.sets} sets × {combo.reps} reps @ {combo.weight}{currentExercise.units}
+                              <span className="text-sm text-muted-foreground ml-2">
+                                (1RM: {combo.calculated1RM.toFixed(1)}{currentExercise.units})
+                              </span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleStartWorkout}
+            >
+              Start Exercise
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render Active Workout View
+  const currentState = workoutState[currentExerciseData.exerciseId];
+  const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
 
   return (
     <div className="space-y-6">
@@ -238,159 +305,95 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         </Alert>
       )}
 
-      {/* Current Exercise */}
       <Card>
         <CardHeader>
           <CardTitle>
-            {currentExercise.name} - Set {(workoutState[currentExerciseData.exerciseId]?.sets.length ?? 0) + 1}
+            {currentExercise.name} - Active Workout
           </CardTitle>
-          {currentExerciseData.parameters.scheme === "STS" && (
-            <CardDescription>
-              Target: {currentExerciseData.parameters.minSets}-{currentExerciseData.parameters.maxSets} sets × {currentExerciseData.parameters.minReps}-{currentExerciseData.parameters.maxReps} reps
-            </CardDescription>
-          )}
+          <CardDescription>
+            {currentState?.sets.filter(set => set.isCompleted).length || 0} of {currentState?.plannedSets || 0} sets completed
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* 1RM Input for STS */}
-          {currentExerciseData.parameters.scheme === "STS" && (
-            <div className="space-y-2">
-              <Label>Current 1RM ({currentExercise.units})</Label>
-              <Input
-                type="number"
-                value={editable1RM}
-                onChange={(e) => setEditable1RM(parseFloat(e.target.value) || 0)}
-                step={currentExercise.increment}
-              />
-            </div>
-          )}
-
-          {/* STS Combinations */}
-          {currentExerciseData.parameters.scheme === "STS" && stsCombinations.length > 0 && (
-            <div className="space-y-2">
-              <Label>Select a combination:</Label>
-              <RadioGroup
-                value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ?
-                  JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) :
-                  undefined}
-                onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
-              >
-                <div className="space-y-2">
-                  {stsCombinations.map((combo, idx) => (
-                    <div key={idx} className="flex items-center space-x-2">
-                      <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                      <Label htmlFor={`combo-${idx}`}>
-                        {combo.sets} sets × {combo.reps} reps @ {combo.weight}{currentExercise.units}
-                        <span className="text-sm text-muted-foreground ml-2">
-                          (1RM: {combo.calculated1RM.toFixed(1)}{currentExercise.units})
-                        </span>
-                      </Label>
-                    </div>
-                  ))}
+          {currentState?.sets.map((set, index) => (
+            <div key={index} className="border rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Set {index + 1}</h3>
+                <div className="flex items-center gap-2">
+                  {!set.isCompleted ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const reps = prompt(`Enter actual reps achieved (target: ${set.reps}):`)
+                          if (reps !== null) {
+                            handleSetComplete(index, true, parseInt(reps));
+                          }
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Failed Set
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSetComplete(index, true)}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Complete Set
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">
+                      {set.actualReps || set.reps} reps @ {set.weight}{currentExercise.units}
+                    </span>
+                  )}
                 </div>
-              </RadioGroup>
+              </div>
             </div>
-          )}
+          ))}
 
-          {/* Weight and Reps Input */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Weight ({currentExercise.units})</Label>
-              <Input
-                type="number"
-                id="weight"
-                step={currentExercise.increment}
-                defaultValue={lastSet?.weight.toString()}
-              />
-            </div>
-            <div>
-              <Label>Reps</Label>
-              <Input
-                type="number"
-                id="reps"
-                defaultValue={lastSet?.reps.toString()}
-              />
-            </div>
-          </div>
-
-          {/* Complete Set Button */}
-          <Button
-            className="w-full"
-            onClick={() => {
-              const weight = parseFloat((document.getElementById("weight") as HTMLInputElement)?.value || "0");
-              const reps = parseInt((document.getElementById("reps") as HTMLInputElement)?.value || "0");
-              if (!isNaN(weight) && !isNaN(reps)) {
-                handleSetComplete(reps, weight);
-              }
-            }}
-          >
-            Complete Set
-          </Button>
-
-          {/* Last Set Info */}
-          {lastSet && (
-            <Alert>
-              <AlertDescription>
-                Last set: {lastSet.weight}{currentExercise.units} × {lastSet.reps} reps
-                {workoutState[currentExerciseData.exerciseId]?.oneRm && (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Estimated 1RM: {workoutState[currentExerciseData.exerciseId].oneRm.toFixed(1)}{currentExercise.units}
-                  </div>
-                )}
-              </AlertDescription>
-            </Alert>
+          {remainingSets.length === 0 && (
+            <Button
+              className="w-full"
+              onClick={() => setCurrentExerciseIndex(prev => prev + 1)}
+            >
+              Next Exercise
+            </Button>
           )}
         </CardContent>
       </Card>
 
-      {/* Extra Set Dialog */}
-      <Dialog open={showExtraSetPrompt} onOpenChange={setShowExtraSetPrompt}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Extra Set Available</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Enter reps achieved (optional)</Label>
-            <Input
-              type="number"
-              placeholder="Enter reps achieved"
-              id="extraSetReps"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => handleExtraSet(0)}>
-              Skip
-            </Button>
-            <Button onClick={() => {
-              const reps = parseInt((document.getElementById("extraSetReps") as HTMLInputElement)?.value || "0");
-              if (!isNaN(reps)) {
-                handleExtraSet(reps);
-              }
-            }}>
-              Save Extra Set
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Controls */}
       <div className="flex gap-4">
-        <Button variant="outline" className="w-full" onClick={() => {
-          const workoutLog: Partial<WorkoutLog> = {
-            workoutDayId: workoutDay.id,
-            date: new Date(),
-            sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
-              exerciseId: parseInt(exerciseId),
-              sets: data.sets,
-              extraSetReps: data.extraSetReps,
-              oneRm: data.oneRm,
-            })),
-            isComplete: false
-          };
-          saveWorkoutMutation.mutate(workoutLog);
-        }}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            const workoutLog: Partial<WorkoutLog> = {
+              workoutDayId: workoutDay.id,
+              date: new Date(),
+              sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+                exerciseId: parseInt(exerciseId),
+                sets: data.sets.map(set => ({
+                  reps: set.actualReps || set.reps,
+                  weight: set.weight,
+                  timestamp: set.timestamp
+                })),
+                extraSetReps: data.extraSetReps,
+                oneRm: data.oneRm,
+              })),
+              isComplete: false
+            };
+            saveWorkoutMutation.mutate(workoutLog);
+          }}
+        >
           Save & Exit
         </Button>
-        <Button variant="destructive" className="w-full" onClick={onComplete}>
+        <Button
+          variant="destructive"
+          className="w-full"
+          onClick={onComplete}
+        >
           Discard
         </Button>
       </div>
