@@ -66,14 +66,14 @@ export default function AuthPage() {
         </div>
 
         {/* Auth Forms */}
-        <Card>
+        <Card className="border border-border bg-card">
           <CardHeader>
-            <CardTitle>Welcome</CardTitle>
+            <CardTitle className="text-card-foreground">Welcome</CardTitle>
             <CardDescription>Sign in to your account or create a new one</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
