@@ -20,14 +20,14 @@ async function main() {
     const { createServer } = await import('http');
     const server = createServer(app);
 
-    // Temporarily disable Vite for debugging
-    // if (process.env.NODE_ENV !== 'production') {
-    //   console.log('[Startup] Setting up Vite middleware...');
-    //   await setupVite(app, server);
-    // }
+    // Enable Vite for development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Startup] Setting up Vite middleware...');
+      await setupVite(app, server);
+    }
 
-    // Start listening on port 5000 as required
-    const PORT = 5001; // Temporarily try a different port for testing
+    // Get port from environment variable with fallback
+    const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
     console.log('[Startup] Attempting to bind to port', PORT);
     server.listen({ port: PORT, host: '0.0.0.0' }, () => {
       console.log(`Server running on port ${PORT}`);
