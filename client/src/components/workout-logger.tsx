@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise, STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, PlayCircle, PauseCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -37,32 +37,69 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
 
   // Fetch exercises data
-  const { data: exercises, isLoading } = useQuery<Exercise[]>({
+  const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
+  });
+
+  // Fetch workout logs to check history
+  const { data: workoutLogs, isLoading: logsLoading } = useQuery<WorkoutLog[]>({
+    queryKey: ["/api/workout-logs"],
   });
 
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
-  const exerciseProgress = workoutState[currentExerciseData?.exerciseId || 0];
 
-  // Get rest times from the current exercise's parameters
-  const getRestTimes = () => {
-    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
+  // Get last workout log for the current exercise
+  const lastWorkoutLog = workoutLogs?.find(log => 
+    log.sets.find(s => s.exerciseId === currentExerciseData?.exerciseId) && log.isComplete
+  );
+
+  // Calculate 1RM for STS progression
+  const calculate1RM = (weight: number, reps: number, sets: number) => {
+    return weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
+  };
+
+  // Generate suggestions for exercises
+  const generateSuggestions = (exerciseId: number) => {
+    const exercise = exercises?.find(e => e.id === exerciseId);
+    if (!exercise) return null;
+
+    const lastLog = workoutLogs?.find(log => 
+      log.sets.some(s => s.exerciseId === exerciseId) && log.isComplete
+    );
+
+    // For first-time exercises, use starting weight
+    if (!lastLog) {
+      return {
+        weight: exercise.startingWeight,
+        suggestedSets: currentExerciseData?.parameters.scheme === "STS" 
+          ? (currentExerciseData?.parameters as STSParameters).minSets
+          : 3,
+        suggestedReps: currentExerciseData?.parameters.scheme === "STS"
+          ? (currentExerciseData?.parameters as STSParameters).minReps
+          : 8
+      };
+    }
+
+    // Calculate based on last performance
+    const relevantSet = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+    if (!relevantSet) return null;
+
+    const lastOneRm = relevantSet.oneRm || calculate1RM(
+      relevantSet.sets[0].weight,
+      relevantSet.sets[0].reps,
+      relevantSet.sets.length
+    );
+
     return {
-      setRest: currentExerciseData.parameters.restBetweenSets,
-      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
+      weight: relevantSet.sets[0].weight + exercise.increment,
+      suggestedSets: relevantSet.sets.length,
+      suggestedReps: relevantSet.sets[0].reps,
+      lastOneRm
     };
   };
 
-  // Calculate 1RM for STS
-  const calculateSTS1RM = (weight: number, reps: number, sets: number, extraReps?: number) => {
-    if (extraReps !== undefined) {
-      const C = weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
-      const F = weight * (1 + 0.025 * reps) * (1 + 0.025 * sets);
-      return C + (extraReps / reps) * (F - C);
-    }
-    return weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
-  };
+  const suggestions = currentExercise ? generateSuggestions(currentExercise.id) : null;
 
   // Rest timer
   useEffect(() => {
@@ -74,8 +111,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
       // Play chime when timer expires
       if (restTimer === 1) {
-        const audio = new Audio("data:audio/wav;base64,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qJrx4KOQjahZxWbcZgztj2c49nKmkId44S71j0c8eV9yDK6uPRzx5X18eDvjvQ6yKo9ZSS6l//8elePK/Lf//IInrOF/FvDoADYAGBMGb7FtErm5MXMlmPAJQVgWta7Zx2go+8xJ0UiCb8LHHdftWyLJE0QIAIsI+UbXu67dZMjmgDGCGl1H+vpF4NSDckSIkk7Vd+sxEhBQMRU8j/12UIRhzSaUdQ+rQU5kGeFxm+hb1oh6pWWmv3uvmReDl0UnvtapVaIzo1jZbf/pD6ElLqSX+rUmOQNpJFa/r+sa4e/pBlAABoAAAAA3CUgShLdGIxsY7AUABPRrgCABdDuQ5GC7DqPQCgbbJUAoRSUj+NIEig0YfyWUho1VBBBA//uQZB4ABZx5zfMakeAAAAmwAAAAF5F3P0w9GtAAACfAAAAAwLhMDmAYWMgVEG1U0FIGCBgXBXAtfMH10000EEEEEECUBYln03TTTdNBDZopopYvrTTdNa325mImNg3TTPV9q3pmY0xoO6bv3r00y+IDGid/9aaaZTGMuj9mpu9Mpio1dXrr5HERTZSmqU36A3CumzN/9Robv/Xx4v9ijkSRSNLQhAWumap82WRSBUqXStV/YcS+XVLnSS+WLDroqArFkMEsAS+eWmrUzrO0oEmE40RlMZ5+ODIkAyKAGUwZ3mVKmcamcJnMW26MRPgUw6j+LkhyHGVGYjSUUKNpuJUQoOIAyDvEyG8S5yfK6dhZc0Tx1KI/gviKL6qvvFs1+bWtaz58uUNnryq6kt5RzOCkPWlVqVX2a/EEBUdU1KrXLf40GoiiFXK///qpoiDXrOgqDR38JB0bw7SoL+ZB9o1RCkQjQ2CBYZKd/+VJxZRRZlqSkKiws0WFxUyCwsKiMy7hUVFhIaCrNQsKkTIsLivwKKigsj8XYlwt/WKi2N4d//uQRCSAAjURNIHpMZBGYiaQPSYyAAABLAAAAAAAACWAAAAApUF/Mg+0aohSIRobBAsMlO//Kk4soosy1JSFRYWaLC4qZBYWFRGZdwqKiwkNBVmoWFSJkWFxX4FFRQWR+LsS4W/rFRb/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////VEFHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU291bmRib3kuZGUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMjAwNGh0dHA6Ly93d3cuc291bmRib3kuZGUAAAAAAAAAACU=");
-        audio.play();
+        const audio = new Audio("/notification.mp3"); //This path might need adjustment
+        audio.play().catch(console.error); // Ignore autoplay blocking
       }
     }
     return () => clearInterval(interval);
@@ -83,8 +120,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
   // Save workout mutation
   const saveWorkoutMutation = useMutation({
-    mutationFn: async (data: Partial<WorkoutLog>) => {
-      const res = await apiRequest("POST", "/api/workout-logs", data);
+    mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
+      const res = await apiRequest("POST", "/api/workout-logs", workoutLog);
       return res.json();
     },
     onSuccess: () => {
@@ -105,38 +142,56 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   });
 
   const handleSetComplete = (reps: number, weight: number) => {
-    const timestamp = new Date().toISOString();
-    const exerciseId = currentExerciseData?.exerciseId;
+    if (!currentExerciseData) return;
 
-    setWorkoutState(prev => ({
-      ...prev,
-      [exerciseId || 0]: {
-        ...prev[exerciseId || 0],
-        sets: [...(prev[exerciseId || 0]?.sets || []), { reps, weight, timestamp }],
-      },
-    }));
+    const timestamp = new Date().toISOString();
+    const exerciseId = currentExerciseData.exerciseId;
+
+    setWorkoutState(prev => {
+      const updatedSets = [...(prev[exerciseId]?.sets || []), { reps, weight, timestamp }];
+      const oneRm = calculate1RM(weight, reps, updatedSets.length);
+
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...prev[exerciseId],
+          sets: updatedSets,
+          oneRm
+        }
+      };
+    });
 
     // Start rest timer
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
 
     // Check if all planned sets are complete for STS
-    if (currentExerciseData?.parameters.scheme === "STS") {
+    if (currentExerciseData.parameters.scheme === "STS") {
       const stsParams = currentExerciseData.parameters as STSParameters;
-      if (workoutState[exerciseId || 0]?.sets.length === stsParams.maxSets -1 ) {
+      if (workoutState[exerciseId]?.sets.length === stsParams.maxSets - 1) {
         setShowExtraSetPrompt(true);
       }
     }
   };
 
+  const getRestTimes = () => {
+    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
+    return {
+      setRest: currentExerciseData.parameters.restBetweenSets,
+      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
+    };
+  };
+
   const handleExtraSet = (reps: number) => {
-    const exerciseId = currentExerciseData?.exerciseId;
+    if (!currentExerciseData) return;
+
+    const exerciseId = currentExerciseData.exerciseId;
     setWorkoutState(prev => ({
       ...prev,
-      [exerciseId || 0]: {
-        ...prev[exerciseId || 0],
-        extraSetReps: reps,
-      },
+      [exerciseId]: {
+        ...prev[exerciseId],
+        extraSetReps: reps
+      }
     }));
     setShowExtraSetPrompt(false);
     moveToNextExercise();
@@ -149,7 +204,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       setRestTimer(exerciseRest);
     } else {
       // Workout complete, prepare workout log
-      const workoutLog = {
+      const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
         date: new Date(),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
@@ -158,7 +213,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           extraSetReps: data.extraSetReps,
           oneRm: data.oneRm,
         })),
-        isComplete: true,
+        isComplete: true
       };
 
       saveWorkoutMutation.mutate(workoutLog);
@@ -166,7 +221,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   };
 
   const handleSaveAndExit = () => {
-    const workoutLog = {
+    if (!currentExerciseData) return;
+
+    const workoutLog: Partial<WorkoutLog> = {
       workoutDayId: workoutDay.id,
       date: new Date(),
       sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
@@ -175,13 +232,30 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         extraSetReps: data.extraSetReps,
         oneRm: data.oneRm,
       })),
-      isComplete: false,
+      isComplete: false
     };
 
     saveWorkoutMutation.mutate(workoutLog);
   };
 
-  if (!currentExercise || isLoading) return <div>Loading...</div>;
+  if (exercisesLoading || logsLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading workout data...</span>
+      </div>
+    );
+  }
+
+  if (!currentExercise) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Error: Could not find exercise data. Please try again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -203,20 +277,34 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       <Card>
         <CardHeader>
           <CardTitle>
-            {currentExercise.name} - Set {(workoutState[currentExerciseData.exerciseId || 0]?.sets.length ?? 0) + 1}
+            {currentExercise.name} - Set {(workoutState[currentExerciseData.exerciseId]?.sets.length ?? 0) + 1}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {suggestions && (
+            <Alert>
+              <AlertDescription>
+                Suggested: {suggestions.suggestedSets} sets × {suggestions.suggestedReps} reps @ {suggestions.weight}{currentExercise.units}
+                {suggestions.lastOneRm && (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Last 1RM: {suggestions.lastOneRm.toFixed(1)}{currentExercise.units}
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Input
               type="number"
               placeholder="Weight"
               id="weight"
+              defaultValue={suggestions?.weight.toString()}
             />
             <Input
               type="number"
               placeholder="Reps"
               id="reps"
+              defaultValue={suggestions?.suggestedReps.toString()}
             />
           </div>
           <Button 
@@ -238,7 +326,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       <Dialog open={showExtraSetPrompt} onOpenChange={setShowExtraSetPrompt}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Attempt Extra Set?</DialogTitle>
+            <DialogTitle>Extra Set</DialogTitle>
           </DialogHeader>
           <Input
             type="number"
