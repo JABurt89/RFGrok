@@ -44,35 +44,32 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// Helper function to ensure valid date format
 const ensureValidDate = (dateInput: Date | string | number): string => {
   try {
     if (dateInput) {
       if (typeof dateInput === 'object' && dateInput instanceof Date) {
         return dateInput.toISOString();
       } else if (typeof dateInput === 'number') {
-        // If it's a number (timestamp in milliseconds), convert to Date then ISO string
         return new Date(dateInput).toISOString();
       } else if (typeof dateInput === 'string') {
-        // If it's already a string but not in ISO format, try to parse and convert
         try {
           const date = new Date(dateInput);
           if (!isNaN(date.getTime())) {
             return date.toISOString();
           } else {
-            // If parsing fails, use current time
+            console.warn('Invalid date string, using current time:', dateInput);
             return new Date().toISOString();
           }
         } catch (e) {
-          // If any error in parsing, use current time
+          console.warn('Error parsing date string, using current time:', e);
           return new Date().toISOString();
         }
       } else {
-        // If timestamp exists but is of an invalid type, use current time
+        console.warn('Invalid date type, using current time:', typeof dateInput);
         return new Date().toISOString();
       }
     } else {
-      // If no timestamp exists, use current time
+      console.warn('No date provided, using current time');
       return new Date().toISOString();
     }
   } catch (error) {
@@ -90,8 +87,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
+  const [isLoading, setIsLoading] = useState(false); // Added loading state
 
-  // Fetch exercises data
   const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
@@ -99,13 +96,11 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
 
-  // Calculate 1RM
   const calculate1RM = (weight: number, reps: number, sets: number) => {
     const baseRM = weight * (36 / (37 - reps));
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
-  // Generate STS combinations
   useEffect(() => {
     if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
 
@@ -128,11 +123,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
-  // Save workout mutation
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: Partial<WorkoutLog>) => {
       try {
-        // Create a proper workout log with valid timestamps
         const formattedWorkoutLog = {
           ...workoutLog,
           date: ensureValidDate(workoutLog.date || new Date()),
@@ -208,36 +201,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setRestTimer(setRest);
   };
 
-  const handleSaveWorkout = (isComplete: boolean = false) => {
-    try {
-      const workoutLog: Partial<WorkoutLog> = {
-        workoutDayId: workoutDay.id,
-        date: new Date().toISOString(), // Send as ISO string
-        sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
-          exerciseId: parseInt(exerciseId),
-          sets: data.sets.map(set => ({
-            reps: set.actualReps || set.reps,
-            weight: set.weight,
-            timestamp: ensureValidDate(set.timestamp)
-          })),
-          extraSetReps: data.extraSetReps,
-          oneRm: data.oneRm,
-        })),
-        isComplete
-      };
-
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
-      saveWorkoutMutation.mutate(workoutLog);
-    } catch (error) {
-      console.error('Error preparing workout data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to prepare workout data",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleCombinationSelect = (combination: STSCombination) => {
     if (!currentExerciseData) return;
 
@@ -278,7 +241,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     };
   };
 
-
   useEffect(() => {
     let interval: number;
     if (restTimer !== null && restTimer > 0) {
@@ -293,6 +255,57 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     }
     return () => clearInterval(interval);
   }, [restTimer]);
+
+  const saveAndExitWorkout = async () => {
+    try {
+      setIsLoading(true);
+
+      const workoutLog: Partial<WorkoutLog> = {
+        workoutDayId: workoutDay.id,
+        date: ensureValidDate(new Date()),
+        sets: Object.entries(workoutState).map(([exerciseId, data]) => {
+          const processedSets = data.sets.map(set => ({
+            reps: set.actualReps || set.reps,
+            weight: set.weight,
+            timestamp: ensureValidDate(set.timestamp)
+          }));
+
+          return {
+            exerciseId: parseInt(exerciseId),
+            sets: processedSets,
+            extraSetReps: data.extraSetReps,
+            oneRm: data.oneRm,
+          };
+        }),
+        isComplete: false
+      };
+
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+      toast({
+        title: "Success",
+        description: "Workout saved successfully!",
+      });
+      onComplete();
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      toast({
+        title: "Error saving workout",
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   if (exercisesLoading) {
     return (
@@ -313,7 +326,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  // Render Setup View
   if (currentView === "setup") {
     return (
       <div className="space-y-6">
@@ -377,13 +389,11 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  // Render Active Workout View
   const currentState = workoutState[currentExerciseData.exerciseId];
   const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
 
   return (
     <div className="space-y-6">
-      {/* Rest Timer */}
       {restTimer !== null && (
         <Alert>
           <AlertDescription className="flex items-center justify-between">
@@ -460,16 +470,23 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         <Button
           variant="outline"
           className="w-full"
-          onClick={() => {
-            handleSaveWorkout(false);
-          }}
+          onClick={saveAndExitWorkout}
+          disabled={isLoading}
         >
-          Save & Exit
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Save & Exit'
+          )}
         </Button>
         <Button
           variant="destructive"
           className="w-full"
           onClick={onComplete}
+          disabled={isLoading}
         >
           Discard
         </Button>
