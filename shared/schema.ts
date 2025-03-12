@@ -28,7 +28,7 @@ export const workoutDays = pgTable("workout_days", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
-  exercises: jsonb("exercises").notNull(), // Array of {exerciseId, scheme, restBetweenSets, restBetweenExercises}
+  exercises: jsonb("exercises").notNull().$type<WorkoutExercise[]>(),
 });
 
 // Workout Logs
@@ -76,6 +76,38 @@ export type InsertWorkoutDay = z.infer<typeof insertWorkoutDaySchema>;
 export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 
+// Progression Scheme Types with parameters
+export type STSParameters = {
+  minSets: number;
+  maxSets: number; // Extra set will be one above this
+  minReps: number;
+  maxReps: number;
+  restBetweenSets: number;
+  restBetweenExercises: number;
+};
+
+export type DoubleProgressionParameters = {
+  targetSets: number;
+  minReps: number;
+  maxReps: number;
+  restBetweenSets: number;
+  restBetweenExercises: number;
+};
+
+export type RPTParameters = {
+  sets: number;
+  targetReps: number;
+  dropPercent: number; // e.g., 10 for 10% drop per set
+  restBetweenSets: number;
+  restBetweenExercises: number;
+};
+
+export type WorkoutExercise = {
+  exerciseId: number;
+  scheme: ProgressionScheme;
+  parameters: STSParameters | DoubleProgressionParameters | RPTParameters;
+};
+
 // Progression Scheme Types
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
 export type ProgressionScheme = typeof progressionSchemes[number];
@@ -98,3 +130,36 @@ export const predefinedEquipment = {
 
 // Unit conversion constant
 export const KG_TO_LB = 2.20462;
+
+// Default progression parameters
+export const defaultProgressionParameters = {
+  STS: {
+    minSets: 3,
+    maxSets: 3, // Extra set will be the 4th set if achieved
+    minReps: 6,
+    maxReps: 8,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "Double Progression": {
+    targetSets: 3,
+    minReps: 8,
+    maxReps: 12,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Top-Set": {
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+  "RPT Individual": {
+    sets: 3,
+    targetReps: 6,
+    dropPercent: 10,
+    restBetweenSets: 90,
+    restBetweenExercises: 180,
+  },
+} as const;
