@@ -48,6 +48,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  // Initialize workoutState with empty sets array
   const [workoutState, setWorkoutState] = useState<WorkoutState>({});
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
@@ -93,13 +94,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Derive currentWorkout from workoutState
-      const currentWorkout: WorkoutLog = {
+      const currentWorkout = {
         workoutDayId: workoutDay.id,
         date: new Date().toISOString(),
         exercises: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
-          sets: data.sets.map(set => ({
+          sets: (data.sets || []).map(set => ({
             reps: set.actualReps || set.reps,
             weight: set.weight,
             timestamp: new Date().toISOString()
@@ -107,29 +107,13 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           extraSetReps: data.extraSetReps,
           oneRm: data.oneRm
         })),
-        completed: true, // Added completed flag
-        endTime: new Date().toISOString() // Added end time
+        completed: true,
+        endTime: new Date().toISOString()
       };
 
+      console.log('Saving workout with data:', JSON.stringify(currentWorkout, null, 2));
 
-      // Process timestamps in currentWorkout
-      const workoutLog = {
-        ...currentWorkout,
-        exercises: currentWorkout.exercises.map(exercise => ({
-          ...exercise,
-          sets: exercise.sets.map(set => ({
-            ...set,
-            timestamp: typeof set.timestamp === 'object' && set.timestamp instanceof Date ? set.timestamp.toISOString() :
-              typeof set.timestamp === 'number' ? new Date(set.timestamp).toISOString() :
-                typeof set.timestamp === 'string' ? (new Date(set.timestamp).getTime() !== 0 ? new Date(set.timestamp).toISOString() : new Date().toISOString()) :
-                  new Date().toISOString()
-          }))
-        }))
-      };
-
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
-
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", currentWorkout);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
@@ -158,7 +142,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
     const exerciseId = currentExerciseData.exerciseId;
     setWorkoutState(prev => {
-      const currentSets = [...(prev[exerciseId]?.sets || [])];
+      const currentSets = [...((prev[exerciseId]?.sets) || [])];
       currentSets[setIndex] = {
         ...currentSets[setIndex],
         isCompleted: completed,
@@ -321,8 +305,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  const currentState = workoutState[currentExerciseData.exerciseId];
-  const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
+  const currentState = workoutState[currentExerciseData.exerciseId] || { sets: [] };
+  const remainingSets = (currentState.sets || []).filter(set => !set.isCompleted);
 
   return (
     <div className="space-y-6">
@@ -345,11 +329,11 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
             {currentExercise.name} - Active Workout
           </CardTitle>
           <CardDescription>
-            {currentState?.sets.filter(set => set.isCompleted).length || 0} of {currentState?.plannedSets || 0} sets completed
+            {(currentState.sets || []).filter(set => set.isCompleted).length || 0} of {currentState.plannedSets || 0} sets completed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {currentState?.sets.map((set, index) => (
+          {(currentState.sets || []).map((set, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Set {index + 1}</h3>
