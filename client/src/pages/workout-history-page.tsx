@@ -11,13 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/Modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Home, Trash2, PencilIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -172,15 +166,17 @@ export default function WorkoutHistoryPage() {
           )}
         </div>
 
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Workout Log</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this workout log? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
+        {/* Delete Confirmation Modal */}
+        <Modal
+          type="dialog"
+          isOpen={isDeleteDialogOpen}
+          onClose={() => setIsDeleteDialogOpen(false)}
+        >
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Delete Workout Log</h2>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this workout log? This action cannot be undone.
+            </p>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
@@ -203,8 +199,8 @@ export default function WorkoutHistoryPage() {
                 )}
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </Modal>
       </div>
     </div>
   );
