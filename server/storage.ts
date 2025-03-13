@@ -16,8 +16,9 @@ export class DatabaseStorage {
       console.log("[Storage] Initializing PostgreSQL session store");
       this._sessionStore = new PgSession({
         pool,
-        tableName: "sessions",
-        createTableIfMissing: true
+        tableName: "session", 
+        createTableIfMissing: true,
+        errorLog: console.error 
       });
     }
     return this._sessionStore;

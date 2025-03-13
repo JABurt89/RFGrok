@@ -2,13 +2,6 @@ import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session table schema
-export const sessions = pgTable("sessions", {
-  sid: text("sid").primaryKey(),
-  sess: jsonb("sess").notNull(),
-  expire: timestamp("expire").notNull(),
-});
-
 // Available progression schemes
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
 export type ProgressionScheme = typeof progressionSchemes[number];
