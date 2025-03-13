@@ -29,7 +29,9 @@ export class DatabaseStorage {
     const logs = await db.select().from(workoutLogs).where(eq(workoutLogs.userId, userId));
     return logs.map(log => ({
       ...log,
-      sets: JSON.parse(decrypt(log.sets as unknown as string))
+      sets: typeof log.sets === 'string' ? 
+        JSON.parse(decrypt(log.sets)) :
+        log.sets
     }));
   }
 
@@ -39,20 +41,23 @@ export class DatabaseStorage {
     const [workoutLog] = await db.insert(workoutLogs)
       .values({
         ...insertWorkoutLog,
-        sets: encryptedSets as any
+        sets: encryptedSets
       })
       .returning();
 
     return {
       ...workoutLog,
-      sets: JSON.parse(decrypt(workoutLog.sets as unknown as string))
+      sets: typeof workoutLog.sets === 'string' ? 
+        JSON.parse(decrypt(workoutLog.sets)) :
+        workoutLog.sets
     };
   }
 
   async updateWorkoutLog(id: number, workoutLog: Partial<WorkoutLog>): Promise<WorkoutLog> {
     const updateData = { ...workoutLog };
     if (updateData.sets) {
-      updateData.sets = encrypt(JSON.stringify(updateData.sets)) as any;
+      const encryptedSets = encrypt(JSON.stringify(updateData.sets));
+      updateData.sets = encryptedSets;
     }
 
     const [updated] = await db
@@ -65,7 +70,9 @@ export class DatabaseStorage {
 
     return {
       ...updated,
-      sets: JSON.parse(decrypt(updated.sets as unknown as string))
+      sets: typeof updated.sets === 'string' ? 
+        JSON.parse(decrypt(updated.sets)) :
+        updated.sets
     };
   }
 
