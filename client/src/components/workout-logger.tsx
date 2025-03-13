@@ -104,8 +104,9 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData, workoutLogs]);
 
   const calculate1RM = (weight: number, reps: number, sets: number): number => {
+    // Brzycki formula for 1RM calculation
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
-    // Round to 2 decimal places
+    // Add 2.5% per additional set
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   };
 
@@ -226,23 +227,34 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
-        // Round to 2 decimal places for more precise weight suggestions
-        const weight = Number((Math.round(targetWeight / currentExercise.increment) * currentExercise.increment).toFixed(2));
+        // Calculate target weight using reverse Brzycki formula
+        // First remove the set bonus from the target 1RM
+        const targetWithoutSetBonus = editable1RM / (1 + 0.025 * (sets - 1));
+        // Then calculate the working weight needed to achieve this 1RM
+        const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
 
-        const calculated1RM = calculate1RM(weight, reps, sets);
-        if (calculated1RM > editable1RM * 0.95) {
+        // Round to nearest increment
+        const roundedWeight = Number(
+          (Math.round(targetWeight / currentExercise.increment) * currentExercise.increment).toFixed(2)
+        );
+
+        // Calculate what 1RM this rounded weight would actually produce
+        const calculated1RM = calculate1RM(roundedWeight, reps, sets);
+
+        // Only include combinations that would produce at least 95% of target 1RM
+        if (calculated1RM >= editable1RM * 0.95) {
           combinations.push({ 
             sets, 
             reps, 
-            weight: Number(weight.toFixed(2)), 
-            calculated1RM: Number(calculated1RM.toFixed(2)) 
+            weight: roundedWeight,
+            calculated1RM: Number(calculated1RM.toFixed(2))
           });
         }
       }
     }
 
-    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
+    // Sort by how close the calculated 1RM is to the target 1RM
+    combinations.sort((a, b) => Math.abs(editable1RM - a.calculated1RM) - Math.abs(editable1RM - b.calculated1RM));
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
