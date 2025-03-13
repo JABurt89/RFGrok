@@ -3,18 +3,21 @@ import { db } from "./db";
 import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PgSession = connectPgSimple(session);
 
 export class DatabaseStorage {
   private _sessionStore: session.Store | null = null;
 
   get sessionStore(): session.Store {
     if (!this._sessionStore) {
-      console.log("[Storage] Initializing in-memory session store");
-      this._sessionStore = new MemoryStore({
-        checkPeriod: 86400000, // Prune expired entries every 24h
+      console.log("[Storage] Initializing PostgreSQL session store");
+      this._sessionStore = new PgSession({
+        pool,
+        tableName: "sessions",
+        createTableIfMissing: true
       });
     }
     return this._sessionStore;
