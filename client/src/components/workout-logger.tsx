@@ -48,8 +48,16 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-  // Initialize workoutState with empty sets array
-  const [workoutState, setWorkoutState] = useState<WorkoutState>({});
+  // Initialize workoutState with empty sets array for each exercise
+  const [workoutState, setWorkoutState] = useState<WorkoutState>(() => {
+    const initialState: WorkoutState = {};
+    workoutDay.exercises.forEach(exercise => {
+      initialState[exercise.exerciseId] = {
+        sets: []
+      };
+    });
+    return initialState;
+  });
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
   const [editable1RM, setEditable1RM] = useState<number>(100);
@@ -94,26 +102,35 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      const currentWorkout = {
+      const workoutLog = {
         workoutDayId: workoutDay.id,
         date: new Date().toISOString(),
-        exercises: Object.entries(workoutState).map(([exerciseId, data]) => ({
-          exerciseId: parseInt(exerciseId),
-          sets: (data.sets || []).map(set => ({
-            reps: set.actualReps || set.reps,
-            weight: set.weight,
-            timestamp: new Date().toISOString()
-          })),
-          extraSetReps: data.extraSetReps,
-          oneRm: data.oneRm
-        })),
+        exercises: Object.entries(workoutState).map(([exerciseId, data]) => {
+          // Ensure sets is always an array
+          const sets = Array.isArray(data.sets) ? data.sets : [];
+
+          // Log sets data for verification
+          console.log(`Sets data for exercise ${exerciseId}:`, sets);
+
+          return {
+            exerciseId: parseInt(exerciseId),
+            sets: sets.map(set => ({
+              reps: set.actualReps || set.reps,
+              weight: set.weight,
+              timestamp: new Date().toISOString()
+            })),
+            extraSetReps: data.extraSetReps,
+            oneRm: data.oneRm
+          };
+        }),
         completed: true,
         endTime: new Date().toISOString()
       };
 
-      console.log('Saving workout with data:', JSON.stringify(currentWorkout, null, 2));
+      // Log the complete workout data
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", currentWorkout);
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
@@ -142,7 +159,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
     const exerciseId = currentExerciseData.exerciseId;
     setWorkoutState(prev => {
-      const currentSets = [...((prev[exerciseId]?.sets) || [])];
+      // Ensure sets exists and is an array
+      const currentSets = [...(prev[exerciseId]?.sets || [])];
       currentSets[setIndex] = {
         ...currentSets[setIndex],
         isCompleted: completed,
