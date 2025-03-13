@@ -51,31 +51,25 @@ const ensureValidDate = (dateInput: Date | string | number): string => {
       if (typeof dateInput === 'object' && dateInput instanceof Date) {
         return dateInput.toISOString();
       } else if (typeof dateInput === 'number') {
-        // If it's a number (timestamp in milliseconds), convert to Date then ISO string
         return new Date(dateInput).toISOString();
       } else if (typeof dateInput === 'string') {
-        // If it's already a string but not in ISO format, try to parse and convert
         try {
           const date = new Date(dateInput);
           if (!isNaN(date.getTime())) {
             return date.toISOString();
           } else {
-            // If parsing fails, use current time
             console.warn('Invalid date string, using current time:', dateInput);
             return new Date().toISOString();
           }
         } catch (e) {
-          // If any error in parsing, use current time
           console.warn('Error parsing date string, using current time:', e);
           return new Date().toISOString();
         }
       } else {
-        // If timestamp exists but is of an invalid type, use current time
         console.warn('Invalid date type, using current time:', typeof dateInput);
         return new Date().toISOString();
       }
     } else {
-      // If no timestamp exists, use current time
       console.warn('No date provided, using current time');
       return new Date().toISOString();
     }
@@ -83,6 +77,20 @@ const ensureValidDate = (dateInput: Date | string | number): string => {
     console.error('Error formatting date:', error);
     return new Date().toISOString();
   }
+};
+
+// Function to serialize dates to strings
+const serializeDates = (obj: any): any => {
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  } else if (Array.isArray(obj)) {
+    return obj.map(serializeDates);
+  } else if (typeof obj === 'object' && obj !== null) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, serializeDates(value)])
+    );
+  }
+  return obj;
 };
 
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
@@ -134,10 +142,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Create a proper workout log with valid timestamps.  Workaround for missing currentWorkout
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()), 
+        date: ensureValidDate(new Date()),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => {
           const processedSets = data.sets.map(set => {
             let timestamp = ensureValidDate(set.timestamp);
@@ -157,9 +164,10 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         isComplete: false
       };
 
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+      const serializedWorkoutLog = serializeDates(workoutLog);
+      console.log('Saving workout with data:', JSON.stringify(serializedWorkoutLog, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", serializedWorkoutLog);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);

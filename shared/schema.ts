@@ -180,20 +180,20 @@ export const insertWorkoutDaySchema = createInsertSchema(workoutDays)
   });
 
 export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
-  .omit({ id: true })
-  .extend({
-    date: z.union([z.date(), z.string().datetime()]),
+.omit({ id: true })
+.extend({
+  date: z.string().datetime(), // Changed from z.union([z.date(), z.string().datetime()])
+  sets: z.array(z.object({
+    exerciseId: z.number(),
     sets: z.array(z.object({
-      exerciseId: z.number(),
-      sets: z.array(z.object({
-        reps: z.number(),
-        weight: z.number(),
-        timestamp: z.string().datetime()
-      })),
-      extraSetReps: z.number().optional(),
-      oneRm: z.number().optional()
-    }))
-  });
+      reps: z.number(),
+      weight: z.number(),
+      timestamp: z.string().datetime()
+    })),
+    extraSetReps: z.number().optional(),
+    oneRm: z.number().optional()
+  }))
+});
 
 // TypeScript types
 export type User = typeof users.$inferSelect;

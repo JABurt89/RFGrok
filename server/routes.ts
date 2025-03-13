@@ -6,10 +6,8 @@ import { insertExerciseSchema, insertWorkoutDaySchema, insertWorkoutLogSchema } 
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Add additional health check with DB status
   app.get("/api/health/db", async (_req, res) => {
     try {
-      // Test DB connection with a simple query
       await storage.getUser(1);
       res.json({ status: "ok", database: "connected" });
     } catch (error) {
@@ -23,7 +21,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   setupAuth(app);
 
-  // Exercise routes
   app.get("/api/exercises", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.setHeader('Content-Type', 'application/json');
@@ -60,7 +57,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Workout day routes
   app.get("/api/workout-days", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.setHeader('Content-Type', 'application/json');
@@ -98,7 +94,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Workout log routes
   app.get("/api/workout-logs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.setHeader('Content-Type', 'application/json');
@@ -107,13 +102,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/workout-logs", async (req, res) => {
+    console.log('Received workout log data:', JSON.stringify(req.body, null, 2));
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       res.setHeader('Content-Type', 'application/json');
       const parsed = insertWorkoutLogSchema.parse({ ...req.body, userId: req.user.id });
+      console.log('Parsed workout log data:', JSON.stringify(parsed, null, 2));
       const workoutLog = await storage.createWorkoutLog(parsed);
       res.json(workoutLog);
     } catch (error) {
+      console.error('Error in /api/workout-logs:', error);
       res.setHeader('Content-Type', 'application/json');
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: "Validation error", details: error.errors });
