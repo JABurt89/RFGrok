@@ -7,5 +7,5 @@ export const useExercises = () => {
     queryKey: ["/api/exercises"],
   });
 
-  return { exercises, isLoading, error };
+  return { data: exercises, isLoading, error };
 };

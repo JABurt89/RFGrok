@@ -51,7 +51,7 @@ export default function ExercisesPage() {
                 <CardTitle className="flex items-center justify-between">
                   <span>{exercise.name}</span>
                   {exercise.isArchived && (
-                    <Badge variant="secondary">[Archived]</Badge>
+                    <Badge variant="secondary">Archived</Badge>
                   )}
                 </CardTitle>
               </CardHeader>
