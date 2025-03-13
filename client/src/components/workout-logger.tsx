@@ -70,6 +70,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
 
   // Fetch exercises
   const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
@@ -88,7 +89,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   useEffect(() => {
     if (!currentExerciseData || !workoutLogs?.length) return;
 
-    // Find the most recent workout log for this exercise
     const relevantLogs = workoutLogs
       .filter(log => log.sets.some(set => set.exerciseId === currentExerciseData.exerciseId))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -97,16 +97,26 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     if (lastLog) {
       const exerciseLog = lastLog.sets.find(set => set.exerciseId === currentExerciseData.exerciseId);
       if (exerciseLog?.oneRm) {
-        // Round to 2 decimal places when setting the value
         setEditable1RM(Number(exerciseLog.oneRm.toFixed(2)));
       }
     }
   }, [currentExerciseData, workoutLogs]);
 
-  const calculate1RM = (weight: number, reps: number, sets: number): number => {
-    // Brzycki formula for 1RM calculation
+  const calculate1RM = (weight: number, reps: number, sets: number, extraSetReps?: number): number => {
+    // If there's an extra set, use the special formula
+    if (typeof extraSetReps === 'number') {
+      // Calculate current 1RM without extra set
+      const C = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * (Number(sets) - 1));
+      // Calculate potential 1RM with perfect extra set
+      const F = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * Number(sets));
+      // If extra set was attempted but no reps were completed, return C
+      if (extraSetReps === 0) return Number(C.toFixed(2));
+      // Calculate actual 1RM based on partial completion of extra set
+      return Number((C + (extraSetReps / reps) * (F - C)).toFixed(2));
+    }
+
+    // Standard Brzycki formula with set bonus if no extra set
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
-    // Add 2.5% per additional set
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   };
 
@@ -117,13 +127,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       // Create workout payload with proper type conversions
       const workoutLog: WorkoutLog = {
         workoutDayId: Number(workoutDay.id),
-        date: new Date().toISOString(), // Convert to ISO string for consistent formatting
+        date: new Date().toISOString(),
         sets: workoutState.exercises.map(exercise => ({
           exerciseId: Number(exercise.exerciseId),
           sets: (exercise.sets || []).map(set => ({
             reps: Number(set.actualReps || set.reps),
             weight: Number(set.weight),
-            timestamp: new Date(set.timestamp).toISOString() // Convert to ISO string
+            timestamp: new Date(set.timestamp).toISOString()
           })),
           extraSetReps: exercise.extraSetReps ? Number(exercise.extraSetReps) : undefined,
           oneRm: exercise.oneRm ? Number(exercise.oneRm) : undefined
@@ -172,13 +182,20 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           timestamp: new Date()
         };
 
+        // Check if this was the last planned set
+        const allSetsCompleted = sets.every(set => set.isCompleted);
+        if (allSetsCompleted && currentExerciseData.parameters.scheme === "STS") {
+          setShowExtraSetPrompt(true);
+        }
+
         return {
           ...exercise,
           sets,
           oneRm: calculate1RM(
             Number(sets[setIndex].weight),
             Number(sets[setIndex].actualReps || sets[setIndex].reps),
-            setIndex + 1
+            setIndex + 1,
+            exercise.extraSetReps
           )
         };
       });
@@ -191,6 +208,39 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
+  };
+
+  const handleExtraSetComplete = (reps: number | null) => {
+    if (!currentExerciseData || reps === null) {
+      setShowExtraSetPrompt(false);
+      return;
+    }
+
+    setWorkoutState(prev => {
+      const updatedExercises = prev.exercises.map(exercise => {
+        if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
+
+        const lastSet = exercise.sets[exercise.sets.length - 1];
+
+        return {
+          ...exercise,
+          extraSetReps: reps,
+          oneRm: calculate1RM(
+            Number(lastSet.weight),
+            Number(lastSet.reps),
+            exercise.sets.length,
+            reps
+          )
+        };
+      });
+
+      return {
+        ...prev,
+        exercises: updatedExercises
+      };
+    });
+
+    setShowExtraSetPrompt(false);
   };
 
   const handleCombinationSelect = (combination: STSCombination) => {
@@ -228,7 +278,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     // Try multiple weight increments for each set/rep combination
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        // Calculate base weight using reverse Brzycki formula
+        // Calculate target weight using reverse Brzycki formula
         const targetWithoutSetBonus = editable1RM / (1 + 0.025 * (sets - 1));
         const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
 
@@ -457,7 +507,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             </div>
           ))}
 
-          {remainingSets.length === 0 && (
+          {remainingSets.length === 0 && !showExtraSetPrompt && (
             <Button
               className="w-full"
               onClick={() => {
@@ -470,6 +520,36 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             >
               {currentExerciseIndex < workoutDay.exercises.length - 1 ? 'Next Exercise' : 'End Workout'}
             </Button>
+          )}
+
+          {showExtraSetPrompt && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Would you like to attempt an extra set after your rest period?
+                </AlertDescription>
+              </Alert>
+              <div className="flex gap-2">
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => handleExtraSetComplete(null)}
+                >
+                  Skip Extra Set
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    const reps = prompt("Enter the number of reps achieved in the extra set:");
+                    if (reps !== null) {
+                      handleExtraSetComplete(parseInt(reps));
+                    }
+                  }}
+                >
+                  Log Extra Set
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
