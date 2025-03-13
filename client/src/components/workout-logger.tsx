@@ -28,7 +28,7 @@ type ExerciseSet = {
 type WorkoutExercise = {
   exerciseId: number;
   scheme: string;
-  sets: ExerciseSet[]; // Required array of sets
+  sets: ExerciseSet[];
   extraSetReps?: number;
   oneRm?: number;
   plannedSets?: number;
@@ -38,7 +38,7 @@ type WorkoutState = {
   workoutDayId: number;
   date: string;
   exercises: WorkoutExercise[];
-  completed?: boolean;
+  isComplete?: boolean;
   endTime?: string;
 };
 
@@ -56,14 +56,14 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
-  // Initialize workout state with explicitly defined empty sets arrays
+  // Initialize workout state with empty sets arrays
   const [workoutState, setWorkoutState] = useState<WorkoutState>(() => ({
     workoutDayId: workoutDay.id,
     date: new Date().toISOString(),
     exercises: workoutDay.exercises.map(exercise => ({
       exerciseId: exercise.exerciseId,
       scheme: exercise.parameters.scheme,
-      sets: [], // Explicitly initialize empty sets array
+      sets: [], // Initialize empty sets array
       extraSetReps: undefined,
       oneRm: undefined,
       plannedSets: undefined
@@ -91,19 +91,21 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Create workout payload with validated sets arrays
+      // Create workout payload with sets instead of exercises
       const workoutLog = {
         workoutDayId: workoutDay.id,
         date: new Date().toISOString(),
-        exercises: workoutState.exercises.map(exercise => ({
+        sets: workoutState.exercises.map(exercise => ({
           exerciseId: exercise.exerciseId,
-          scheme: exercise.scheme,
-          sets: exercise.sets || [], // Ensure sets is always an array
+          sets: (exercise.sets || []).map(set => ({
+            reps: set.actualReps || set.reps,
+            weight: set.weight,
+            timestamp: set.timestamp || new Date().toISOString()
+          })),
           extraSetReps: exercise.extraSetReps,
           oneRm: exercise.oneRm
         })),
-        completed: true,
-        endTime: new Date().toISOString()
+        isComplete: true
       };
 
       console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
@@ -338,8 +340,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   }
 
   const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets = Array.isArray(currentState.sets) ? 
-    currentState.sets.filter(set => !set.isCompleted) : 
+  const remainingSets = Array.isArray(currentState.sets) ?
+    currentState.sets.filter(set => !set.isCompleted) :
     [];
 
   return (
@@ -363,7 +365,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
             {currentExercise.name} - Active Workout
           </CardTitle>
           <CardDescription>
-            {Array.isArray(currentState.sets) ? 
+            {Array.isArray(currentState.sets) ?
               currentState.sets.filter(set => set.isCompleted).length : 0} of {currentState.plannedSets || 0} sets completed
           </CardDescription>
         </CardHeader>
