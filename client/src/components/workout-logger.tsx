@@ -53,15 +53,13 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-
-  // Initialize workout state with proper date object and empty sets arrays
   const [workoutState, setWorkoutState] = useState<WorkoutState>(() => ({
     workoutDayId: workoutDay.id,
     date: new Date(),
     exercises: workoutDay.exercises.map(exercise => ({
       exerciseId: exercise.exerciseId,
       scheme: exercise.parameters.scheme,
-      sets: [], // Initialize empty sets array
+      sets: [],
       extraSetReps: undefined,
       oneRm: undefined,
       plannedSets: undefined
@@ -73,12 +71,36 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch exercises
   const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
 
+  // Fetch workout logs
+  const { data: workoutLogs = [] } = useQuery<WorkoutLog[]>({
+    queryKey: ["/api/workout-logs"],
+  });
+
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
+
+  // Initialize editable1RM with the most recent calculated 1RM
+  useEffect(() => {
+    if (!currentExerciseData || !workoutLogs?.length) return;
+
+    // Find the most recent workout log for this exercise
+    const relevantLogs = workoutLogs
+      .filter(log => log.sets.some(set => set.exerciseId === currentExerciseData.exerciseId))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const lastLog = relevantLogs[0];
+    if (lastLog) {
+      const exerciseLog = lastLog.sets.find(set => set.exerciseId === currentExerciseData.exerciseId);
+      if (exerciseLog?.oneRm) {
+        setEditable1RM(exerciseLog.oneRm);
+      }
+    }
+  }, [currentExerciseData, workoutLogs]);
 
   const calculate1RM = (weight: number, reps: number, sets: number): number => {
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
@@ -90,15 +112,15 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       setIsLoading(true);
 
       // Create workout payload with proper type conversions
-      const workoutLog:WorkoutLog = {
+      const workoutLog: WorkoutLog = {
         workoutDayId: Number(workoutDay.id),
-        date: new Date(),
+        date: new Date().toISOString(), // Convert to ISO string for consistent formatting
         sets: workoutState.exercises.map(exercise => ({
           exerciseId: Number(exercise.exerciseId),
           sets: (exercise.sets || []).map(set => ({
             reps: Number(set.actualReps || set.reps),
             weight: Number(set.weight),
-            timestamp: set.timestamp instanceof Date ? set.timestamp : new Date(set.timestamp)
+            timestamp: new Date(set.timestamp).toISOString() // Convert to ISO string
           })),
           extraSetReps: exercise.extraSetReps ? Number(exercise.extraSetReps) : undefined,
           oneRm: exercise.oneRm ? Number(exercise.oneRm) : undefined
