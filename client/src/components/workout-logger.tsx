@@ -89,6 +89,23 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     [exercises, currentExerciseData]
   );
 
+  const currentState = useMemo(() => 
+    workoutState.exercises[currentExerciseIndex] || { sets: [] },
+    [workoutState.exercises, currentExerciseIndex]
+  );
+
+  const remainingSets = useMemo(() => {
+    return Array.isArray(currentState.sets) ?
+      currentState.sets.filter(set => !set.isCompleted) :
+      [];
+  }, [currentState.sets]);
+
+  const completedSetsCount = useMemo(() => 
+    Array.isArray(currentState.sets) ?
+      currentState.sets.filter(set => set.isCompleted).length : 0,
+    [currentState.sets]
+  );
+
   const calculate1RM = useCallback((weight: number, reps: number, sets: number, extraSetReps?: number): number => {
     if (typeof extraSetReps === 'number') {
       const C = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * (Number(sets) - 1));
@@ -254,7 +271,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData]);
 
   const handleStartWorkout = useCallback(() => {
-    const currentState = workoutState.exercises[currentExerciseIndex];
     if (!Array.isArray(currentState?.sets) || currentState.sets.length === 0) {
       toast({
         title: "Select a combination",
@@ -264,7 +280,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       return;
     }
     setCurrentView("active");
-  }, [workoutState.exercises, currentExerciseIndex, toast]);
+  }, [currentState, toast]);
 
   const stsCombinations = useMemo(() => {
     if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return [];
@@ -300,12 +316,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return combinations.sort((a, b) => a.calculated1RM - b.calculated1RM).slice(0, 10);
   }, [currentExercise, currentExerciseData, editable1RM, calculate1RM]);
 
-  const currentState2 = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets = useMemo(() => {
-    return Array.isArray(currentState2.sets) ?
-      currentState2.sets.filter(set => !set.isCompleted) :
-      [];
-  }, [currentState2.sets]);
 
   useEffect(() => {
     let interval: number;
@@ -384,15 +394,15 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                   <div className="space-y-2">
                     <Label>Select a combination:</Label>
                     <RadioGroup
-                      value={workoutState.exercises[currentExerciseIndex]?.plannedSets ?
+                      value={currentState.plannedSets ?
                         JSON.stringify({
-                          sets: workoutState.exercises[currentExerciseIndex].plannedSets,
-                          reps: workoutState.exercises[currentExerciseIndex].sets[0]?.reps,
-                          weight: Number(workoutState.exercises[currentExerciseIndex].sets[0]?.weight.toFixed(2)),
+                          sets: currentState.plannedSets,
+                          reps: currentState.sets[0]?.reps,
+                          weight: Number(currentState.sets[0]?.weight.toFixed(2)),
                           calculated1RM: calculate1RM(
-                            workoutState.exercises[currentExerciseIndex].sets[0]?.weight || 0,
-                            workoutState.exercises[currentExerciseIndex].sets[0]?.reps || 0,
-                            workoutState.exercises[currentExerciseIndex].plannedSets || 0
+                            currentState.sets[0]?.weight || 0,
+                            currentState.sets[0]?.reps || 0,
+                            currentState.plannedSets || 0
                           )
                         }) :
                         undefined}
@@ -429,13 +439,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     );
   }
 
-  const currentState3 = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets2 = useMemo(() => {
-    return Array.isArray(currentState3.sets) ?
-      currentState3.sets.filter(set => !set.isCompleted) :
-      [];
-  }, [currentState3.sets]);
-
   return (
     <div className="space-y-6">
       {restTimer !== null && (
@@ -457,12 +460,11 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             {currentExercise.name} - Active Workout
           </CardTitle>
           <CardDescription>
-            {Array.isArray(currentState3.sets) ?
-              currentState3.sets.filter(set => set.isCompleted).length : 0} of {currentState3.plannedSets || 0} sets completed
+            {completedSetsCount} of {currentState.plannedSets || 0} sets completed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {Array.isArray(currentState3.sets) && currentState3.sets.map((set, index) => (
+          {Array.isArray(currentState.sets) && currentState.sets.map((set, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Set {index + 1}</h3>
@@ -500,7 +502,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             </div>
           ))}
 
-          {remainingSets2.length === 0 && !showExtraSetPrompt && (
+          {remainingSets.length === 0 && !showExtraSetPrompt && (
             <Button
               className="w-full"
               onClick={() => {
