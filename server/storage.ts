@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
+import { encrypt, decrypt } from "./utils";
 
 const PgSession = connectPgSimple(session);
 
@@ -22,6 +23,50 @@ export class DatabaseStorage {
       });
     }
     return this._sessionStore;
+  }
+
+  async getWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
+    const logs = await db.select().from(workoutLogs).where(eq(workoutLogs.userId, userId));
+    return logs.map(log => ({
+      ...log,
+      sets: JSON.parse(decrypt(log.sets as unknown as string))
+    }));
+  }
+
+  async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
+    console.log("Creating workout log:", insertWorkoutLog);
+    const encryptedSets = encrypt(JSON.stringify(insertWorkoutLog.sets));
+    const [workoutLog] = await db.insert(workoutLogs)
+      .values({
+        ...insertWorkoutLog,
+        sets: encryptedSets as any
+      })
+      .returning();
+
+    return {
+      ...workoutLog,
+      sets: JSON.parse(decrypt(workoutLog.sets as unknown as string))
+    };
+  }
+
+  async updateWorkoutLog(id: number, workoutLog: Partial<WorkoutLog>): Promise<WorkoutLog> {
+    const updateData = { ...workoutLog };
+    if (updateData.sets) {
+      updateData.sets = encrypt(JSON.stringify(updateData.sets)) as any;
+    }
+
+    const [updated] = await db
+      .update(workoutLogs)
+      .set(updateData)
+      .where(eq(workoutLogs.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Workout log not found");
+
+    return {
+      ...updated,
+      sets: JSON.parse(decrypt(updated.sets as unknown as string))
+    };
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -65,26 +110,6 @@ export class DatabaseStorage {
   async createWorkoutDay(insertWorkoutDay: InsertWorkoutDay): Promise<WorkoutDay> {
     const [workoutDay] = await db.insert(workoutDays).values(insertWorkoutDay).returning();
     return workoutDay;
-  }
-
-  async getWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
-    return db.select().from(workoutLogs).where(eq(workoutLogs.userId, userId));
-  }
-
-  async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
-    console.log("Creating workout log:", insertWorkoutLog);
-    const [workoutLog] = await db.insert(workoutLogs).values(insertWorkoutLog).returning();
-    return workoutLog;
-  }
-
-  async updateWorkoutLog(id: number, workoutLog: Partial<WorkoutLog>): Promise<WorkoutLog> {
-    const [updated] = await db
-      .update(workoutLogs)
-      .set(workoutLog)
-      .where(eq(workoutLogs.id, id))
-      .returning();
-    if (!updated) throw new Error("Workout log not found");
-    return updated;
   }
 
   async deleteWorkoutLog(id: number): Promise<void> {
