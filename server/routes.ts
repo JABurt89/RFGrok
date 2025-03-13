@@ -11,8 +11,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.getUser(1);
       res.json({ status: "ok", database: "connected" });
     } catch (error) {
-      res.status(503).json({ 
-        status: "error", 
+      res.status(503).json({
+        status: "error",
         database: "disconnected",
         error: error instanceof Error ? error.message : String(error)
       });
@@ -105,9 +105,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('Received workout log data:', JSON.stringify(req.body, null, 2));
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
-      res.setHeader('Content-Type', 'application/json');
-      const parsed = insertWorkoutLogSchema.parse({ ...req.body, userId: req.user.id });
+
+      const workoutData = {
+        ...req.body,
+        userId: req.user.id,
+        date: new Date(req.body.date),
+        sets: req.body.sets.map((set: any) => ({
+          ...set,
+          sets: set.sets.map((s: any) => ({
+            ...s,
+            timestamp: new Date(s.timestamp)
+          }))
+        }))
+      };
+
+      console.log('Processed workout data:', JSON.stringify(workoutData, null, 2));
+
+      const parsed = insertWorkoutLogSchema.parse(workoutData);
       console.log('Parsed workout log data:', JSON.stringify(parsed, null, 2));
+
       const workoutLog = await storage.createWorkoutLog(parsed);
       res.json(workoutLog);
     } catch (error) {
