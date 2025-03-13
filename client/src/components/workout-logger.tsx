@@ -97,7 +97,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     if (lastLog) {
       const exerciseLog = lastLog.sets.find(set => set.exerciseId === currentExerciseData.exerciseId);
       if (exerciseLog?.oneRm) {
-        setEditable1RM(exerciseLog.oneRm);
+        // Round to 2 decimal places when setting the value
+        setEditable1RM(Number(exerciseLog.oneRm.toFixed(2)));
       }
     }
   }, [currentExerciseData, workoutLogs]);
