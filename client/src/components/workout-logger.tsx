@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle, WifiOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -72,7 +72,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
-  const [conflict, setConflict] = useState<WorkoutLog | null>(null); // Added state for conflict resolution
+  const [conflict, setConflict] = useState<WorkoutLog | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
@@ -121,7 +122,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   }, []);
 
-  const syncWorkoutLog = useApi<WorkoutLog, WorkoutLog, Error>(`/api/workout-logs`, {method: 'POST'}); // Added useApi hook
+  const syncWorkoutLog = useApi<WorkoutLog, WorkoutLog, Error>(`/api/workout-logs`, { method: 'POST' });
 
   const saveAndExitWorkout = useCallback(async () => {
     try {
@@ -146,7 +147,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       if (error) throw error;
 
       if (!syncedLog) {
-        setConflict(workoutLog); // Set conflict state to show dialog
+        setConflict(workoutLog);
         return;
       }
 
@@ -346,6 +347,19 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [restTimer]);
 
   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!currentExerciseData || !workoutLogs?.length) return;
 
     const relevantLogs = workoutLogs
@@ -363,10 +377,20 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
   const resolveConflict = (option: "local" | "cloud") => {
     if (option === "cloud" && conflict) {
-      //Use Cloud Version
-      setWorkoutState(prev => ({...prev, exercises: conflict.sets.map(s => ({...s, sets: s.sets}))}));
+      setWorkoutState(prev => ({ ...prev, exercises: conflict.sets.map(s => ({ ...s, sets: s.sets })) }));
     }
     setConflict(null);
+  }
+
+  if (!isOnline) {
+    return (
+      <Alert>
+        <WifiOff className="h-4 w-4" />
+        <AlertDescription>
+          You are currently offline. Your workout data will be saved locally and synced when you reconnect.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   if (exercises.length === 0) {
@@ -462,6 +486,14 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
   return (
     <div className="space-y-6">
+      {!isOnline && (
+        <Alert>
+          <WifiOff className="h-4 w-4" />
+          <AlertDescription>
+            You are currently offline. Your workout data will be saved locally and synced when you reconnect.
+          </AlertDescription>
+        </Alert>
+      )}
       {restTimer !== null && (
         <Alert>
           <AlertDescription className="flex items-center justify-between">
@@ -575,8 +607,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           <AlertDialogHeader>
             <AlertDialogTitle>Workout Log Conflict</AlertDialogTitle>
             <AlertDialogDescription>
-              There is a newer version of this workout log on the server.
-              Would you like to keep your local changes or use the server version?
+              There are changes both locally and on the server.
+              Which version would you like to keep?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -584,7 +616,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
               Use Server Version
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => resolveConflict("local")}>
-              Keep My Changes
+              Keep Local Changes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

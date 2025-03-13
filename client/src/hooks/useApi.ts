@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { WorkoutLog } from "@/types";
@@ -14,6 +14,15 @@ interface UseApiOptions<TData = unknown, TError = Error> {
   onError?: (error: TError) => void;
 }
 
+interface PendingSync {
+  method: ApiMethod;
+  url: string;
+  data: unknown;
+  timestamp: number;
+}
+
+const SYNC_QUEUE_KEY = 'workout_sync_queue';
+
 export function useApi<TData = unknown, TError = Error>({
   url,
   method = "GET",
@@ -22,42 +31,70 @@ export function useApi<TData = unknown, TError = Error>({
   onSuccess,
   onError,
 }: UseApiOptions<TData, TError>): UseQueryResult<TData, TError> | UseMutationResult<TData, TError, unknown> {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [conflict, setConflict] = useState<{ local: WorkoutLog; cloud: WorkoutLog } | null>(null);
 
-  const syncWorkoutLog = async (localLog: WorkoutLog) => {
-    try {
-      const response = await apiRequest("GET", `/api/workout-logs/${localLog.id}`);
-      const cloudLog = await response.json();
+  // Handle online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      processSyncQueue();
+    };
+    const handleOffline = () => setIsOnline(false);
 
-      const localDate = new Date(localLog.date);
-      const cloudDate = new Date(cloudLog.date);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-      if (localDate > cloudDate) {
-        setConflict({ local: localLog, cloud: cloudLog });
-        return null;
-      }
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
-      return cloudLog;
-    } catch (error) {
-      console.error("Error syncing workout log:", error);
-      throw error;
-    }
+  // Queue management functions
+  const addToSyncQueue = (operation: PendingSync) => {
+    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+    queue.push(operation);
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
   };
 
-  const resolveConflict = async (choice: "local" | "cloud") => {
-    if (!conflict) return;
+  const processSyncQueue = async () => {
+    const queue: PendingSync[] = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
+    if (queue.length === 0) return;
 
-    try {
-      const logToUse = choice === "local" ? conflict.local : conflict.cloud;
+    const sortedQueue = queue.sort((a, b) => a.timestamp - b.timestamp);
 
-      await apiRequest("PATCH", `/api/workout-logs/${logToUse.id}`, logToUse);
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+    for (const operation of sortedQueue) {
+      try {
+        const cloudResponse = await apiRequest("GET", operation.url);
+        const cloudData = await cloudResponse.json();
 
-      setConflict(null);
-    } catch (error) {
-      console.error("Error resolving conflict:", error);
-      throw error;
+        if (operation.method === "POST" || operation.method === "PATCH") {
+          const localData = operation.data as WorkoutLog;
+          const cloudLog = cloudData as WorkoutLog;
+
+          if (new Date(localData.date) > new Date(cloudLog.date)) {
+            setConflict({ local: localData, cloud: cloudLog });
+            return;
+          }
+        }
+
+        await apiRequest(operation.method, operation.url, operation.data);
+      } catch (error) {
+        console.error('Error processing sync queue:', error);
+        return;
+      }
     }
+
+    localStorage.setItem(SYNC_QUEUE_KEY, '[]');
+    queryClient.invalidateQueries();
+  };
+
+  const handleOfflineOperation = (operation: PendingSync) => {
+    addToSyncQueue(operation);
+    const offlineData = operation.data as TData;
+    queryClient.setQueryData(queryKey, offlineData);
+    onSuccess?.(offlineData);
   };
 
   // For GET requests, use useQuery
@@ -65,12 +102,21 @@ export function useApi<TData = unknown, TError = Error>({
     return useQuery<TData, TError>({
       queryKey,
       queryFn: async () => {
-        const response = await apiRequest(method, url);
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || `API call failed: ${response.statusText}`);
+        try {
+          const response = await apiRequest(method, url);
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || `API call failed: ${response.statusText}`);
+          }
+          return response.json();
+        } catch (error) {
+          if (!isOnline) {
+            // Return cached data if available
+            const cachedData = queryClient.getQueryData<TData>(queryKey);
+            if (cachedData) return cachedData;
+          }
+          throw error;
         }
-        return response.json();
       },
     });
   }
@@ -78,6 +124,16 @@ export function useApi<TData = unknown, TError = Error>({
   // For other methods, use useMutation
   return useMutation<TData, TError, unknown>({
     mutationFn: async (mutationData = data) => {
+      if (!isOnline) {
+        handleOfflineOperation({
+          method,
+          url,
+          data: mutationData,
+          timestamp: Date.now(),
+        });
+        return mutationData as TData;
+      }
+
       const response = await apiRequest(method, url, mutationData);
       if (!response.ok) {
         const error = await response.json();
@@ -86,7 +142,6 @@ export function useApi<TData = unknown, TError = Error>({
       return response.json();
     },
     onSuccess: (responseData) => {
-      // Invalidate queries that might be affected by this mutation
       queryClient.invalidateQueries({ queryKey });
       onSuccess?.(responseData);
     },
