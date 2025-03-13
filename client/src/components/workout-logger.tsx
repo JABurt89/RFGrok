@@ -256,6 +256,29 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return () => clearInterval(interval);
   }, [restTimer]);
 
+  useEffect(() => {
+    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
+
+    const stsParams = currentExerciseData.parameters as STSParameters;
+    const combinations: STSCombination[] = [];
+
+    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
+      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
+        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
+        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
+
+        const calculated1RM = calculate1RM(weight, reps, sets);
+        if (calculated1RM > editable1RM * 0.95) { // Allow for slight variations
+          combinations.push({ sets, reps, weight, calculated1RM });
+        }
+      }
+    }
+
+    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
+    setStsCombinations(combinations.slice(0, 10));
+  }, [editable1RM, currentExercise, currentExerciseData]);
+
+
   if (exercisesLoading) {
     return (
       <div className="flex items-center justify-center p-8">
