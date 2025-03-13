@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -68,63 +68,42 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [editable1RM, setEditable1RM] = useState<number>(100);
-  const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
 
-  // Fetch exercises
-  const { data: exercises, isLoading: exercisesLoading } = useQuery<Exercise[]>({
+  const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
 
-  // Fetch workout logs
   const { data: workoutLogs = [] } = useQuery<WorkoutLog[]>({
     queryKey: ["/api/workout-logs"],
   });
 
-  const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
-  const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
+  const currentExerciseData = useMemo(() => 
+    workoutDay.exercises[currentExerciseIndex],
+    [workoutDay.exercises, currentExerciseIndex]
+  );
 
-  // Initialize editable1RM with the most recent calculated 1RM
-  useEffect(() => {
-    if (!currentExerciseData || !workoutLogs?.length) return;
+  const currentExercise = useMemo(() => 
+    exercises?.find(e => e.id === currentExerciseData?.exerciseId),
+    [exercises, currentExerciseData]
+  );
 
-    const relevantLogs = workoutLogs
-      .filter(log => log.sets.some(set => set.exerciseId === currentExerciseData.exerciseId))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const lastLog = relevantLogs[0];
-    if (lastLog) {
-      const exerciseLog = lastLog.sets.find(set => set.exerciseId === currentExerciseData.exerciseId);
-      if (exerciseLog?.oneRm) {
-        setEditable1RM(Number(exerciseLog.oneRm.toFixed(2)));
-      }
-    }
-  }, [currentExerciseData, workoutLogs]);
-
-  const calculate1RM = (weight: number, reps: number, sets: number, extraSetReps?: number): number => {
-    // If there's an extra set, use the special formula
+  const calculate1RM = useCallback((weight: number, reps: number, sets: number, extraSetReps?: number): number => {
     if (typeof extraSetReps === 'number') {
-      // Calculate current 1RM without extra set
       const C = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * (Number(sets) - 1));
-      // Calculate potential 1RM with perfect extra set
       const F = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * Number(sets));
-      // If extra set was attempted but no reps were completed, return C
       if (extraSetReps === 0) return Number(C.toFixed(2));
-      // Calculate actual 1RM based on partial completion of extra set
       return Number((C + (extraSetReps / reps) * (F - C)).toFixed(2));
     }
 
-    // Standard Brzycki formula with set bonus if no extra set
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
-  };
+  }, []);
 
-  const saveAndExitWorkout = async () => {
+  const saveAndExitWorkout = useCallback(async () => {
     try {
       setIsLoading(true);
-
-      // Create workout payload with proper type conversions
       const workoutLog: WorkoutLog = {
         workoutDayId: Number(workoutDay.id),
         date: new Date().toISOString(),
@@ -140,8 +119,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         })),
         isComplete: true
       };
-
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
 
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
       if (!response.ok) {
@@ -165,9 +142,9 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [workoutDay.id, workoutState, toast, onComplete]);
 
-  const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
+  const handleSetComplete = useCallback((setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
 
     setWorkoutState(prev => {
@@ -182,7 +159,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           timestamp: new Date()
         };
 
-        // Check if this was the last planned set
         const allSetsCompleted = sets.every(set => set.isCompleted);
         if (allSetsCompleted && currentExerciseData.parameters.scheme === "STS") {
           setShowExtraSetPrompt(true);
@@ -208,9 +184,9 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
-  };
+  }, [currentExerciseData, calculate1RM]);
 
-  const handleExtraSetComplete = (reps: number | null) => {
+  const handleExtraSetComplete = useCallback((reps: number | null) => {
     if (!currentExerciseData || reps === null) {
       setShowExtraSetPrompt(false);
       return;
@@ -241,9 +217,9 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     });
 
     setShowExtraSetPrompt(false);
-  };
+  }, [currentExerciseData, calculate1RM]);
 
-  const handleCombinationSelect = (combination: STSCombination) => {
+  const handleCombinationSelect = useCallback((combination: STSCombination) => {
     if (!currentExerciseData) return;
 
     setWorkoutState(prev => {
@@ -267,32 +243,48 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         exercises: updatedExercises
       };
     });
-  };
+  }, [currentExerciseData]);
 
-  useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
+  const getRestTimes = useCallback(() => {
+    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
+    return {
+      setRest: currentExerciseData.parameters.restBetweenSets,
+      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
+    };
+  }, [currentExerciseData]);
+
+  const handleStartWorkout = useCallback(() => {
+    const currentState = workoutState.exercises[currentExerciseIndex];
+    if (!Array.isArray(currentState?.sets) || currentState.sets.length === 0) {
+      toast({
+        title: "Select a combination",
+        description: "Please select a set/weight combination before starting the workout",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentView("active");
+  }, [workoutState.exercises, currentExerciseIndex, toast]);
+
+  const stsCombinations = useMemo(() => {
+    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return [];
 
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
 
-    // Try multiple weight increments for each set/rep combination
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        // Calculate target weight using reverse Brzycki formula
         const targetWithoutSetBonus = editable1RM / (1 + 0.025 * (sets - 1));
         const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
 
-        // Try weights around the target weight
         for (let i = -2; i <= 2; i++) {
           const adjustedWeight = targetWeight + (i * currentExercise.increment);
           const roundedWeight = Number(
             (Math.round(adjustedWeight / currentExercise.increment) * currentExercise.increment).toFixed(2)
           );
 
-          // Calculate what 1RM this rounded weight would actually produce
           const calculated1RM = calculate1RM(roundedWeight, reps, sets);
 
-          // Only include combinations that would produce a higher 1RM than the current one
           if (calculated1RM > editable1RM) {
             combinations.push({
               sets,
@@ -305,32 +297,15 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       }
     }
 
-    // Sort by calculated 1RM in ascending order (smallest increase first)
-    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
-    // Take the first 10 combinations (smallest increases)
-    setStsCombinations(combinations.slice(0, 10));
-  }, [editable1RM, currentExercise, currentExerciseData]);
+    return combinations.sort((a, b) => a.calculated1RM - b.calculated1RM).slice(0, 10);
+  }, [currentExercise, currentExerciseData, editable1RM, calculate1RM]);
 
-  const getRestTimes = () => {
-    if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
-    return {
-      setRest: currentExerciseData.parameters.restBetweenSets,
-      exerciseRest: currentExerciseData.parameters.restBetweenExercises,
-    };
-  };
-
-  const handleStartWorkout = () => {
-    const currentState = workoutState.exercises[currentExerciseIndex];
-    if (!Array.isArray(currentState?.sets) || currentState.sets.length === 0) {
-      toast({
-        title: "Select a combination",
-        description: "Please select a set/weight combination before starting the workout",
-        variant: "destructive"
-      });
-      return;
-    }
-    setCurrentView("active");
-  };
+  const remainingSets = useMemo(() => {
+    const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
+    return Array.isArray(currentState.sets) ?
+      currentState.sets.filter(set => !set.isCompleted) :
+      [];
+  }, [workoutState.exercises, currentExerciseIndex]);
 
   useEffect(() => {
     let interval: number;
@@ -347,7 +322,23 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return () => clearInterval(interval);
   }, [restTimer]);
 
-  if (exercisesLoading) {
+  useEffect(() => {
+    if (!currentExerciseData || !workoutLogs?.length) return;
+
+    const relevantLogs = workoutLogs
+      .filter(log => log.sets.some(set => set.exerciseId === currentExerciseData.exerciseId))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const lastLog = relevantLogs[0];
+    if (lastLog) {
+      const exerciseLog = lastLog.sets.find(set => set.exerciseId === currentExerciseData.exerciseId);
+      if (exerciseLog?.oneRm) {
+        setEditable1RM(Number(exerciseLog.oneRm.toFixed(2)));
+      }
+    }
+  }, [currentExerciseData, workoutLogs]);
+
+  if (exercises.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -439,9 +430,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }
 
   const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets = Array.isArray(currentState.sets) ?
-    currentState.sets.filter(set => !set.isCompleted) :
-    [];
+  const remainingSets = useMemo(() => {
+    const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
+    return Array.isArray(currentState.sets) ?
+      currentState.sets.filter(set => !set.isCompleted) :
+      [];
+  }, [workoutState.exercises, currentExerciseIndex]);
 
   return (
     <div className="space-y-6">
