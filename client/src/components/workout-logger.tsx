@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useApi } from "@/hooks/useApi";
 
 type WorkoutLoggerProps = {
   workoutDay: WorkoutDay;
@@ -70,6 +72,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
+  const [conflict, setConflict] = useState<WorkoutLog | null>(null); // Added state for conflict resolution
 
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
@@ -89,7 +92,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     [exercises, currentExerciseData]
   );
 
-  const currentState = useMemo(() => 
+  const currentState = useMemo(() =>
     workoutState.exercises[currentExerciseIndex] || { sets: [] },
     [workoutState.exercises, currentExerciseIndex]
   );
@@ -100,7 +103,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       [];
   }, [currentState.sets]);
 
-  const completedSetsCount = useMemo(() => 
+  const completedSetsCount = useMemo(() =>
     Array.isArray(currentState.sets) ?
       currentState.sets.filter(set => set.isCompleted).length : 0,
     [currentState.sets]
@@ -117,6 +120,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   }, []);
+
+  const syncWorkoutLog = useApi<WorkoutLog, WorkoutLog, Error>(`/api/workout-logs`, {method: 'POST'}); // Added useApi hook
 
   const saveAndExitWorkout = useCallback(async () => {
     try {
@@ -136,6 +141,14 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         })),
         isComplete: true
       };
+
+      const { data: syncedLog, error } = await syncWorkoutLog(workoutLog);
+      if (error) throw error;
+
+      if (!syncedLog) {
+        setConflict(workoutLog); // Set conflict state to show dialog
+        return;
+      }
 
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
       if (!response.ok) {
@@ -159,7 +172,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [workoutDay.id, workoutState, toast, onComplete]);
+  }, [workoutDay.id, workoutState, toast, onComplete, syncWorkoutLog]);
 
   const handleSetComplete = useCallback((setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
@@ -347,6 +360,14 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       }
     }
   }, [currentExerciseData, workoutLogs]);
+
+  const resolveConflict = (option: "local" | "cloud") => {
+    if (option === "cloud" && conflict) {
+      //Use Cloud Version
+      setWorkoutState(prev => ({...prev, exercises: conflict.sets.map(s => ({...s, sets: s.sets}))}));
+    }
+    setConflict(null);
+  }
 
   if (exercises.length === 0) {
     return (
@@ -548,6 +569,26 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={conflict !== null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Workout Log Conflict</AlertDialogTitle>
+            <AlertDialogDescription>
+              There is a newer version of this workout log on the server.
+              Would you like to keep your local changes or use the server version?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => resolveConflict("cloud")}>
+              Use Server Version
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => resolveConflict("local")}>
+              Keep My Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex gap-4">
         <Button

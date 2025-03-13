@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useQuery, useMutation, UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { WorkoutLog } from "@/types";
 
 type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -20,6 +22,44 @@ export function useApi<TData = unknown, TError = Error>({
   onSuccess,
   onError,
 }: UseApiOptions<TData, TError>): UseQueryResult<TData, TError> | UseMutationResult<TData, TError, unknown> {
+  const [conflict, setConflict] = useState<{ local: WorkoutLog; cloud: WorkoutLog } | null>(null);
+
+  const syncWorkoutLog = async (localLog: WorkoutLog) => {
+    try {
+      const response = await apiRequest("GET", `/api/workout-logs/${localLog.id}`);
+      const cloudLog = await response.json();
+
+      const localDate = new Date(localLog.date);
+      const cloudDate = new Date(cloudLog.date);
+
+      if (localDate > cloudDate) {
+        setConflict({ local: localLog, cloud: cloudLog });
+        return null;
+      }
+
+      return cloudLog;
+    } catch (error) {
+      console.error("Error syncing workout log:", error);
+      throw error;
+    }
+  };
+
+  const resolveConflict = async (choice: "local" | "cloud") => {
+    if (!conflict) return;
+
+    try {
+      const logToUse = choice === "local" ? conflict.local : conflict.cloud;
+
+      await apiRequest("PATCH", `/api/workout-logs/${logToUse.id}`, logToUse);
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+
+      setConflict(null);
+    } catch (error) {
+      console.error("Error resolving conflict:", error);
+      throw error;
+    }
+  };
+
   // For GET requests, use useQuery
   if (method === "GET") {
     return useQuery<TData, TError>({
@@ -55,3 +95,5 @@ export function useApi<TData = unknown, TError = Error>({
     },
   });
 }
+
+export type { UseApiOptions };
