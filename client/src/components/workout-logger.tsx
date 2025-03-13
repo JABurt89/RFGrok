@@ -242,8 +242,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         const calculated1RM = calculate1RM(roundedWeight, reps, sets);
 
         // Only include combinations that would produce a higher 1RM than the current one
-        // Require at least a 0.5% increase to ensure progression
-        if (calculated1RM > editable1RM * 1.005) {
+        if (calculated1RM > editable1RM) {
           combinations.push({
             sets,
             reps,
