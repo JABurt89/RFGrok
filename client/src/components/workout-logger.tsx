@@ -321,7 +321,16 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                     <Label>Select a combination:</Label>
                     <RadioGroup
                       value={workoutState.exercises[currentExerciseIndex]?.plannedSets ?
-                        JSON.stringify(stsCombinations.find(c => c.sets === workoutState.exercises[currentExerciseIndex].plannedSets)) :
+                        JSON.stringify({
+                          sets: workoutState.exercises[currentExerciseIndex].plannedSets,
+                          reps: workoutState.exercises[currentExerciseIndex].sets[0]?.reps,
+                          weight: workoutState.exercises[currentExerciseIndex].sets[0]?.weight,
+                          calculated1RM: calculate1RM(
+                            workoutState.exercises[currentExerciseIndex].sets[0]?.weight || 0,
+                            workoutState.exercises[currentExerciseIndex].sets[0]?.reps || 0,
+                            workoutState.exercises[currentExerciseIndex].plannedSets || 0
+                          )
+                        }) :
                         undefined}
                       onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
                     >
@@ -330,9 +339,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                           <div key={idx} className="flex items-center space-x-2">
                             <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
                             <Label htmlFor={`combo-${idx}`}>
-                              {combo.sets} sets × {combo.reps} reps @ {combo.weight}{currentExercise.units}
+                              {combo.sets} sets × {combo.reps} reps @ {Number(combo.weight).toFixed(1)}{currentExercise.units}
                               <span className="text-sm text-muted-foreground ml-2">
-                                (1RM: {combo.calculated1RM.toFixed(1)}{currentExercise.units})
+                                (1RM: {Number(combo.calculated1RM).toFixed(1)}{currentExercise.units})
                               </span>
                             </Label>
                           </div>
