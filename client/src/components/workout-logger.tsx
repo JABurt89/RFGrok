@@ -25,14 +25,21 @@ type ExerciseSet = {
   actualReps?: number;
 };
 
+type WorkoutExercise = {
+  exerciseId: number;
+  sets: ExerciseSet[];
+  extraSetReps?: number;
+  oneRm?: number;
+  selectedCombination?: STSCombination;
+  plannedSets?: number;
+};
+
 type WorkoutState = {
-  [exerciseId: number]: {
-    sets: ExerciseSet[];
-    extraSetReps?: number;
-    oneRm?: number;
-    selectedCombination?: STSCombination;
-    plannedSets?: number;
-  };
+  workoutDayId: number;
+  exercises: WorkoutExercise[];
+  date?: string;
+  completed?: boolean;
+  endTime?: string;
 };
 
 type STSCombination = {
@@ -48,18 +55,17 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-  // Initialize workoutState with empty sets array for each exercise
-  const [workoutState, setWorkoutState] = useState<WorkoutState>(() => {
-    const initialState: WorkoutState = {};
-    workoutDay.exercises.forEach(exercise => {
-      initialState[exercise.exerciseId] = {
-        sets: []
-      };
-    });
-    return initialState;
+
+  // Initialize workout state with empty exercises array
+  const [workoutState, setWorkoutState] = useState<WorkoutState>({
+    workoutDayId: workoutDay.id,
+    exercises: workoutDay.exercises.map(exercise => ({
+      exerciseId: exercise.exerciseId,
+      sets: [],
+    }))
   });
+
   const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
   const [editable1RM, setEditable1RM] = useState<number>(100);
   const [stsCombinations, setStsCombinations] = useState<STSCombination[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,61 +82,29 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
-  useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
-
-    const stsParams = currentExerciseData.parameters as STSParameters;
-    const combinations: STSCombination[] = [];
-
-    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
-      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
-        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
-
-        const calculated1RM = calculate1RM(weight, reps, sets);
-        if (calculated1RM > editable1RM * 0.95) {
-          combinations.push({ sets, reps, weight, calculated1RM });
-        }
-      }
-    }
-
-    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
-    setStsCombinations(combinations.slice(0, 10));
-  }, [editable1RM, currentExercise, currentExerciseData]);
-
   const saveAndExitWorkout = async () => {
     try {
       setIsLoading(true);
 
-      const workoutLog = {
-        workoutDayId: workoutDay.id,
+      // Ensure all sets arrays exist and are valid
+      const payload = {
+        ...workoutState,
         date: new Date().toISOString(),
-        exercises: Object.entries(workoutState).map(([exerciseId, data]) => {
-          // Ensure sets is always an array
-          const sets = Array.isArray(data.sets) ? data.sets : [];
-
-          // Log sets data for verification
-          console.log(`Sets data for exercise ${exerciseId}:`, sets);
-
-          return {
-            exerciseId: parseInt(exerciseId),
-            sets: sets.map(set => ({
-              reps: set.actualReps || set.reps,
-              weight: set.weight,
-              timestamp: new Date().toISOString()
-            })),
-            extraSetReps: data.extraSetReps,
-            oneRm: data.oneRm
-          };
-        }),
+        exercises: workoutState.exercises.map(exercise => ({
+          ...exercise,
+          sets: Array.isArray(exercise.sets) ? exercise.sets.map(set => ({
+            ...set,
+            timestamp: new Date().toISOString()
+          })) : []
+        })),
         completed: true,
         endTime: new Date().toISOString()
       };
 
-      // Log the complete workout data
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+      // Log the payload to verify sets arrays
+      console.log('Saving workout with data:', JSON.stringify(payload, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", payload);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
@@ -157,28 +131,32 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const handleSetComplete = (setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
 
-    const exerciseId = currentExerciseData.exerciseId;
     setWorkoutState(prev => {
-      // Ensure sets exists and is an array
-      const currentSets = [...(prev[exerciseId]?.sets || [])];
-      currentSets[setIndex] = {
-        ...currentSets[setIndex],
-        isCompleted: completed,
-        actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: new Date().toISOString()
-      };
+      const updatedExercises = prev.exercises.map(exercise => {
+        if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
+
+        const sets = Array.isArray(exercise.sets) ? [...exercise.sets] : [];
+        sets[setIndex] = {
+          ...sets[setIndex],
+          isCompleted: completed,
+          actualReps: actualReps || sets[setIndex].reps,
+          timestamp: new Date().toISOString()
+        };
+
+        return {
+          ...exercise,
+          sets,
+          oneRm: calculate1RM(
+            sets[setIndex].weight,
+            sets[setIndex].actualReps || sets[setIndex].reps,
+            setIndex + 1
+          )
+        };
+      });
 
       return {
         ...prev,
-        [exerciseId]: {
-          ...prev[exerciseId],
-          sets: currentSets,
-          oneRm: calculate1RM(
-            currentSets[setIndex].weight,
-            currentSets[setIndex].actualReps || currentSets[setIndex].reps,
-            setIndex + 1
-          )
-        }
+        exercises: updatedExercises
       };
     });
 
@@ -189,33 +167,28 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const handleCombinationSelect = (combination: STSCombination) => {
     if (!currentExerciseData) return;
 
-    const exerciseId = currentExerciseData.exerciseId;
-    setWorkoutState(prev => ({
-      ...prev,
-      [exerciseId]: {
-        sets: Array(combination.sets).fill(null).map(() => ({
-          weight: combination.weight,
-          reps: combination.reps,
-          timestamp: new Date().toISOString(),
-          isCompleted: false
-        })),
-        selectedCombination: combination,
-        plannedSets: combination.sets
-      }
-    }));
-  };
+    setWorkoutState(prev => {
+      const updatedExercises = prev.exercises.map(exercise => {
+        if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
-  const handleStartWorkout = () => {
-    const currentState = workoutState[currentExerciseData.exerciseId];
-    if (!currentState?.sets?.length) {
-      toast({
-        title: "Select a combination",
-        description: "Please select a set/weight combination before starting the workout",
-        variant: "destructive"
+        return {
+          ...exercise,
+          sets: Array(combination.sets).fill(null).map(() => ({
+            weight: combination.weight,
+            reps: combination.reps,
+            timestamp: new Date().toISOString(),
+            isCompleted: false
+          })),
+          selectedCombination: combination,
+          plannedSets: combination.sets
+        };
       });
-      return;
-    }
-    setCurrentView("active");
+
+      return {
+        ...prev,
+        exercises: updatedExercises
+      };
+    });
   };
 
   const getRestTimes = () => {
@@ -287,8 +260,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                   <div className="space-y-2">
                     <Label>Select a combination:</Label>
                     <RadioGroup
-                      value={workoutState[currentExerciseData.exerciseId]?.selectedCombination ?
-                        JSON.stringify(workoutState[currentExerciseData.exerciseId].selectedCombination) :
+                      value={workoutState.exercises[currentExerciseIndex]?.selectedCombination ?
+                        JSON.stringify(workoutState.exercises[currentExerciseIndex].selectedCombination) :
                         undefined}
                       onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
                     >
@@ -323,8 +296,22 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  const currentState = workoutState[currentExerciseData.exerciseId] || { sets: [] };
+  const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
   const remainingSets = (currentState.sets || []).filter(set => !set.isCompleted);
+
+  const handleStartWorkout = () => {
+    const currentState = workoutState.exercises[currentExerciseIndex];
+    if (!currentState?.sets?.length) {
+      toast({
+        title: "Select a combination",
+        description: "Please select a set/weight combination before starting the workout",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentView("active");
+  };
+
 
   return (
     <div className="space-y-6">
