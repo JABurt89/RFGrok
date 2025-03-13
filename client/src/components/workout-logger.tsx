@@ -49,7 +49,7 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
+const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
@@ -105,7 +105,8 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
   const calculate1RM = (weight: number, reps: number, sets: number): number => {
     const baseRM = Number(weight) * (36 / (37 - Number(reps)));
-    return baseRM * (1 + 0.025 * (Number(sets) - 1));
+    // Round to 2 decimal places
+    return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   };
 
   const saveAndExitWorkout = async () => {
@@ -226,11 +227,17 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
         const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
-        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
+        // Round to 2 decimal places for more precise weight suggestions
+        const weight = Number((Math.round(targetWeight / currentExercise.increment) * currentExercise.increment).toFixed(2));
 
         const calculated1RM = calculate1RM(weight, reps, sets);
         if (calculated1RM > editable1RM * 0.95) {
-          combinations.push({ sets, reps, weight, calculated1RM });
+          combinations.push({ 
+            sets, 
+            reps, 
+            weight: Number(weight.toFixed(2)), 
+            calculated1RM: Number(calculated1RM.toFixed(2)) 
+          });
         }
       }
     }
@@ -312,7 +319,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                   <Input
                     type="number"
                     value={editable1RM}
-                    onChange={(e) => setEditable1RM(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setEditable1RM(Number(Number(e.target.value).toFixed(2)) || 0)}
                     step={currentExercise.increment}
                   />
                 </div>
@@ -325,7 +332,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                         JSON.stringify({
                           sets: workoutState.exercises[currentExerciseIndex].plannedSets,
                           reps: workoutState.exercises[currentExerciseIndex].sets[0]?.reps,
-                          weight: workoutState.exercises[currentExerciseIndex].sets[0]?.weight,
+                          weight: Number(workoutState.exercises[currentExerciseIndex].sets[0]?.weight.toFixed(2)),
                           calculated1RM: calculate1RM(
                             workoutState.exercises[currentExerciseIndex].sets[0]?.weight || 0,
                             workoutState.exercises[currentExerciseIndex].sets[0]?.reps || 0,
@@ -340,9 +347,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                           <div key={idx} className="flex items-center space-x-2">
                             <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
                             <Label htmlFor={`combo-${idx}`}>
-                              {combo.sets} sets × {combo.reps} reps @ {Number(combo.weight).toFixed(1)}{currentExercise.units}
+                              {combo.sets} sets × {combo.reps} reps @ {combo.weight.toFixed(2)}{currentExercise.units}
                               <span className="text-sm text-muted-foreground ml-2">
-                                (1RM: {Number(combo.calculated1RM).toFixed(1)}{currentExercise.units})
+                                (1RM: {combo.calculated1RM.toFixed(2)}{currentExercise.units})
                               </span>
                             </Label>
                           </div>
@@ -427,7 +434,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
                     </>
                   ) : (
                     <span className="text-sm text-muted-foreground">
-                      {set.actualReps || set.reps} reps @ {set.weight}{currentExercise.units}
+                      {set.actualReps || set.reps} reps @ {set.weight.toFixed(2)}{currentExercise.units}
                     </span>
                   )}
                 </div>
@@ -438,9 +445,15 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
           {remainingSets.length === 0 && (
             <Button
               className="w-full"
-              onClick={() => setCurrentExerciseIndex(prev => prev + 1)}
+              onClick={() => {
+                if (currentExerciseIndex < workoutDay.exercises.length - 1) {
+                  setCurrentExerciseIndex(prev => prev + 1);
+                } else {
+                  saveAndExitWorkout();
+                }
+              }}
             >
-              Next Exercise
+              {currentExerciseIndex < workoutDay.exercises.length - 1 ? 'Next Exercise' : 'End Workout'}
             </Button>
           )}
         </CardContent>
@@ -473,4 +486,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       </div>
     </div>
   );
-}
+};
+
+export default WorkoutLogger;
