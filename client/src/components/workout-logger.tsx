@@ -8,7 +8,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
@@ -20,7 +19,7 @@ type WorkoutLoggerProps = {
 type ExerciseSet = {
   reps: number;
   weight: number;
-  timestamp: string;
+  timestamp: Date | string;
   isCompleted?: boolean;
   actualReps?: number;
 };
@@ -36,10 +35,9 @@ type WorkoutExercise = {
 
 type WorkoutState = {
   workoutDayId: number;
-  date: string;
+  date: Date;
   exercises: WorkoutExercise[];
   isComplete?: boolean;
-  endTime?: string;
 };
 
 type STSCombination = {
@@ -56,10 +54,10 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
-  // Initialize workout state with empty sets arrays
+  // Initialize workout state with proper date object and empty sets arrays
   const [workoutState, setWorkoutState] = useState<WorkoutState>(() => ({
     workoutDayId: workoutDay.id,
-    date: new Date().toISOString(),
+    date: new Date(),
     exercises: workoutDay.exercises.map(exercise => ({
       exerciseId: exercise.exerciseId,
       scheme: exercise.parameters.scheme,
@@ -82,28 +80,28 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   const currentExerciseData = workoutDay.exercises[currentExerciseIndex];
   const currentExercise = exercises?.find(e => e.id === currentExerciseData?.exerciseId);
 
-  const calculate1RM = (weight: number, reps: number, sets: number) => {
-    const baseRM = weight * (36 / (37 - reps));
-    return baseRM * (1 + 0.025 * (sets - 1));
+  const calculate1RM = (weight: number, reps: number, sets: number): number => {
+    const baseRM = Number(weight) * (36 / (37 - Number(reps)));
+    return baseRM * (1 + 0.025 * (Number(sets) - 1));
   };
 
   const saveAndExitWorkout = async () => {
     try {
       setIsLoading(true);
 
-      // Create workout payload with sets instead of exercises
-      const workoutLog = {
-        workoutDayId: workoutDay.id,
-        date: new Date().toISOString(),
+      // Create workout payload with proper type conversions
+      const workoutLog:WorkoutLog = {
+        workoutDayId: Number(workoutDay.id),
+        date: new Date(),
         sets: workoutState.exercises.map(exercise => ({
-          exerciseId: exercise.exerciseId,
+          exerciseId: Number(exercise.exerciseId),
           sets: (exercise.sets || []).map(set => ({
-            reps: set.actualReps || set.reps,
-            weight: set.weight,
-            timestamp: set.timestamp || new Date().toISOString()
+            reps: Number(set.actualReps || set.reps),
+            weight: Number(set.weight),
+            timestamp: set.timestamp instanceof Date ? set.timestamp : new Date(set.timestamp)
           })),
-          extraSetReps: exercise.extraSetReps,
-          oneRm: exercise.oneRm
+          extraSetReps: exercise.extraSetReps ? Number(exercise.extraSetReps) : undefined,
+          oneRm: exercise.oneRm ? Number(exercise.oneRm) : undefined
         })),
         isComplete: true
       };
@@ -141,21 +139,20 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       const updatedExercises = prev.exercises.map(exercise => {
         if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
-        // Ensure sets array exists before updating
         const sets = [...(exercise.sets || [])];
         sets[setIndex] = {
           ...sets[setIndex],
           isCompleted: completed,
-          actualReps: actualReps || sets[setIndex].reps,
-          timestamp: new Date().toISOString()
+          actualReps: actualReps ? Number(actualReps) : Number(sets[setIndex].reps),
+          timestamp: new Date()
         };
 
         return {
           ...exercise,
           sets,
           oneRm: calculate1RM(
-            sets[setIndex].weight,
-            sets[setIndex].actualReps || sets[setIndex].reps,
+            Number(sets[setIndex].weight),
+            Number(sets[setIndex].actualReps || sets[setIndex].reps),
             setIndex + 1
           )
         };
@@ -178,13 +175,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       const updatedExercises = prev.exercises.map(exercise => {
         if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
-        // Initialize new sets array with proper structure
         return {
           ...exercise,
           sets: Array(combination.sets).fill(null).map(() => ({
             weight: combination.weight,
             reps: combination.reps,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             isCompleted: false
           })),
           plannedSets: combination.sets
@@ -198,7 +194,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     });
   };
 
-  // Calculate STS combinations
   useEffect(() => {
     if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
 
