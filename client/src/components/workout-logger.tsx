@@ -44,35 +44,6 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// Strict ISO string creation function
-const createStrictISOString = (input?: Date | string | number | null): string => {
-  try {
-    let date: Date;
-
-    if (!input) {
-      date = new Date();
-    } else if (input instanceof Date) {
-      date = input;
-    } else if (typeof input === 'number') {
-      date = new Date(input);
-    } else if (typeof input === 'string') {
-      date = new Date(input);
-    } else {
-      date = new Date();
-    }
-
-    if (isNaN(date.getTime())) {
-      console.warn('Invalid date input, using current time:', input);
-      date = new Date();
-    }
-
-    return date.toISOString();
-  } catch (error) {
-    console.error('Error creating ISO string:', error);
-    return new Date().toISOString();
-  }
-};
-
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
@@ -123,16 +94,16 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Create a new workout log with strict date handling
-      const workoutLog: WorkoutLog = {
+      // Create a new workout log with valid timestamps
+      const workoutLog = {
         workoutDayId: workoutDay.id,
-        date: createStrictISOString(new Date()),
+        date: new Date().toISOString(),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
           sets: data.sets.map(set => ({
             reps: set.actualReps || set.reps,
             weight: set.weight,
-            timestamp: createStrictISOString(set.timestamp)
+            timestamp: new Date().toISOString() // Always use current timestamp
           })),
           extraSetReps: data.extraSetReps,
           oneRm: data.oneRm
@@ -178,7 +149,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         ...currentSets[setIndex],
         isCompleted: completed,
         actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: createStrictISOString(new Date())
+        timestamp: new Date().toISOString() // Always use current timestamp
       };
 
       return {
@@ -209,7 +180,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         sets: Array(combination.sets).fill(null).map(() => ({
           weight: combination.weight,
           reps: combination.reps,
-          timestamp: createStrictISOString(new Date()),
+          timestamp: new Date().toISOString(), // Always use current timestamp
           isCompleted: false
         })),
         selectedCombination: combination,
@@ -273,7 +244,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  // Render Setup View
   if (currentView === "setup") {
     return (
       <div className="space-y-6">
@@ -337,7 +307,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
-  // Render Active Workout View
   const currentState = workoutState[currentExerciseData.exerciseId];
   const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
 
