@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "../types";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { WorkoutDay, WorkoutLog, Exercise } from "../types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle, WifiOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useApi } from "@/hooks/useApi";
 
 type WorkoutLoggerProps = {
   workoutDay: WorkoutDay;
@@ -53,6 +52,7 @@ type WorkoutView = "setup" | "active";
 
 const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentView, setCurrentView] = useState<WorkoutView>("setup");
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [workoutState, setWorkoutState] = useState<WorkoutState>(() => ({
@@ -122,7 +122,57 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
   }, []);
 
-  const syncWorkoutLog = useApi<WorkoutLog, WorkoutLog, Error>(`/api/workout-logs`, { method: 'POST' });
+  // Replace direct API calls with mutation
+  const saveWorkoutMutation = useMutation({
+    mutationFn: async (workoutLog: WorkoutLog) => {
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
+      }
+      return response.json();
+    },
+    onMutate: async (newWorkoutLog) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/workout-logs"] });
+
+      // Snapshot the previous value
+      const previousWorkoutLogs = queryClient.getQueryData<WorkoutLog[]>(["/api/workout-logs"]);
+
+      // Optimistically update the cache
+      queryClient.setQueryData<WorkoutLog[]>(["/api/workout-logs"], old => {
+        const optimisticLog = {
+          ...newWorkoutLog,
+          id: Date.now(), // Temporary ID for optimistic update
+          date: new Date().toISOString()
+        };
+        return [...(old || []), optimisticLog];
+      });
+
+      // Return context for potential rollback
+      return { previousWorkoutLogs };
+    },
+    onError: (err, newWorkoutLog, context) => {
+      // Rollback on error
+      queryClient.setQueryData(["/api/workout-logs"], context?.previousWorkoutLogs);
+      toast({
+        title: "Error saving workout",
+        description: err instanceof Error ? err.message : 'An unknown error occurred',
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Workout saved successfully!",
+      });
+      onComplete();
+    }
+  });
 
   const saveAndExitWorkout = useCallback(async () => {
     try {
@@ -143,37 +193,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         isComplete: true
       };
 
-      const { data: syncedLog, error } = await syncWorkoutLog(workoutLog);
-      if (error) throw error;
-
-      if (!syncedLog) {
-        setConflict(workoutLog);
-        return;
-      }
-
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
-      toast({
-        title: "Success",
-        description: "Workout saved successfully!",
-      });
-      onComplete();
+      await saveWorkoutMutation.mutateAsync(workoutLog);
     } catch (error) {
       console.error('Error saving workout:', error);
-      toast({
-        title: "Error saving workout",
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
-  }, [workoutDay.id, workoutState, toast, onComplete, syncWorkoutLog]);
+  }, [workoutDay.id, workoutState, saveWorkoutMutation]);
 
   const handleSetComplete = useCallback((setIndex: number, completed: boolean, actualReps?: number) => {
     if (!currentExerciseData) return;
@@ -299,7 +325,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const stsCombinations = useMemo(() => {
     if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return [];
 
-    const stsParams = currentExerciseData.parameters as STSParameters;
+    const stsParams = currentExerciseData.parameters as any; // Assuming STSParameters type is correctly defined elsewhere
     const combinations: STSCombination[] = [];
 
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
