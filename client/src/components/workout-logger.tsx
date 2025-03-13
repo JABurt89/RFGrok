@@ -253,12 +253,9 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       }
     }
 
-    // Sort by how close the calculated 1RM is to the target progressive overload
-    // Target is current 1RM + 2.5% for optimal progression
-    const targetProgression = editable1RM * 1.025;
-    combinations.sort((a, b) =>
-      Math.abs(targetProgression - a.calculated1RM) - Math.abs(targetProgression - b.calculated1RM)
-    );
+    // Sort by calculated 1RM in ascending order (smallest increase first)
+    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
+    // Take the first 10 combinations (smallest increases)
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
