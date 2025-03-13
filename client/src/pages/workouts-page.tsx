@@ -7,7 +7,7 @@ import { Home, Plus, DumbbellIcon, Edit, Play, History } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import WorkoutLogger from "@/components/workout-logger";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { WorkoutDay, Exercise } from "@shared/schema";
+import { WorkoutDay, Exercise } from "@/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 

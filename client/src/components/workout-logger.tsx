@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "@shared/schema";
+import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "../types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -79,12 +79,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     queryKey: ["/api/workout-logs"],
   });
 
-  const currentExerciseData = useMemo(() => 
+  const currentExerciseData = useMemo(() =>
     workoutDay.exercises[currentExerciseIndex],
     [workoutDay.exercises, currentExerciseIndex]
   );
 
-  const currentExercise = useMemo(() => 
+  const currentExercise = useMemo(() =>
     exercises?.find(e => e.id === currentExerciseData?.exerciseId),
     [exercises, currentExerciseData]
   );
@@ -267,7 +267,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [workoutState.exercises, currentExerciseIndex, toast]);
 
   const stsCombinations = useMemo(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return [];
+    if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return [];
 
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
@@ -300,12 +300,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return combinations.sort((a, b) => a.calculated1RM - b.calculated1RM).slice(0, 10);
   }, [currentExercise, currentExerciseData, editable1RM, calculate1RM]);
 
+  const currentState2 = workoutState.exercises[currentExerciseIndex] || { sets: [] };
   const remainingSets = useMemo(() => {
-    const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-    return Array.isArray(currentState.sets) ?
-      currentState.sets.filter(set => !set.isCompleted) :
+    return Array.isArray(currentState2.sets) ?
+      currentState2.sets.filter(set => !set.isCompleted) :
       [];
-  }, [workoutState.exercises, currentExerciseIndex]);
+  }, [currentState2.sets]);
 
   useEffect(() => {
     let interval: number;
@@ -429,13 +429,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     );
   }
 
-  const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets = useMemo(() => {
-    const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-    return Array.isArray(currentState.sets) ?
-      currentState.sets.filter(set => !set.isCompleted) :
+  const currentState3 = workoutState.exercises[currentExerciseIndex] || { sets: [] };
+  const remainingSets2 = useMemo(() => {
+    return Array.isArray(currentState3.sets) ?
+      currentState3.sets.filter(set => !set.isCompleted) :
       [];
-  }, [workoutState.exercises, currentExerciseIndex]);
+  }, [currentState3.sets]);
 
   return (
     <div className="space-y-6">
@@ -458,12 +457,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             {currentExercise.name} - Active Workout
           </CardTitle>
           <CardDescription>
-            {Array.isArray(currentState.sets) ?
-              currentState.sets.filter(set => set.isCompleted).length : 0} of {currentState.plannedSets || 0} sets completed
+            {Array.isArray(currentState3.sets) ?
+              currentState3.sets.filter(set => set.isCompleted).length : 0} of {currentState3.plannedSets || 0} sets completed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {Array.isArray(currentState.sets) && currentState.sets.map((set, index) => (
+          {Array.isArray(currentState3.sets) && currentState3.sets.map((set, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Set {index + 1}</h3>
@@ -501,7 +500,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             </div>
           ))}
 
-          {remainingSets.length === 0 && !showExtraSetPrompt && (
+          {remainingSets2.length === 0 && !showExtraSetPrompt && (
             <Button
               className="w-full"
               onClick={() => {
