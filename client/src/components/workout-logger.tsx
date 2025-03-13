@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { WorkoutDay, WorkoutLog, Exercise } from "../types";
+import { STSProgression, type ProgressionSuggestion } from "@shared/progression";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -41,12 +42,7 @@ type WorkoutState = {
   isComplete?: boolean;
 };
 
-type STSCombination = {
-  sets: number;
-  reps: number;
-  weight: number;
-  calculated1RM: number;
-};
+type STSCombination = ProgressionSuggestion;
 
 type WorkoutView = "setup" | "active";
 
@@ -110,19 +106,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     [currentState.sets]
   );
 
+  const stsProgression = useMemo(() => new STSProgression(), []);
+
   const calculate1RM = useCallback((weight: number, reps: number, sets: number, extraSetReps?: number): number => {
-    if (typeof extraSetReps === 'number') {
-      const C = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * (Number(sets) - 1));
-      const F = Number(weight) * (36 / (37 - Number(reps))) * (1 + 0.025 * Number(sets));
-      if (extraSetReps === 0) return Number(C.toFixed(2));
-      return Number((C + (extraSetReps / reps) * (F - C)).toFixed(2));
-    }
+    const exerciseSets = Array(sets).fill({ weight, reps });
+    return stsProgression.calculate1RM(exerciseSets, extraSetReps);
+  }, [stsProgression]);
 
-    const baseRM = Number(weight) * (36 / (37 - Number(reps)));
-    return Number((baseRM * (1 + 0.025 * (Number(sets) - 1))).toFixed(2));
-  }, []);
-
-  // Replace direct API calls with mutation
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: WorkoutLog) => {
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
@@ -133,27 +123,19 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       return response.json();
     },
     onMutate: async (newWorkoutLog) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["/api/workout-logs"] });
-
-      // Snapshot the previous value
       const previousWorkoutLogs = queryClient.getQueryData<WorkoutLog[]>(["/api/workout-logs"]);
-
-      // Optimistically update the cache
       queryClient.setQueryData<WorkoutLog[]>(["/api/workout-logs"], old => {
         const optimisticLog = {
           ...newWorkoutLog,
-          id: Date.now(), // Temporary ID for optimistic update
+          id: Date.now(),
           date: new Date().toISOString()
         };
         return [...(old || []), optimisticLog];
       });
-
-      // Return context for potential rollback
       return { previousWorkoutLogs };
     },
     onError: (err, newWorkoutLog, context) => {
-      // Rollback on error
       queryClient.setQueryData(["/api/workout-logs"], context?.previousWorkoutLogs);
       toast({
         title: "Error saving workout",
@@ -162,7 +144,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       });
     },
     onSettled: () => {
-      // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
     },
     onSuccess: () => {
@@ -325,36 +306,16 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const stsCombinations = useMemo(() => {
     if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return [];
 
-    const stsParams = currentExerciseData.parameters as any; // Assuming STSParameters type is correctly defined elsewhere
-    const combinations: STSCombination[] = [];
+    const stsParams = currentExerciseData.parameters as any;
+    const progression = new STSProgression(
+      stsParams.minSets,
+      stsParams.maxSets,
+      stsParams.minReps,
+      stsParams.maxReps
+    );
 
-    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
-      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWithoutSetBonus = editable1RM / (1 + 0.025 * (sets - 1));
-        const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
-
-        for (let i = -2; i <= 2; i++) {
-          const adjustedWeight = targetWeight + (i * currentExercise.increment);
-          const roundedWeight = Number(
-            (Math.round(adjustedWeight / currentExercise.increment) * currentExercise.increment).toFixed(2)
-          );
-
-          const calculated1RM = calculate1RM(roundedWeight, reps, sets);
-
-          if (calculated1RM > editable1RM) {
-            combinations.push({
-              sets,
-              reps,
-              weight: roundedWeight,
-              calculated1RM: Number(calculated1RM.toFixed(2))
-            });
-          }
-        }
-      }
-    }
-
-    return combinations.sort((a, b) => a.calculated1RM - b.calculated1RM).slice(0, 10);
-  }, [currentExercise, currentExerciseData, editable1RM, calculate1RM]);
+    return progression.getNextSuggestion(editable1RM, currentExercise.increment);
+  }, [currentExercise, currentExerciseData, editable1RM]);
 
 
   useEffect(() => {
