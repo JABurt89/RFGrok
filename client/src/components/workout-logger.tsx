@@ -44,50 +44,31 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// Function to serialize dates to ISO strings
-const serializeDates = (obj: any): any => {
-  if (obj instanceof Date) {
-    return obj.toISOString();
-  } else if (Array.isArray(obj)) {
-    return obj.map(serializeDates);
-  } else if (typeof obj === 'object' && obj !== null) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [key, serializeDates(value)])
-    );
-  }
-  return obj;
-};
-
-// Helper function to ensure valid date format
-const ensureValidDate = (dateInput: Date | string | number | undefined | null): string => {
+// Strict ISO string creation function
+const createStrictISOString = (input?: Date | string | number | null): string => {
   try {
-    if (!dateInput) {
-      console.warn('No date provided, using current time');
-      return new Date().toISOString();
+    let date: Date;
+
+    if (!input) {
+      date = new Date();
+    } else if (input instanceof Date) {
+      date = input;
+    } else if (typeof input === 'number') {
+      date = new Date(input);
+    } else if (typeof input === 'string') {
+      date = new Date(input);
+    } else {
+      date = new Date();
     }
 
-    if (dateInput instanceof Date) {
-      return dateInput.toISOString();
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date input, using current time:', input);
+      date = new Date();
     }
 
-    if (typeof dateInput === 'number') {
-      const date = new Date(dateInput);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-
-    if (typeof dateInput === 'string') {
-      const date = new Date(dateInput);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-
-    console.warn('Invalid date input, using current time:', dateInput);
-    return new Date().toISOString();
+    return date.toISOString();
   } catch (error) {
-    console.error('Error formatting date:', error);
+    console.error('Error creating ISO string:', error);
     return new Date().toISOString();
   }
 };
@@ -115,41 +96,58 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
+  // STS combinations calculation
+  useEffect(() => {
+    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
+
+    const stsParams = currentExerciseData.parameters as STSParameters;
+    const combinations: STSCombination[] = [];
+
+    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
+      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
+        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
+        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
+
+        const calculated1RM = calculate1RM(weight, reps, sets);
+        if (calculated1RM > editable1RM * 0.95) {
+          combinations.push({ sets, reps, weight, calculated1RM });
+        }
+      }
+    }
+
+    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
+    setStsCombinations(combinations.slice(0, 10));
+  }, [editable1RM, currentExercise, currentExerciseData]);
+
   const saveAndExitWorkout = async () => {
     try {
       setIsLoading(true);
 
-      // Create a proper workout log with valid timestamps
-      const workoutLog: Partial<WorkoutLog> = {
+      // Create a new workout log with strict date handling
+      const workoutLog: WorkoutLog = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()),
-        sets: Object.entries(workoutState).map(([exerciseId, data]) => {
-          // Process each set to ensure valid timestamps
-          const processedSets = data.sets.map(set => ({
+        date: createStrictISOString(new Date()),
+        sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+          exerciseId: parseInt(exerciseId),
+          sets: data.sets.map(set => ({
             reps: set.actualReps || set.reps,
             weight: set.weight,
-            timestamp: ensureValidDate(set.timestamp)
-          }));
-
-          return {
-            exerciseId: parseInt(exerciseId),
-            sets: processedSets,
-            extraSetReps: data.extraSetReps,
-            oneRm: data.oneRm,
-          };
-        }),
+            timestamp: createStrictISOString(set.timestamp)
+          })),
+          extraSetReps: data.extraSetReps,
+          oneRm: data.oneRm
+        })),
         isComplete: false
       };
 
-      // Serialize all dates to ensure proper format
-      const serializedWorkoutLog = serializeDates(workoutLog);
-      console.log('Saving workout with data:', JSON.stringify(serializedWorkoutLog, null, 2));
+      // Log the exact data being sent
+      console.log('Saving workout log:', JSON.stringify(workoutLog, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", serializedWorkoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
@@ -180,7 +178,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         ...currentSets[setIndex],
         isCompleted: completed,
         actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: ensureValidDate(new Date())
+        timestamp: createStrictISOString(new Date())
       };
 
       return {
@@ -211,7 +209,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         sets: Array(combination.sets).fill(null).map(() => ({
           weight: combination.weight,
           reps: combination.reps,
-          timestamp: ensureValidDate(new Date()),
+          timestamp: createStrictISOString(new Date()),
           isCompleted: false
         })),
         selectedCombination: combination,
@@ -256,29 +254,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return () => clearInterval(interval);
   }, [restTimer]);
 
-  useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
-
-    const stsParams = currentExerciseData.parameters as STSParameters;
-    const combinations: STSCombination[] = [];
-
-    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
-      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
-        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
-
-        const calculated1RM = calculate1RM(weight, reps, sets);
-        if (calculated1RM > editable1RM * 0.95) { // Allow for slight variations
-          combinations.push({ sets, reps, weight, calculated1RM });
-        }
-      }
-    }
-
-    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
-    setStsCombinations(combinations.slice(0, 10));
-  }, [editable1RM, currentExercise, currentExerciseData]);
-
-
   if (exercisesLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -298,6 +273,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
+  // Render Setup View
   if (currentView === "setup") {
     return (
       <div className="space-y-6">
@@ -361,6 +337,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     );
   }
 
+  // Render Active Workout View
   const currentState = workoutState[currentExerciseData.exerciseId];
   const remainingSets = currentState?.sets.filter(set => !set.isCompleted) || [];
 
