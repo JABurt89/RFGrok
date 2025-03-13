@@ -3,7 +3,12 @@ import {
   Exercise as BaseExercise,
   WorkoutDay as BaseWorkoutDay,
   WorkoutLog as BaseWorkoutLog,
+  InsertUser,
+  InsertExercise as BaseInsertExercise,
+  InsertWorkoutDay,
+  InsertWorkoutLog,
 } from "@shared/schema";
+import { z } from "zod";
 
 // Extend base types with any client-specific additions
 export interface User extends BaseUser {
@@ -62,10 +67,22 @@ export const predefinedEquipment: Record<string, EquipmentType> = {
   }
 };
 
+// Exercise Schema
+export const insertExerciseSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  equipmentName: z.string().min(1, "Equipment is required"),
+  startingWeight: z.number().min(0, "Starting weight must be positive"),
+  increment: z.number().min(0, "Increment must be positive"),
+  units: z.enum(["kg", "lb"]),
+  isArchived: z.boolean().default(false)
+});
+
+export type InsertExercise = z.infer<typeof insertExerciseSchema>;
+
 // Re-export other types that don't need extension
 export type {
   InsertUser,
-  InsertExercise,
+  BaseInsertExercise,
   InsertWorkoutDay,
   InsertWorkoutLog,
-} from "@shared/schema";
+};
