@@ -241,11 +241,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         // Calculate what 1RM this rounded weight would actually produce
         const calculated1RM = calculate1RM(roundedWeight, reps, sets);
 
-        // Only include combinations that would produce at least 95% of target 1RM
-        if (calculated1RM >= editable1RM * 0.95) {
-          combinations.push({ 
-            sets, 
-            reps, 
+        // Only include combinations that would produce a higher 1RM than the current one
+        // Require at least a 0.5% increase to ensure progression
+        if (calculated1RM > editable1RM * 1.005) {
+          combinations.push({
+            sets,
+            reps,
             weight: roundedWeight,
             calculated1RM: Number(calculated1RM.toFixed(2))
           });
@@ -253,8 +254,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       }
     }
 
-    // Sort by how close the calculated 1RM is to the target 1RM
-    combinations.sort((a, b) => Math.abs(editable1RM - a.calculated1RM) - Math.abs(editable1RM - b.calculated1RM));
+    // Sort by how close the calculated 1RM is to the target progressive overload
+    // Target is current 1RM + 2.5% for optimal progression
+    const targetProgression = editable1RM * 1.025;
+    combinations.sort((a, b) =>
+      Math.abs(targetProgression - a.calculated1RM) - Math.abs(targetProgression - b.calculated1RM)
+    );
     setStsCombinations(combinations.slice(0, 10));
   }, [editable1RM, currentExercise, currentExerciseData]);
 
