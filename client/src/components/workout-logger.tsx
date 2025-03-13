@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, WorkoutLog, Exercise, STSParameters } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,42 +44,7 @@ type STSCombination = {
 
 type WorkoutView = "setup" | "active";
 
-// Standalone helper function for date validation
-const ensureValidDate = (dateInput: Date | string | number): string => {
-  try {
-    if (dateInput) {
-      if (typeof dateInput === 'object' && dateInput instanceof Date) {
-        return dateInput.toISOString();
-      } else if (typeof dateInput === 'number') {
-        return new Date(dateInput).toISOString();
-      } else if (typeof dateInput === 'string') {
-        try {
-          const date = new Date(dateInput);
-          if (!isNaN(date.getTime())) {
-            return date.toISOString();
-          } else {
-            console.warn('Invalid date string, using current time:', dateInput);
-            return new Date().toISOString();
-          }
-        } catch (e) {
-          console.warn('Error parsing date string, using current time:', e);
-          return new Date().toISOString();
-        }
-      } else {
-        console.warn('Invalid date type, using current time:', typeof dateInput);
-        return new Date().toISOString();
-      }
-    } else {
-      console.warn('No date provided, using current time');
-      return new Date().toISOString();
-    }
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return new Date().toISOString();
-  }
-};
-
-// Function to serialize dates to strings
+// Function to serialize dates to ISO strings
 const serializeDates = (obj: any): any => {
   if (obj instanceof Date) {
     return obj.toISOString();
@@ -91,6 +56,40 @@ const serializeDates = (obj: any): any => {
     );
   }
   return obj;
+};
+
+// Helper function to ensure valid date format
+const ensureValidDate = (dateInput: Date | string | number | undefined | null): string => {
+  try {
+    if (!dateInput) {
+      console.warn('No date provided, using current time');
+      return new Date().toISOString();
+    }
+
+    if (dateInput instanceof Date) {
+      return dateInput.toISOString();
+    }
+
+    if (typeof dateInput === 'number') {
+      const date = new Date(dateInput);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+
+    if (typeof dateInput === 'string') {
+      const date = new Date(dateInput);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+
+    console.warn('Invalid date input, using current time:', dateInput);
+    return new Date().toISOString();
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return new Date().toISOString();
+  }
 };
 
 export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerProps) {
@@ -116,44 +115,22 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
-  useEffect(() => {
-    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
-
-    const stsParams = currentExerciseData.parameters as STSParameters;
-    const combinations: STSCombination[] = [];
-
-    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
-      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
-        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
-
-        const calculated1RM = calculate1RM(weight, reps, sets);
-        if (calculated1RM > editable1RM) {
-          combinations.push({ sets, reps, weight, calculated1RM });
-        }
-      }
-    }
-
-    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
-    setStsCombinations(combinations.slice(0, 10));
-  }, [editable1RM, currentExercise, currentExerciseData]);
-
   const saveAndExitWorkout = async () => {
     try {
       setIsLoading(true);
 
+      // Create a proper workout log with valid timestamps
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: new Date().toISOString(), // Ensure date is a string
+        date: ensureValidDate(new Date()),
         sets: Object.entries(workoutState).map(([exerciseId, data]) => {
-          const processedSets = data.sets.map(set => {
-            // Ensure timestamp is a string
-            return {
-              reps: set.actualReps || set.reps,
-              weight: set.weight,
-              timestamp: typeof set.timestamp === 'string' ? set.timestamp : new Date().toISOString()
-            };
-          });
+          // Process each set to ensure valid timestamps
+          const processedSets = data.sets.map(set => ({
+            reps: set.actualReps || set.reps,
+            weight: set.weight,
+            timestamp: ensureValidDate(set.timestamp)
+          }));
+
           return {
             exerciseId: parseInt(exerciseId),
             sets: processedSets,
@@ -164,9 +141,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         isComplete: false
       };
 
-      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
+      // Serialize all dates to ensure proper format
+      const serializedWorkoutLog = serializeDates(workoutLog);
+      console.log('Saving workout with data:', JSON.stringify(serializedWorkoutLog, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", serializedWorkoutLog);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
