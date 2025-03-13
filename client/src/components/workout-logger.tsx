@@ -225,30 +225,32 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     const stsParams = currentExerciseData.parameters as STSParameters;
     const combinations: STSCombination[] = [];
 
+    // Try multiple weight increments for each set/rep combination
     for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
       for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
-        // Calculate target weight using reverse Brzycki formula
-        // First remove the set bonus from the target 1RM
+        // Calculate base weight using reverse Brzycki formula
         const targetWithoutSetBonus = editable1RM / (1 + 0.025 * (sets - 1));
-        // Then calculate the working weight needed to achieve this 1RM
         const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
 
-        // Round to nearest increment
-        const roundedWeight = Number(
-          (Math.round(targetWeight / currentExercise.increment) * currentExercise.increment).toFixed(2)
-        );
+        // Try weights around the target weight
+        for (let i = -2; i <= 2; i++) {
+          const adjustedWeight = targetWeight + (i * currentExercise.increment);
+          const roundedWeight = Number(
+            (Math.round(adjustedWeight / currentExercise.increment) * currentExercise.increment).toFixed(2)
+          );
 
-        // Calculate what 1RM this rounded weight would actually produce
-        const calculated1RM = calculate1RM(roundedWeight, reps, sets);
+          // Calculate what 1RM this rounded weight would actually produce
+          const calculated1RM = calculate1RM(roundedWeight, reps, sets);
 
-        // Only include combinations that would produce a higher 1RM than the current one
-        if (calculated1RM > editable1RM) {
-          combinations.push({
-            sets,
-            reps,
-            weight: roundedWeight,
-            calculated1RM: Number(calculated1RM.toFixed(2))
-          });
+          // Only include combinations that would produce a higher 1RM than the current one
+          if (calculated1RM > editable1RM) {
+            combinations.push({
+              sets,
+              reps,
+              weight: roundedWeight,
+              calculated1RM: Number(calculated1RM.toFixed(2))
+            });
+          }
         }
       }
     }
