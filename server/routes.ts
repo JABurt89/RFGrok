@@ -149,6 +149,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add DELETE endpoint for workout logs
+  app.delete("/api/workout-logs/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log(`Deleting workout log with ID: ${req.params.id}`);
+      await storage.deleteWorkoutLog(parseInt(req.params.id));
+
+      res.setHeader('Content-Type', 'application/json');
+      res.json({ message: "Workout log deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting workout log:', error);
+      res.setHeader('Content-Type', 'application/json');
+      res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
