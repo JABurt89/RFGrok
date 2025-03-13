@@ -38,15 +38,18 @@ export class STSProgression implements ProgressionScheme {
     if (sets.length === 0) return 0;
 
     const lastSet = sets[sets.length - 1];
+    // Base 1RM calculation using Brzycki formula with set bonus
     const baseRM = lastSet.weight * (36 / (37 - lastSet.reps));
-    const withSetBonus = baseRM * (1 + 0.025 * (sets.length - 1));
+    const withSetBonus = Math.round(baseRM * (1 + 0.025 * (sets.length - 1)) * 100) / 100;
 
     if (typeof extraSetReps === 'number') {
+      // Calculate final set RM with the additional set bonus
       const finalSetRM = lastSet.weight * (36 / (37 - lastSet.reps)) * (1 + 0.025 * sets.length);
+      // Linear interpolation between current and next set based on extra reps ratio
       return Number((withSetBonus + (extraSetReps / lastSet.reps) * (finalSetRM - withSetBonus)).toFixed(2));
     }
 
-    return Number(withSetBonus.toFixed(2));
+    return withSetBonus;
   }
 
   getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[] {
@@ -54,8 +57,10 @@ export class STSProgression implements ProgressionScheme {
 
     for (let sets = this.minSets; sets <= this.maxSets; sets++) {
       for (let reps = this.minReps; reps <= this.maxReps; reps++) {
-        const targetWithoutSetBonus = last1RM / (1 + 0.025 * (sets - 1));
-        const targetWeight = targetWithoutSetBonus * ((37 - reps) / 36);
+        // Remove set bonus to get the base weight needed
+        const targetWithoutSetBonus = Math.round((last1RM / (1 + 0.025 * (sets - 1))) * 100) / 100;
+        // Convert from 1RM to working weight using Brzycki formula
+        const targetWeight = Math.round((targetWithoutSetBonus * ((37 - reps) / 36)) * 100) / 100;
 
         // Generate weight options around the target
         for (let i = -2; i <= 2; i++) {
@@ -64,7 +69,8 @@ export class STSProgression implements ProgressionScheme {
             (Math.round(adjustedWeight / increment) * increment).toFixed(2)
           );
 
-          const calculated1RM = this.calculate1RM([{ reps, weight: roundedWeight }], 0);
+          // Calculate actual 1RM with this weight
+          const calculated1RM = this.calculate1RM(Array(sets).fill({ reps, weight: roundedWeight }));
 
           if (calculated1RM > last1RM) {
             suggestions.push({
