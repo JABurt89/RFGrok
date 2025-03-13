@@ -61,7 +61,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     workoutDayId: workoutDay.id,
     exercises: workoutDay.exercises.map(exercise => ({
       exerciseId: exercise.exerciseId,
-      sets: [],
+      sets: [], // Initialize with empty sets array
     }))
   });
 
@@ -82,6 +82,42 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
+  // Define handleStartWorkout before it's used
+  const handleStartWorkout = () => {
+    const currentState = workoutState.exercises[currentExerciseIndex];
+    if (!Array.isArray(currentState?.sets) || currentState.sets.length === 0) {
+      toast({
+        title: "Select a combination",
+        description: "Please select a set/weight combination before starting the workout",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentView("active");
+  };
+
+  useEffect(() => {
+    if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
+
+    const stsParams = currentExerciseData.parameters as STSParameters;
+    const combinations: STSCombination[] = [];
+
+    for (let sets = stsParams.minSets; sets <= stsParams.maxSets; sets++) {
+      for (let reps = stsParams.minReps; reps <= stsParams.maxReps; reps++) {
+        const targetWeight = editable1RM / (36 / (37 - reps)) / (1 + 0.025 * (sets - 1));
+        const weight = Math.ceil(targetWeight / currentExercise.increment) * currentExercise.increment;
+
+        const calculated1RM = calculate1RM(weight, reps, sets);
+        if (calculated1RM > editable1RM * 0.95) {
+          combinations.push({ sets, reps, weight, calculated1RM });
+        }
+      }
+    }
+
+    combinations.sort((a, b) => a.calculated1RM - b.calculated1RM);
+    setStsCombinations(combinations.slice(0, 10));
+  }, [editable1RM, currentExercise, currentExerciseData]);
+
   const saveAndExitWorkout = async () => {
     try {
       setIsLoading(true);
@@ -92,6 +128,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         date: new Date().toISOString(),
         exercises: workoutState.exercises.map(exercise => ({
           ...exercise,
+          // Ensure sets is always an array
           sets: Array.isArray(exercise.sets) ? exercise.sets.map(set => ({
             ...set,
             timestamp: new Date().toISOString()
@@ -135,6 +172,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
       const updatedExercises = prev.exercises.map(exercise => {
         if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
+        // Ensure sets is always an array
         const sets = Array.isArray(exercise.sets) ? [...exercise.sets] : [];
         sets[setIndex] = {
           ...sets[setIndex],
@@ -173,6 +211,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
         return {
           ...exercise,
+          // Initialize with empty array and map to new sets
           sets: Array(combination.sets).fill(null).map(() => ({
             weight: combination.weight,
             reps: combination.reps,
@@ -297,21 +336,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
   }
 
   const currentState = workoutState.exercises[currentExerciseIndex] || { sets: [] };
-  const remainingSets = (currentState.sets || []).filter(set => !set.isCompleted);
-
-  const handleStartWorkout = () => {
-    const currentState = workoutState.exercises[currentExerciseIndex];
-    if (!currentState?.sets?.length) {
-      toast({
-        title: "Select a combination",
-        description: "Please select a set/weight combination before starting the workout",
-        variant: "destructive"
-      });
-      return;
-    }
-    setCurrentView("active");
-  };
-
+  const remainingSets = Array.isArray(currentState.sets) ?
+    currentState.sets.filter(set => !set.isCompleted) :
+    [];
 
   return (
     <div className="space-y-6">
@@ -334,11 +361,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
             {currentExercise.name} - Active Workout
           </CardTitle>
           <CardDescription>
-            {(currentState.sets || []).filter(set => set.isCompleted).length || 0} of {currentState.plannedSets || 0} sets completed
+            {Array.isArray(currentState.sets) ?
+              currentState.sets.filter(set => set.isCompleted).length : 0} of {currentState.plannedSets || 0} sets completed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(currentState.sets || []).map((set, index) => (
+          {Array.isArray(currentState.sets) && currentState.sets.map((set, index) => (
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Set {index + 1}</h3>
