@@ -1,6 +1,6 @@
 import { ReactNode } from "react"
 import { Dialog, DialogContent } from "./dialog"
-import { Drawer, DrawerContent } from "./drawer"
+import { Drawer, DrawerContent, DrawerPortal, DrawerOverlay } from "./drawer"
 import { Sheet, SheetContent } from "./sheet"
 
 export interface ModalProps {
@@ -31,10 +31,13 @@ export function Modal({
       )
     case 'drawer':
       return (
-        <Drawer open={isOpen} onOpenChange={onClose} direction={position as 'left' | 'right'}>
-          <DrawerContent className={className}>
-            {children}
-          </DrawerContent>
+        <Drawer open={isOpen} onOpenChange={onClose}>
+          <DrawerPortal>
+            <DrawerOverlay />
+            <DrawerContent className={className}>
+              {children}
+            </DrawerContent>
+          </DrawerPortal>
         </Drawer>
       )
     case 'sheet':
