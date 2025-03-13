@@ -67,7 +67,6 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     return baseRM * (1 + 0.025 * (sets - 1));
   };
 
-  // STS combinations calculation
   useEffect(() => {
     if (!currentExercise || !currentExerciseData?.parameters?.scheme === "STS") return;
 
@@ -94,28 +93,43 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     try {
       setIsLoading(true);
 
-      // Create a new workout log with valid timestamps
-      const workoutLog = {
+      // Derive currentWorkout from workoutState
+      const currentWorkout: WorkoutLog = {
         workoutDayId: workoutDay.id,
         date: new Date().toISOString(),
-        sets: Object.entries(workoutState).map(([exerciseId, data]) => ({
+        exercises: Object.entries(workoutState).map(([exerciseId, data]) => ({
           exerciseId: parseInt(exerciseId),
           sets: data.sets.map(set => ({
             reps: set.actualReps || set.reps,
             weight: set.weight,
-            timestamp: new Date().toISOString() // Always use current timestamp
+            timestamp: new Date().toISOString()
           })),
           extraSetReps: data.extraSetReps,
           oneRm: data.oneRm
         })),
-        isComplete: false
+        completed: true, // Added completed flag
+        endTime: new Date().toISOString() // Added end time
       };
 
-      // Log the exact data being sent
-      console.log('Saving workout log:', JSON.stringify(workoutLog, null, 2));
+
+      // Process timestamps in currentWorkout
+      const workoutLog = {
+        ...currentWorkout,
+        exercises: currentWorkout.exercises.map(exercise => ({
+          ...exercise,
+          sets: exercise.sets.map(set => ({
+            ...set,
+            timestamp: typeof set.timestamp === 'object' && set.timestamp instanceof Date ? set.timestamp.toISOString() :
+              typeof set.timestamp === 'number' ? new Date(set.timestamp).toISOString() :
+                typeof set.timestamp === 'string' ? (new Date(set.timestamp).getTime() !== 0 ? new Date(set.timestamp).toISOString() : new Date().toISOString()) :
+                  new Date().toISOString()
+          }))
+        }))
+      };
+
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
 
       const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to save workout: ${JSON.stringify(errorData)}`);
@@ -149,7 +163,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         ...currentSets[setIndex],
         isCompleted: completed,
         actualReps: actualReps || currentSets[setIndex].reps,
-        timestamp: new Date().toISOString() // Always use current timestamp
+        timestamp: new Date().toISOString()
       };
 
       return {
@@ -180,7 +194,7 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         sets: Array(combination.sets).fill(null).map(() => ({
           weight: combination.weight,
           reps: combination.reps,
-          timestamp: new Date().toISOString(), // Always use current timestamp
+          timestamp: new Date().toISOString(),
           isCompleted: false
         })),
         selectedCombination: combination,
