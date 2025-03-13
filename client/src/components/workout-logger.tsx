@@ -144,14 +144,14 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
 
       const workoutLog: Partial<WorkoutLog> = {
         workoutDayId: workoutDay.id,
-        date: ensureValidDate(new Date()),
+        date: new Date().toISOString(), // Ensure date is a string
         sets: Object.entries(workoutState).map(([exerciseId, data]) => {
           const processedSets = data.sets.map(set => {
-            let timestamp = ensureValidDate(set.timestamp);
+            // Ensure timestamp is a string
             return {
               reps: set.actualReps || set.reps,
               weight: set.weight,
-              timestamp: timestamp
+              timestamp: typeof set.timestamp === 'string' ? set.timestamp : new Date().toISOString()
             };
           });
           return {
@@ -164,10 +164,9 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
         isComplete: false
       };
 
-      const serializedWorkoutLog = serializeDates(workoutLog);
-      console.log('Saving workout with data:', JSON.stringify(serializedWorkoutLog, null, 2));
+      console.log('Saving workout with data:', JSON.stringify(workoutLog, null, 2));
 
-      const response = await apiRequest("POST", "/api/workout-logs", serializedWorkoutLog);
+      const response = await apiRequest("POST", "/api/workout-logs", workoutLog);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Error saving workout: ${JSON.stringify(errorData)}`);
@@ -229,12 +228,12 @@ export default function WorkoutLogger({ workoutDay, onComplete }: WorkoutLoggerP
     setWorkoutState(prev => ({
       ...prev,
       [exerciseId]: {
-        sets: Array(combination.sets).fill({
+        sets: Array(combination.sets).fill(null).map(() => ({
           weight: combination.weight,
           reps: combination.reps,
           timestamp: ensureValidDate(new Date()),
           isCompleted: false
-        }),
+        })),
         selectedCombination: combination,
         plannedSets: combination.sets
       }
