@@ -3,7 +3,7 @@ import { WorkoutDayForm } from "../components/workout-day-form";
 import { Sheet, SheetContent, SheetTrigger } from "../components/ui/sheet";
 import { Button } from "../components/ui/button";
 import { Link } from "wouter";
-import { Home, Plus, DumbbellIcon, Edit, Play } from "lucide-react";
+import { Home, Plus, DumbbellIcon, Edit, Play, History } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import WorkoutLogger from "@/components/workout-logger";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -95,12 +95,20 @@ function WorkoutsPage() {
             <DumbbellIcon className="h-6 w-6" />
             <h1 className="text-xl font-bold">Workout Planner</h1>
           </div>
-          <Link href="/">
-            <Button variant="ghost" className="flex items-center gap-2">
-              <Home className="h-4 w-4" />
-              Home
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/workout-history">
+              <Button variant="ghost" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                History
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost" className="flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                Home
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 

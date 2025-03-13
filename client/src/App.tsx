@@ -7,6 +7,7 @@ import HomePage from "@/pages/home-page";
 import AuthPage from "@/pages/auth-page";
 import WorkoutsPage from "@/pages/workouts-page";
 import ExercisesPage from "@/pages/exercises-page";
+import WorkoutHistoryPage from "@/pages/workout-history-page";
 import { AuthProvider } from "@/hooks/use-auth";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
             <ProtectedRoute path="/" component={HomePage} />
             <ProtectedRoute path="/workouts" component={WorkoutsPage} />
             <ProtectedRoute path="/exercises" component={ExercisesPage} />
+            <ProtectedRoute path="/workout-history" component={WorkoutHistoryPage} />
           </Switch>
           <Toaster />
         </div>
