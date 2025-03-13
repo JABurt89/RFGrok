@@ -48,10 +48,10 @@ export default function WorkoutHistoryPage() {
     mutationFn: async (logId: number) => {
       const response = await apiRequest("DELETE", `/api/workout-logs/${logId}`);
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ message: "Failed to delete workout log" }));
         throw new Error(error.message || "Failed to delete workout log");
       }
-      return response.json();
+      return response.json().catch(() => ({})); // Handle empty response
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });

@@ -82,6 +82,14 @@ export class DatabaseStorage {
     if (!updated) throw new Error("Workout log not found");
     return updated;
   }
+
+  async deleteWorkoutLog(id: number): Promise<void> {
+    const [deleted] = await db
+      .delete(workoutLogs)
+      .where(eq(workoutLogs.id, id))
+      .returning();
+    if (!deleted) throw new Error("Workout log not found");
+  }
 }
 
 export const storage = new DatabaseStorage();
