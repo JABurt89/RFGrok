@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { WorkoutLog, Exercise, WorkoutDay } from "@shared/schema";
+import { WorkoutLog, Exercise, WorkoutDay } from "@/types";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import {

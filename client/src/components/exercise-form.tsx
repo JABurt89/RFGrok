@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
-import { Exercise, InsertExercise, insertExerciseSchema, predefinedEquipment, KG_TO_LB } from "@shared/schema";
+import { Exercise, InsertExercise, predefinedEquipment, KG_TO_LB } from "../types";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

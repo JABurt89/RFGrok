@@ -2,8 +2,8 @@ import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Exercise } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { Exercise } from "@/types";
+import { useExercises } from "@/hooks/useExercises";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -119,9 +119,7 @@ const defaultParameters: Record<string, ExerciseParameters> = {
 };
 
 export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
-  const { data: exercises = [] } = useQuery<Exercise[]>({
-    queryKey: ["/api/exercises"],
-  });
+  const { data: exercises = [] } = useExercises();
 
   const form = useForm<WorkoutDayFormData>({
     resolver: zodResolver(formSchema),

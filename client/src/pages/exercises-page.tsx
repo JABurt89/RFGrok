@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Exercise } from "@shared/schema";
+import { Exercise } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
@@ -8,12 +7,11 @@ import { Link } from "wouter";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import ExerciseForm from "@/components/exercise-form";
 import { Badge } from "@/components/ui/badge";
+import { useExercises } from "@/hooks/useExercises";
 
 export default function ExercisesPage() {
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
-  const { data: exercises = [], isLoading } = useQuery<Exercise[]>({
-    queryKey: ["/api/exercises"],
-  });
+  const { data: exercises = [], isLoading } = useExercises();
 
   return (
     <div className="min-h-screen bg-background p-4">
