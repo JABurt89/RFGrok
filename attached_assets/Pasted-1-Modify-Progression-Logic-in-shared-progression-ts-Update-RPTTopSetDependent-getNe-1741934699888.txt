@@ -1,0 +1,98 @@
+1. **Modify Progression Logic in `shared/progression.ts`:**  
+   - Update `RPTTopSetDependent.getNextSuggestion` to return a single suggestion.  
+   - Example:
+     ```tsx
+     getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
+       const baseWeight = lastWeight || increment;
+       let topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
+       const setWeights = this.calculateSetWeights(topSetWeight);
+       const suggestion: ProgressionSuggestion = {
+         sets: this.sets,
+         reps: this.minReps,
+         weight: topSetWeight,
+         setWeights,
+         repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
+       };
+       return [suggestion];
+     }
+     ```
+
+2. **Update `workout-logger.tsx`:**  
+   - Remove radio buttons and instead fetch a single suggestion via `useQuery`.  
+   - Display the suggestion details and render a "Begin Workout" button.  
+   - Example:
+     ```tsx
+     import { useState } from "react";
+     import { Button } from "@/components/ui/button";
+     import { useQuery } from "@tanstack/react-query";
+     import { apiRequest } from "@/lib/queryClient";
+
+     export default function WorkoutLogger() {
+       const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+
+       const { data: suggestion } = useQuery({
+         queryKey: ["/api/workout-suggestion"],
+         queryFn: () => apiRequest("GET", "/api/workout-suggestion").then(res => res.json()),
+       });
+
+       const handleBeginWorkout = () => {
+         setIsWorkoutActive(true);
+         // Additional workout-start logic here.
+       };
+
+       if (isWorkoutActive) return <div>Workout in progress...</div>;
+
+       return (
+         <div className="p-4">
+           <h1 className="text-2xl mb-4">Bench Press - Setup</h1>
+           {suggestion && (
+             <div className="mt-4">
+               <h2>Suggested Workout</h2>
+               <p>Top Set: {suggestion.weight}kg ({suggestion.reps} reps)</p>
+               {suggestion.setWeights?.map((weight, idx) => (
+                 idx > 0 && (
+                   <p key={idx}>Set {idx + 1}: {weight}kg ({suggestion.repTargets[idx].min}-{suggestion.repTargets[idx].max} reps)</p>
+                 )
+               ))}
+             </div>
+           )}
+           <Button onClick={handleBeginWorkout} className="mt-4">
+             Begin Workout
+           </Button>
+         </div>
+       );
+     }
+     ```
+
+3. **Fix Radio Button UI (for future use):**  
+   - In `client/src/components/ui/radio-group.tsx`, ensure the `RadioGroupItem` uses proper styling (e.g., Tailwind classes) to visually indicate selection.  
+   - Example:
+     ```tsx
+     const RadioGroupItem = React.forwardRef(({ className, ...props }, ref) => (
+       <RadioGroupPrimitive.Item
+         ref={ref}
+         className={`h-4 w-4 rounded-full border border-primary focus-visible:ring-2 focus-visible:ring-ring peer-checked:bg-primary ${className}`}
+         {...props}
+       />
+     ));
+     ```
+
+4. **Eliminate Infinite Number Reduction:**  
+   - Locate any `useEffect` or state update that subtracts from weights on radio selection.  
+   - Remove or conditionally update state to prevent looped updates.  
+   - Example fix:
+     ```tsx
+     // Instead of directly reducing weights on change:
+     const handleSelection = (value: string) => {
+       setSelected(value);
+       // Remove any automatic weight reduction logic here.
+     };
+     ```
+
+5. **Backend/API Adjustments:**  
+   - Modify the `/api/workout-suggestion` endpoint in `server/routes.ts` to use the updated progression logic and return a single suggestion.  
+
+Test all changes to ensure that:
+- The single "Begin Workout" button launches the workout with the correct suggestion.
+- No radio buttons are rendered.
+- UI state updates do not cause infinite loops or unintended weight reductions.

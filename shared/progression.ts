@@ -160,52 +160,19 @@ export class RPTTopSetDependent implements ProgressionScheme {
   }
 
   getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
-    const suggestions: ProgressionSuggestion[] = [];
+    const baseWeight = lastWeight || increment;
+    let topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
+    const setWeights = this.calculateSetWeights(topSetWeight);
 
-    // If no previous weight, start with minimum increment
-    if (!lastWeight) {
-      const baseWeight = increment;
-      const initialWeights = this.calculateSetWeights(baseWeight);
-
-      return [{
-        sets: this.sets,
-        reps: this.minReps,
-        weight: baseWeight,
-        setWeights: initialWeights,
-        repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
-      }];
-    }
-
-    // Current weight suggestion
-    let currentTopSetWeight = lastWeight;
-    if (consecutiveFailures >= 2) {
-      currentTopSetWeight = Math.max(increment, currentTopSetWeight * 0.9);
-    }
-
-    const currentSetWeights = this.calculateSetWeights(currentTopSetWeight);
-    suggestions.push({
+    const suggestion: ProgressionSuggestion = {
       sets: this.sets,
       reps: this.minReps,
-      weight: currentTopSetWeight,
-      setWeights: currentSetWeights,
+      weight: topSetWeight,
+      setWeights,
       repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
-    });
+    };
 
-    // Progressive suggestion
-    if (consecutiveFailures === 0) {
-      const nextTopSetWeight = currentTopSetWeight + increment;
-      const progressiveSetWeights = this.calculateSetWeights(nextTopSetWeight);
-
-      suggestions.push({
-        sets: this.sets,
-        reps: this.minReps,
-        weight: nextTopSetWeight,
-        setWeights: progressiveSetWeights,
-        repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
-      });
-    }
-
-    return suggestions;
+    return [suggestion];
   }
 
   private calculateSetWeights(topSetWeight: number): number[] {
@@ -233,54 +200,22 @@ export class RPTIndividualProgression implements ProgressionScheme {
   }
 
   getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
-    const suggestions: ProgressionSuggestion[] = [];
-
-    // If no previous weight, start with minimum increment
-    if (!lastWeight) {
-      return [{
-        sets: this.sets,
-        reps: this.setConfigs[0].min,
-        weight: increment,
-        setWeights: Array(this.sets).fill(increment),
-        repTargets: this.setConfigs
-      }];
-    }
-
-    // Calculate current weights
-    const currentWeights = Array(this.sets).fill(lastWeight).map((weight, idx) => {
+    const baseWeight = lastWeight || increment;
+    const currentWeights = Array(this.sets).fill(0).map((_, idx) => {
       if (failureFlags?.[idx]) {
-        return Number((weight * 0.9).toFixed(2));
+        return Number((baseWeight * 0.9).toFixed(2));
       }
-      return weight;
+      return baseWeight;
     });
 
-    suggestions.push({
+    const suggestion: ProgressionSuggestion = {
       sets: this.sets,
       reps: this.setConfigs[0].min,
       weight: Math.max(...currentWeights),
       setWeights: currentWeights,
       repTargets: this.setConfigs
-    });
+    };
 
-    // Progressive suggestion - increase non-failed sets
-    const hasProgressableSet = !failureFlags || failureFlags.some(f => !f);
-    if (hasProgressableSet) {
-      const progressiveWeights = currentWeights.map((weight, idx) => {
-        if (!failureFlags?.[idx]) {
-          return Number((weight + increment).toFixed(2));
-        }
-        return weight;
-      });
-
-      suggestions.push({
-        sets: this.sets,
-        reps: this.setConfigs[0].min,
-        weight: Math.max(...progressiveWeights),
-        setWeights: progressiveWeights,
-        repTargets: this.setConfigs
-      });
-    }
-
-    return suggestions;
+    return [suggestion];
   }
 }

@@ -459,79 +459,52 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const renderProgressionSuggestions = () => {
     if (!progressionSuggestions.length) return null;
 
+    const suggestion = progressionSuggestions[0]; // We now only have one suggestion
+
     switch (currentExerciseData?.parameters.scheme) {
       case "RPT Top-Set":
         return (
           <div className="space-y-2">
-            <Label>Select weights for each set:</Label>
-            <RadioGroup
-              value={currentState.plannedSets ?
-                JSON.stringify({
-                  sets: currentState.plannedSets,
-                  reps: currentState.sets[0]?.reps,
-                  weight: currentState.sets[0]?.weight,
-                  setWeights: currentState.sets.map(s => s.weight)
-                }) :
-                undefined}
-              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+            <h3 className="text-sm font-medium">Suggested weights:</h3>
+            <div className="space-y-1 p-4 rounded-md bg-muted">
+              <div className="font-medium">Top set: {suggestion.weight}{currentExercise?.units}</div>
+              {suggestion.setWeights?.map((weight, setIdx) => (
+                <div key={setIdx} className="text-sm text-muted-foreground">
+                  Set {setIdx + 1}: {weight}{currentExercise?.units} ({suggestion.repTargets?.[setIdx]?.min}-{suggestion.repTargets?.[setIdx]?.max} reps)
+                </div>
+              ))}
+            </div>
+            <Button
+              className="w-full mt-2"
+              onClick={() => handleCombinationSelect(suggestion)}
             >
-              <div className="space-y-2">
-                {progressionSuggestions.map((combo, idx) => (
-                  <div key={idx} className="flex items-center space-x-2">
-                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                    <Label htmlFor={`combo-${idx}`} className="flex-1">
-                      <div className="space-y-1">
-                        <div>Top set: {combo.weight}{currentExercise?.units}</div>
-                        {combo.setWeights?.map((weight, setIdx) => (
-                          <div key={setIdx} className="text-sm text-muted-foreground">
-                            Set {setIdx + 1}: {weight}{currentExercise?.units} ({combo.repTargets?.[setIdx]?.min}-{combo.repTargets?.[setIdx]?.max} reps)
-                          </div>
-                        ))}
-                      </div>
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </RadioGroup>
+              Use These Weights
+            </Button>
           </div>
         );
 
       case "RPT Individual":
         return (
           <div className="space-y-2">
-            <Label>Select weights for individual sets:</Label>
-            <RadioGroup
-              value={currentState.plannedSets ?
-                JSON.stringify({
-                  sets: currentState.plannedSets,
-                  reps: currentState.sets[0]?.reps,
-                  weight: currentState.sets[0]?.weight,
-                  setWeights: currentState.sets.map(s => s.weight)
-                }) :
-                undefined}
-              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+            <h3 className="text-sm font-medium">Suggested weights:</h3>
+            <div className="space-y-1 p-4 rounded-md bg-muted">
+              {suggestion.setWeights?.map((weight, setIdx) => (
+                <div key={setIdx}>
+                  Set {setIdx + 1}: {weight}{currentExercise?.units} ({suggestion.repTargets?.[setIdx]?.min}-{suggestion.repTargets?.[setIdx]?.max} reps)
+                </div>
+              ))}
+            </div>
+            <Button
+              className="w-full mt-2"
+              onClick={() => handleCombinationSelect(suggestion)}
             >
-              <div className="space-y-2">
-                {progressionSuggestions.map((combo, idx) => (
-                  <div key={idx} className="flex items-center space-x-2">
-                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                    <Label htmlFor={`combo-${idx}`} className="flex-1">
-                      <div className="space-y-1">
-                        {combo.setWeights?.map((weight, setIdx) => (
-                          <div key={setIdx}>
-                            Set {setIdx + 1}: {weight}{currentExercise?.units} ({combo.repTargets?.[setIdx]?.min}-{combo.repTargets?.[setIdx]?.max} reps)
-                          </div>
-                        ))}
-                      </div>
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </RadioGroup>
+              Use These Weights
+            </Button>
           </div>
         );
 
       default:
+        // For other schemes (STS, Double Progression), keep the existing radio group logic
         return (
           <div className="space-y-2">
             <Label>Select a combination:</Label>
@@ -540,12 +513,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                 JSON.stringify({
                   sets: currentState.plannedSets,
                   reps: currentState.sets[0]?.reps,
-                  weight: Number(currentState.sets[0]?.weight.toFixed(2)),
-                  calculated1RM: calculate1RM(
-                    currentState.sets[0]?.weight || 0,
-                    currentState.sets[0]?.reps || 0,
-                    currentState.plannedSets || 0
-                  )
+                  weight: Number(currentState.sets[0]?.weight.toFixed(2))
                 }) :
                 undefined}
               onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
