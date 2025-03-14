@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { Plus, Trash2 } from "lucide-react";
 
 interface WorkoutDayFormProps {
   submitWorkoutDay?: (data: Partial<WorkoutDay>) => void;
@@ -175,10 +176,15 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
         },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "exercises",
+  });
+
   const workoutMutation = useMutation({
     mutationFn: async (data: Partial<WorkoutDay>) => {
       const method = workoutDay?.id ? "PATCH" : "POST";
-      const url = workoutDay?.id 
+      const url = workoutDay?.id
         ? `/api/workout-days/${workoutDay.id}`
         : "/api/workout-days";
 
@@ -213,308 +219,6 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
     workoutMutation.mutate(data);
   };
 
-  const renderParameterFields = (index: number, scheme: string) => {
-    const currentExercise = form.getValues("exercises")[index];
-    const currentParameters = currentExercise.parameters;
-
-    switch (scheme) {
-      case "STS": {
-        const stsParams = currentParameters as STSParameters;
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium">Min Sets</label>
-                <Input
-                  type="number"
-                  value={stsParams.minSets}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...stsParams,
-                      minSets: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Max Sets</label>
-                <Input
-                  type="number"
-                  value={stsParams.maxSets}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...stsParams,
-                      maxSets: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium">Min Reps</label>
-                <Input
-                  type="number"
-                  value={stsParams.minReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...stsParams,
-                      minReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Max Reps</label>
-                <Input
-                  type="number"
-                  value={stsParams.maxReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...stsParams,
-                      maxReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        );
-      }
-      case "Double Progression": {
-        const dpParams = currentParameters as DoubleProgressionParameters;
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium">Target Sets</label>
-              <Input
-                type="number"
-                value={dpParams.targetSets}
-                onChange={(e) => {
-                  const exercises = [...form.getValues("exercises")];
-                  exercises[index].parameters = {
-                    ...dpParams,
-                    targetSets: parseInt(e.target.value)
-                  };
-                  form.setValue("exercises", exercises);
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium">Min Reps</label>
-                <Input
-                  type="number"
-                  value={dpParams.minReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...dpParams,
-                      minReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Max Reps</label>
-                <Input
-                  type="number"
-                  value={dpParams.maxReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...dpParams,
-                      maxReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        );
-      }
-      case "RPT Top-Set": {
-        const rptParams = currentParameters as typeof defaultParameters["RPT Top-Set"];
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium">Number of Sets</label>
-              <Input
-                type="number"
-                min={2}
-                value={rptParams.sets}
-                onChange={(e) => {
-                  const newSets = parseInt(e.target.value);
-                  const exercises = [...form.getValues("exercises")];
-                  const newDropPercentages = Array(newSets).fill(0).map((_, i) =>
-                    i === 0 ? 0 : rptParams.dropPercentages[i] || 10
-                  );
-                  exercises[index].parameters = {
-                    ...rptParams,
-                    sets: newSets,
-                    dropPercentages: newDropPercentages
-                  };
-                  form.setValue("exercises", exercises);
-                }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium">Min Reps</label>
-                <Input
-                  type="number"
-                  value={rptParams.minReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...rptParams,
-                      minReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Max Reps</label>
-                <Input
-                  type="number"
-                  value={rptParams.maxReps}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...rptParams,
-                      maxReps: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">Drop Percentages</label>
-              {Array(rptParams.sets).fill(0).map((_, setIndex) => (
-                <div key={setIndex} className="flex items-center gap-2">
-                  <span className="text-sm">Set {setIndex + 1}:</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={rptParams.dropPercentages[setIndex]}
-                    disabled={setIndex === 0}
-                    onChange={(e) => {
-                      const exercises = [...form.getValues("exercises")];
-                      const newDropPercentages = [...rptParams.dropPercentages];
-                      newDropPercentages[setIndex] = parseInt(e.target.value);
-                      exercises[index].parameters = {
-                        ...rptParams,
-                        dropPercentages: newDropPercentages
-                      };
-                      form.setValue("exercises", exercises);
-                    }}
-                  />
-                  <span className="text-sm">%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-      case "RPT Individual": {
-        const rptParams = currentParameters as typeof defaultParameters["RPT Individual"];
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium">Number of Sets</label>
-              <Input
-                type="number"
-                min={1}
-                value={rptParams.sets}
-                onChange={(e) => {
-                  const newSets = parseInt(e.target.value);
-                  const exercises = [...form.getValues("exercises")];
-                  const newSetConfigs = Array(newSets).fill(0).map((_, i) =>
-                    rptParams.setConfigs[i] || { min: 6, max: 8 }
-                  );
-                  exercises[index].parameters = {
-                    ...rptParams,
-                    sets: newSets,
-                    setConfigs: newSetConfigs
-                  };
-                  form.setValue("exercises", exercises);
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">Set Configurations</label>
-              {Array(rptParams.sets).fill(0).map((_, setIndex) => (
-                <div key={setIndex} className="border rounded p-2 space-y-2">
-                  <div className="text-sm font-medium">Set {setIndex + 1}</div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm">Min Reps</label>
-                      <Input
-                        type="number"
-                        value={rptParams.setConfigs[setIndex].min}
-                        onChange={(e) => {
-                          const exercises = [...form.getValues("exercises")];
-                          const newSetConfigs = [...rptParams.setConfigs];
-                          newSetConfigs[setIndex] = {
-                            ...newSetConfigs[setIndex],
-                            min: parseInt(e.target.value)
-                          };
-                          exercises[index].parameters = {
-                            ...rptParams,
-                            setConfigs: newSetConfigs
-                          };
-                          form.setValue("exercises", exercises);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm">Max Reps</label>
-                      <Input
-                        type="number"
-                        value={rptParams.setConfigs[setIndex].max}
-                        onChange={(e) => {
-                          const exercises = [...form.getValues("exercises")];
-                          const newSetConfigs = [...rptParams.setConfigs];
-                          newSetConfigs[setIndex] = {
-                            ...newSetConfigs[setIndex],
-                            max: parseInt(e.target.value)
-                          };
-                          exercises[index].parameters = {
-                            ...rptParams,
-                            setConfigs: newSetConfigs
-                          };
-                          form.setValue("exercises", exercises);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-      default:
-        return null;
-    }
-  };
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 h-[calc(100vh-8rem)]">
@@ -533,120 +237,263 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
             )}
           />
 
-          {form.watch("exercises").map((exercise, index) => (
-            <div key={index} className="space-y-4 p-4 border rounded">
-              <div>
-                <label className="block text-sm font-medium">Exercise</label>
-                <Select
-                  value={exercise.exerciseId.toString()}
-                  onValueChange={(value) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].exerciseId = parseInt(value);
-                    form.setValue("exercises", exercises);
-                  }}
+          {fields.map((field, index) => (
+            <div key={field.id} className="space-y-4 p-4 border rounded">
+              <div className="flex items-center justify-between">
+                <FormLabel>Exercise {index + 1}</FormLabel>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => remove(index)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an exercise" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {exercises.map((e) => (
-                      <SelectItem key={e.id} value={e.id.toString()}>
-                        {e.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium">Progression Scheme</label>
-                <Select
-                  value={exercise.parameters.scheme}
-                  onValueChange={(value) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = defaultParameters[value];
-                    form.setValue("exercises", exercises);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select progression scheme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="STS">Straight Sets (STS)</SelectItem>
-                    <SelectItem value="Double Progression">Double Progression</SelectItem>
-                    <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
-                    <SelectItem value="RPT Individual">RPT Individual</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField
+                control={form.control}
+                name={`exercises.${index}.exerciseId`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Exercise</FormLabel>
+                    <Select
+                      value={field.value.toString()}
+                      onValueChange={(value) => field.onChange(parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an exercise" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exercises.map((e) => (
+                          <SelectItem key={e.id} value={e.id.toString()}>
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              {renderParameterFields(index, exercise.parameters.scheme)}
+              <FormField
+                control={form.control}
+                name={`exercises.${index}.parameters.scheme`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Progression Scheme</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        // Update the entire parameters object when scheme changes
+                        form.setValue(`exercises.${index}.parameters`, defaultParameters[value]);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select progression scheme" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="STS">Straight Sets (STS)</SelectItem>
+                        <SelectItem value="Double Progression">Double Progression</SelectItem>
+                        <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
+                        <SelectItem value="RPT Individual">RPT Individual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
+              {/* Parameters fields based on scheme */}
+              {form.watch(`exercises.${index}.parameters.scheme`) === "STS" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.minSets`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Min Sets</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.maxSets`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Sets</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+              {form.watch(`exercises.${index}.parameters.scheme`) === "Double Progression" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.targetSets`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Target Sets</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.minReps`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Min Reps</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.maxReps`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Reps</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+              {form.watch(`exercises.${index}.parameters.scheme`) === "RPT Top-Set" && (
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.sets`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Sets</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={2} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name={`exercises.${index}.parameters.minReps`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Min Reps</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`exercises.${index}.parameters.maxReps`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Reps</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  {/*Add drop percentages here*/}
+                </div>
+              )}
+              {form.watch(`exercises.${index}.parameters.scheme`) === "RPT Individual" && (
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.sets`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Sets</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={1} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {/*Add set configs here*/}
+                </div>
+              )}
+
+
+              {/* Rest period fields (common to all schemes) */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium">Rest Between Sets (s)</label>
-                  <Input
-                    type="number"
-                    value={exercise.parameters.restBetweenSets}
-                    onChange={(e) => {
-                      const exercises = [...form.getValues("exercises")];
-                      exercises[index].parameters = {
-                        ...exercise.parameters,
-                        restBetweenSets: parseInt(e.target.value)
-                      };
-                      form.setValue("exercises", exercises);
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
-                  <Input
-                    type="number"
-                    value={exercise.parameters.restBetweenExercises}
-                    onChange={(e) => {
-                      const exercises = [...form.getValues("exercises")];
-                      exercises[index].parameters = {
-                        ...exercise.parameters,
-                        restBetweenExercises: parseInt(e.target.value)
-                      };
-                      form.setValue("exercises", exercises);
-                    }}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name={`exercises.${index}.parameters.restBetweenSets`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rest Between Sets (s)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`exercises.${index}.parameters.restBetweenExercises`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rest Between Exercises (s)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  const exercises = [...form.getValues("exercises")];
-                  exercises.splice(index, 1);
-                  form.setValue("exercises", exercises);
-                }}
-              >
-                Remove Exercise
-              </Button>
             </div>
           ))}
 
           <Button
             type="button"
-            onClick={() => {
-              const exercises = [...form.getValues("exercises")];
-              exercises.push({
-                exerciseId: 0,
-                parameters: defaultParameters["STS"]
-              });
-              form.setValue("exercises", exercises);
-            }}
+            variant="outline"
+            className="w-full"
+            onClick={() => append({
+              exerciseId: 0,
+              parameters: defaultParameters["STS"]
+            })}
           >
+            <Plus className="h-4 w-4 mr-2" />
             Add Exercise
           </Button>
         </div>
 
         <div className="sticky bottom-0 pt-4 bg-background border-t">
           <Button type="submit" className="w-full">
-            Create Workout
+            {workoutDay ? 'Save Changes' : 'Create Workout'}
           </Button>
         </div>
       </form>
