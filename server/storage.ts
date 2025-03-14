@@ -17,9 +17,9 @@ export class DatabaseStorage {
       console.log("[Storage] Initializing PostgreSQL session store");
       this._sessionStore = new PgSession({
         pool,
-        tableName: "session", 
+        tableName: "session",
         createTableIfMissing: true,
-        errorLog: console.error 
+        errorLog: console.error
       });
     }
     return this._sessionStore;
@@ -29,7 +29,7 @@ export class DatabaseStorage {
     const logs = await db.select().from(workoutLogs).where(eq(workoutLogs.userId, userId));
     return logs.map(log => ({
       ...log,
-      sets: typeof log.sets === 'string' ? 
+      sets: typeof log.sets === 'string' ?
         JSON.parse(decrypt(log.sets)) :
         log.sets
     }));
@@ -47,7 +47,7 @@ export class DatabaseStorage {
 
     return {
       ...workoutLog,
-      sets: typeof workoutLog.sets === 'string' ? 
+      sets: typeof workoutLog.sets === 'string' ?
         JSON.parse(decrypt(workoutLog.sets)) :
         workoutLog.sets
     };
@@ -70,7 +70,7 @@ export class DatabaseStorage {
 
     return {
       ...updated,
-      sets: typeof updated.sets === 'string' ? 
+      sets: typeof updated.sets === 'string' ?
         JSON.parse(decrypt(updated.sets)) :
         updated.sets
     };

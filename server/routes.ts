@@ -149,7 +149,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add DELETE endpoint for workout logs
   app.delete("/api/workout-logs/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);

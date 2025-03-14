@@ -160,6 +160,7 @@ export const workoutLogs = pgTable("workout_logs", {
   isComplete: boolean("is_complete").default(false).notNull(),
 });
 
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -204,6 +205,7 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
       oneRm: z.number().optional()
     }))
   });
+
 
 // TypeScript types
 export type User = typeof users.$inferSelect;
