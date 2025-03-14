@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // Types for progression schemes
 export interface ExerciseSet {
   reps: number;
@@ -162,48 +164,46 @@ export class RPTTopSetDependent implements ProgressionScheme {
 
     // If no previous weight, start with minimum increment
     if (!lastWeight) {
+      const initialWeights = Array(this.sets).fill(increment);
       return [{
         sets: this.sets,
         reps: this.minReps,
         weight: increment,
-        setWeights: Array(this.sets).fill(increment),
+        setWeights: initialWeights,
         repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
       }];
     }
 
     // Calculate base weight based on consecutive failures
-    let baseWeight = lastWeight;
-    if (consecutiveFailures >= 2) {
-      // Reduce weight by 10% after two consecutive failures
-      baseWeight = lastWeight * 0.9;
-    }
+    let topSetWeight = consecutiveFailures >= 2 ? lastWeight * 0.9 : lastWeight;
 
     // Calculate weights for all sets based on top set and drop percentages
-    const currentSetWeights = this.dropPercentages.map((dropPercent, idx) => {
-      const dropFactor = 1 - (dropPercent / 100);
-      return Number((baseWeight * dropFactor).toFixed(2));
+    const currentSetWeights = this.dropPercentages.map((dropPercent) => {
+      const multiplier = (100 - dropPercent) / 100;
+      return Number((topSetWeight * multiplier).toFixed(2));
     });
 
     // Current weight suggestion
     suggestions.push({
       sets: this.sets,
       reps: this.minReps,
-      weight: baseWeight,
+      weight: topSetWeight,
       setWeights: currentSetWeights,
       repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
     });
 
     // If no failures, provide progressive overload suggestion
     if (consecutiveFailures === 0) {
-      const progressiveSetWeights = this.dropPercentages.map((dropPercent, idx) => {
-        const dropFactor = 1 - (dropPercent / 100);
-        return Number(((baseWeight + increment) * dropFactor).toFixed(2));
+      const progressiveTopWeight = topSetWeight + increment;
+      const progressiveSetWeights = this.dropPercentages.map((dropPercent) => {
+        const multiplier = (100 - dropPercent) / 100;
+        return Number((progressiveTopWeight * multiplier).toFixed(2));
       });
 
       suggestions.push({
         sets: this.sets,
         reps: this.minReps,
-        weight: baseWeight + increment,
+        weight: progressiveTopWeight,
         setWeights: progressiveSetWeights,
         repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
       });
@@ -234,11 +234,12 @@ export class RPTIndividualProgression implements ProgressionScheme {
 
     // If no previous weight, start with minimum increment
     if (!lastWeight) {
+      const initialWeights = Array(this.sets).fill(increment);
       return [{
         sets: this.sets,
         reps: this.setConfigs[0].min,
         weight: increment,
-        setWeights: Array(this.sets).fill(increment),
+        setWeights: initialWeights,
         repTargets: this.setConfigs
       }];
     }
@@ -246,7 +247,7 @@ export class RPTIndividualProgression implements ProgressionScheme {
     // Calculate weights for each set based on failure history
     const currentSetWeights = Array(this.sets).fill(lastWeight).map((weight, idx) => {
       if (failureFlags && failureFlags[idx] === true) {
-        // Reduce weight by 10% for sets with two consecutive failures
+        // Reduce weight by 10% for sets with failures
         return Number((weight * 0.9).toFixed(2));
       }
       return weight;
@@ -273,7 +274,7 @@ export class RPTIndividualProgression implements ProgressionScheme {
       suggestions.push({
         sets: this.sets,
         reps: this.setConfigs[0].min,
-        weight: lastWeight + increment,
+        weight: Math.max(...progressiveSetWeights),
         setWeights: progressiveSetWeights,
         repTargets: this.setConfigs
       });
