@@ -18,34 +18,6 @@ type WorkoutLoggerProps = {
   onComplete: () => void;
 };
 
-type ExerciseSet = {
-  reps: number;
-  weight: number;
-  timestamp: Date | string;
-  isCompleted?: boolean;
-  actualReps?: number;
-};
-
-type WorkoutExercise = {
-  exerciseId: number;
-  scheme: string;
-  sets: ExerciseSet[];
-  extraSetReps?: number;
-  oneRm?: number;
-  plannedSets?: number;
-};
-
-type WorkoutState = {
-  workoutDayId: number;
-  date: Date;
-  exercises: WorkoutExercise[];
-  isComplete?: boolean;
-};
-
-type STSCombination = ProgressionSuggestion;
-
-type WorkoutView = "setup" | "active";
-
 const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -316,10 +288,17 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData, progressionScheme]);
 
   const handleUseWeights = (suggestion: ProgressionSuggestion) => {
+    if (!suggestion.setWeights || suggestion.setWeights.length === 0) {
+      toast({
+        title: "Error",
+        description: "Invalid weight suggestions received",
+        variant: "destructive"
+      });
+      return;
+    }
     setSelectedSuggestion(suggestion);
     console.log("Weights confirmed:", suggestion);
   };
-
 
   const getRestTimes = useCallback(() => {
     if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
@@ -330,7 +309,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData]);
 
   const handleStartWorkout = useCallback(() => {
-    if (!selectedSuggestion) {
+    if (!selectedSuggestion || !selectedSuggestion.setWeights) {
       toast({
         title: "Select Weights",
         description: "Please confirm the weight selection before starting",
@@ -339,41 +318,41 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       return;
     }
 
-    setWorkoutState(prev => {
-      const updatedExercises = prev.exercises.map(exercise => {
-        if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
+    try {
+      setWorkoutState(prev => {
+        const updatedExercises = prev.exercises.map(exercise => {
+          if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
 
-        let sets: ExerciseSet[] = [];
-        if (selectedSuggestion.setWeights) {
-          sets = selectedSuggestion.setWeights.map((weight, idx) => ({
+          // Create sets with weights from suggestion
+          const sets = selectedSuggestion.setWeights!.map((weight, idx) => ({
             weight,
             reps: selectedSuggestion.repTargets?.[idx]?.min || selectedSuggestion.reps,
             timestamp: new Date(),
             isCompleted: false
           }));
-        } else {
-          sets = Array(selectedSuggestion.sets).fill(null).map(() => ({
-            weight: selectedSuggestion.weight,
-            reps: selectedSuggestion.reps,
-            timestamp: new Date(),
-            isCompleted: false
-          }));
-        }
+
+          return {
+            ...exercise,
+            sets,
+            plannedSets: selectedSuggestion.sets
+          };
+        });
 
         return {
-          ...exercise,
-          sets,
-          plannedSets: selectedSuggestion.sets
+          ...prev,
+          exercises: updatedExercises
         };
       });
 
-      return {
-        ...prev,
-        exercises: updatedExercises
-      };
-    });
-
-    setCurrentView("active");
+      setCurrentView("active");
+    } catch (error) {
+      console.error('Error starting workout:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start workout. Please try again.",
+        variant: "destructive"
+      });
+    }
   }, [selectedSuggestion, currentExerciseData, toast]);
 
   useEffect(() => {
@@ -460,7 +439,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const renderProgressionSuggestions = () => {
     if (!progressionSuggestions.length) return null;
 
-    const suggestion = progressionSuggestions[0]; 
+    const suggestion = progressionSuggestions[0];
 
     switch (currentExerciseData?.parameters.scheme) {
       case "RPT Top-Set":
@@ -509,6 +488,55 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           </div>
         );
     }
+  };
+
+  const renderSetInputs = (set: ExerciseSet, index: number) => {
+    if (!set.isCompleted) {
+      return (
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <Label>Weight ({currentExercise?.units})</Label>
+            <Input
+              type="number"
+              value={set.weight}
+              onChange={(e) => {
+                const newWeight = Number(e.target.value);
+                setWorkoutState(prev => {
+                  const updatedExercises = prev.exercises.map(exercise => {
+                    if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
+                    const updatedSets = [...exercise.sets];
+                    updatedSets[index] = { ...updatedSets[index], weight: newWeight };
+                    return { ...exercise, sets: updatedSets };
+                  });
+                  return { ...prev, exercises: updatedExercises };
+                });
+              }}
+              step={currentExercise?.increment}
+            />
+          </div>
+          <div className="flex-1">
+            <Label>Reps</Label>
+            <Input
+              type="number"
+              value={set.reps}
+              onChange={(e) => {
+                const newReps = Number(e.target.value);
+                setWorkoutState(prev => {
+                  const updatedExercises = prev.exercises.map(exercise => {
+                    if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
+                    const updatedSets = [...exercise.sets];
+                    updatedSets[index] = { ...updatedSets[index], reps: newReps };
+                    return { ...exercise, sets: updatedSets };
+                  });
+                  return { ...prev, exercises: updatedExercises };
+                });
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   if (currentView === "setup") {
@@ -605,37 +633,30 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             <div key={index} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Set {index + 1}</h3>
-                <div className="flex items-center gap-2">
-                  {!set.isCompleted ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const reps = prompt(`Enter actual reps achieved (target: ${set.reps}):`)
-                          if (reps !== null) {
-                            handleSetComplete(index, true, parseInt(reps));
-                          }
-                        }}
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Failed Set
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetComplete(index, true)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Complete Set
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      {set.actualReps || set.reps} reps @ {set.weight.toFixed(2)}{currentExercise.units}
-                    </span>
-                  )}
-                </div>
+                {renderSetInputs(set, index)}
               </div>
+              {!set.isCompleted && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const reps = prompt(`Enter actual reps achieved (target: ${set.reps})`);
+                      if (reps !== null) {
+                        handleSetComplete(index, true, parseInt(reps));
+                      }
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Failed
+                  </Button>
+                  <Button
+                    onClick={() => handleSetComplete(index, true)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Complete
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
 

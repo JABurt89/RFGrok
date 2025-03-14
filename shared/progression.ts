@@ -197,25 +197,60 @@ export class RPTIndividualProgression implements ProgressionScheme {
   ) {
     this.sets = sets;
     this.setConfigs = setConfigs;
+
+    // Validate setConfigs length matches sets
+    if (setConfigs.length !== sets) {
+      console.warn(`RPTIndividualProgression: setConfigs length (${setConfigs.length}) doesn't match sets (${sets}). Adjusting setConfigs.`);
+      if (setConfigs.length < sets) {
+        // Pad with last config if needed
+        const lastConfig = setConfigs[setConfigs.length - 1] || { min: 6, max: 8 };
+        while (setConfigs.length < sets) {
+          setConfigs.push({ ...lastConfig });
+        }
+      }
+      this.setConfigs = setConfigs.slice(0, sets);
+    }
   }
 
   getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
-    const baseWeight = lastWeight || increment;
-    const currentWeights = Array(this.sets).fill(0).map((_, idx) => {
-      if (failureFlags?.[idx]) {
-        return Number((baseWeight * 0.9).toFixed(2));
+    try {
+      const baseWeight = lastWeight || increment;
+
+      // Ensure failureFlags array matches sets length
+      const validatedFailures = failureFlags?.slice(0, this.sets) || Array(this.sets).fill(false);
+
+      // Calculate weights for each set
+      const setWeights = Array(this.sets).fill(0).map((_, idx) => {
+        const weight = validatedFailures[idx] ?
+          Math.max(increment, baseWeight * 0.9) : // Reduce weight by 10% if failed, but not below increment
+          baseWeight;
+        return Number(weight.toFixed(2)); // Round to 2 decimal places
+      });
+
+      // Validate setWeights
+      if (!setWeights.every(w => typeof w === 'number' && w > 0)) {
+        throw new Error('Invalid setWeights generated');
       }
-      return baseWeight;
-    });
 
-    const suggestion: ProgressionSuggestion = {
-      sets: this.sets,
-      reps: this.setConfigs[0].min,
-      weight: Math.max(...currentWeights),
-      setWeights: currentWeights,
-      repTargets: this.setConfigs
-    };
+      const suggestion: ProgressionSuggestion = {
+        sets: this.sets,
+        reps: this.setConfigs[0].min,
+        weight: Math.max(...setWeights),
+        setWeights: setWeights,
+        repTargets: this.setConfigs
+      };
 
-    return [suggestion];
+      return [suggestion];
+    } catch (error) {
+      console.error('Error in RPTIndividualProgression.getNextSuggestion:', error);
+      // Fallback to safe default values
+      return [{
+        sets: this.sets,
+        reps: this.setConfigs[0].min,
+        weight: increment,
+        setWeights: Array(this.sets).fill(increment),
+        repTargets: this.setConfigs
+      }];
+    }
   }
 }
