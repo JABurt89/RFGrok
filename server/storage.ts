@@ -126,6 +126,15 @@ export class DatabaseStorage {
       .returning();
     if (!deleted) throw new Error("Workout log not found");
   }
+
+  async deleteUser(id: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(workoutLogs).where(eq(workoutLogs.userId, id));
+      await tx.delete(workoutDays).where(eq(workoutDays.userId, id));
+      await tx.delete(exercises).where(eq(exercises.userId, id));
+      await tx.delete(users).where(eq(users.id, id));
+    });
+  }
 }
 
 export const storage = new DatabaseStorage();

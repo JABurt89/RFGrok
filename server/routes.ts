@@ -166,6 +166,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/user", async (req, res, next) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      await storage.deleteUser(req.user.id);
+      req.logout((err) => {
+        if (err) return next(err);
+        res.sendStatus(204);
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

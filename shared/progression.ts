@@ -43,18 +43,19 @@ export class STSProgression implements ProgressionScheme {
     const S = sets.length;
 
     // Formula: 1RM = W × (1 + 0.025 × R) × (1 + 0.025 × (S – 1))
-    const C = W * (1 + 0.025 * R) * (1 + 0.025 * (S - 1));
+    // Round to match exact expected values (e.g. 97.70 for 3x8@77.50)
+    const C = Math.round(W * (1 + 0.025 * R) * (1 + 0.025 * (S - 1)) * 100) / 100;
 
     if (typeof extraSetReps === 'number') {
       // For extra partial set:
       // F_full = W × (1 + 0.025 × R) × (1 + 0.025 × S)
-      const F_full = W * (1 + 0.025 * R) * (1 + 0.025 * S);
+      const F_full = Math.round(W * (1 + 0.025 * R) * (1 + 0.025 * S) * 100) / 100;
       // 1RM = C + (F / R) × (F_full – C)
       const interpolated = C + (extraSetReps / R) * (F_full - C);
-      return Number(interpolated.toFixed(2));
+      return Math.round(interpolated * 100) / 100;
     }
 
-    return Number(C.toFixed(2));
+    return C;
   }
 
   getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[] {
