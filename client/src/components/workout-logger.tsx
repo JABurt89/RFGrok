@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type WorkoutLoggerProps = {
@@ -320,12 +321,10 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       const updatedExercises = prev.exercises.map(exercise => {
         if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
-        // Handle set weights based on progression scheme
         let sets: ExerciseSet[] = [];
         switch (currentExerciseData.parameters.scheme) {
           case "RPT Top-Set":
           case "RPT Individual":
-            // Use the set weights array for RPT schemes
             sets = (combination.setWeights || []).map((weight, idx) => ({
               weight,
               reps: combination.repTargets?.[idx]?.min || combination.reps,
@@ -334,7 +333,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             }));
             break;
           default:
-            // For other schemes, use the same weight/reps for all sets
             sets = Array(combination.sets).fill(null).map(() => ({
               weight: combination.weight,
               reps: combination.reps,
@@ -575,75 +573,53 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
   if (currentView === "setup") {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{currentExercise.name} - Setup</CardTitle>
-            <CardDescription>
-              Select your target sets and weights for this exercise
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {currentExerciseData.parameters.scheme === "STS" && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Current 1RM ({currentExercise.units})</Label>
-                  <Input
-                    type="number"
-                    value={editable1RM}
-                    onChange={(e) => setEditable1RM(Number(Number(e.target.value).toFixed(2)) || 0)}
-                    step={currentExercise.increment}
-                  />
-                </div>
-
-                {progressionSuggestions.length > 0 && (
+      <TooltipProvider>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{currentExercise.name} - Setup</CardTitle>
+              <CardDescription>
+                Select your target sets and weights for this exercise
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {currentExerciseData.parameters.scheme === "STS" && (
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Select a combination:</Label>
-                    <RadioGroup
-                      value={currentState.plannedSets ?
-                        JSON.stringify({
-                          sets: currentState.plannedSets,
-                          reps: currentState.sets[0]?.reps,
-                          weight: Number(currentState.sets[0]?.weight.toFixed(2)),
-                          calculated1RM: calculate1RM(
-                            currentState.sets[0]?.weight || 0,
-                            currentState.sets[0]?.reps || 0,
-                            currentState.plannedSets || 0
-                          )
-                        }) :
-                        undefined}
-                      onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
-                    >
-                      <div className="space-y-2">
-                        {progressionSuggestions.map((combo, idx) => (
-                          <div key={idx} className="flex items-center space-x-2">
-                            <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                            <Label htmlFor={`combo-${idx}`}>
-                              {combo.sets} sets × {combo.reps} reps @ {combo.weight.toFixed(2)}{currentExercise.units}
-                              <span className="text-sm text-muted-foreground ml-2">
-                                (1RM: {combo.calculated1RM.toFixed(2)}{currentExercise.units})
-                              </span>
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </RadioGroup>
+                    <Label>Current 1RM ({currentExercise.units})</Label>
+                    <Input
+                      type="number"
+                      value={editable1RM}
+                      onChange={(e) => setEditable1RM(Number(e.target.value))}
+                      step={currentExercise.increment}
+                    />
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {renderProgressionSuggestions()}
+              {renderProgressionSuggestions()}
 
-            <Button
-              className="w-full"
-              onClick={handleStartWorkout}
-            >
-              Start Exercise
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full"
+                    onClick={handleStartWorkout}
+                    disabled={!currentState.sets.length}
+                  >
+                    Start Exercise
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {currentState.sets.length ?
+                    "Begin your workout with the selected weights" :
+                    "Select a weight combination to start"
+                  }
+                </TooltipContent>
+              </Tooltip>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
     );
   }
 
