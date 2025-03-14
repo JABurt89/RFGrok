@@ -94,6 +94,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/workout-days/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log("[Workout Day Update] Request path:", req.path);
+      console.log("[Workout Day Update] Request body:", JSON.stringify(req.body, null, 2));
+
+      const parsed = insertWorkoutDaySchema.partial().parse({
+        ...req.body,
+        userId: req.user.id
+      });
+
+      console.log("[Workout Day Update] Parsed data:", JSON.stringify(parsed, null, 2));
+
+      const workoutDay = await storage.updateWorkoutDay(parseInt(req.params.id), parsed);
+
+      res.setHeader('Content-Type', 'application/json');
+      res.json(workoutDay);
+    } catch (error) {
+      console.error("[Workout Day Update] Error:", error);
+
+      res.setHeader('Content-Type', 'application/json');
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Validation error", details: error.errors });
+      } else {
+        res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
+      }
+    }
+  });
+
   app.get("/api/workout-logs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.setHeader('Content-Type', 'application/json');

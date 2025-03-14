@@ -119,6 +119,16 @@ export class DatabaseStorage {
     return workoutDay;
   }
 
+  async updateWorkoutDay(id: number, workoutDay: Partial<WorkoutDay>): Promise<WorkoutDay> {
+    const [updated] = await db
+      .update(workoutDays)
+      .set(workoutDay)
+      .where(eq(workoutDays.id, id))
+      .returning();
+    if (!updated) throw new Error("Workout day not found");
+    return updated;
+  }
+
   async deleteWorkoutLog(id: number): Promise<void> {
     const [deleted] = await db
       .delete(workoutLogs)
