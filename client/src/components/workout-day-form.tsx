@@ -233,8 +233,16 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                     <FormLabel>Progression Scheme</FormLabel>
                     <Select
                       value={field.value}
-                      onValueChange={(value) => {
-                        form.setValue(`exercises.${index}.parameters`, defaultParameters[value]);
+                      onValueChange={(value: keyof typeof defaultParameters) => {
+                        // Reset and reinitialize all parameters when scheme changes
+                        const newParams = { ...defaultParameters[value] };
+
+                        // Update all fields at once to prevent stale UI
+                        form.setValue(`exercises.${index}.parameters`, newParams, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                          shouldTouch: true
+                        });
                       }}
                     >
                       <SelectTrigger>
@@ -372,7 +380,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                             onChange={(e) => {
                               const newSets = parseInt(e.target.value);
                               // Initialize drop percentages for new sets
-                              const newDropPercentages = Array(newSets).fill(0).map((_, i) => 
+                              const newDropPercentages = Array(newSets).fill(0).map((_, i) =>
                                 i === 0 ? 0 : 10 // First set is top set (0% drop), others drop 10%
                               );
                               form.setValue(`exercises.${index}.parameters.dropPercentages`, newDropPercentages);
