@@ -38,15 +38,17 @@ export class STSProgression implements ProgressionScheme {
     if (sets.length === 0) return 0;
 
     const lastSet = sets[sets.length - 1];
-    // Base 1RM calculation using Brzycki formula with set bonus
-    const baseRM = lastSet.weight * (36 / (37 - lastSet.reps));
-    const withSetBonus = Math.round(baseRM * (1 + 0.025 * (sets.length - 1)) * 100) / 100;
+    // Base 1RM calculation using Brzycki formula
+    const baseRM = Number((lastSet.weight * (36 / (37 - lastSet.reps))).toFixed(2));
+    // Add set bonus (5% for each additional set, total 2.5% per set) and round to 2 decimals
+    const withSetBonus = Number((baseRM * (1 + 0.025 * (sets.length - 1))).toFixed(2));
 
     if (typeof extraSetReps === 'number') {
-      // Calculate final set RM with the additional set bonus
-      const finalSetRM = lastSet.weight * (36 / (37 - lastSet.reps)) * (1 + 0.025 * sets.length);
-      // Linear interpolation between current and next set based on extra reps ratio
-      return Number((withSetBonus + (extraSetReps / lastSet.reps) * (finalSetRM - withSetBonus)).toFixed(2));
+      // For extra set, calculate next set bonus (2.5% more than current)
+      const nextSetBonus = Number((baseRM * (1 + 0.025 * sets.length)).toFixed(2));
+      // Interpolate based on reps achieved in extra set
+      const interpolated = withSetBonus + (extraSetReps / lastSet.reps) * (nextSetBonus - withSetBonus);
+      return Number(interpolated.toFixed(2));
     }
 
     return withSetBonus;
@@ -57,10 +59,10 @@ export class STSProgression implements ProgressionScheme {
 
     for (let sets = this.minSets; sets <= this.maxSets; sets++) {
       for (let reps = this.minReps; reps <= this.maxReps; reps++) {
-        // Remove set bonus to get the base weight needed
-        const targetWithoutSetBonus = Math.round((last1RM / (1 + 0.025 * (sets - 1))) * 100) / 100;
-        // Convert from 1RM to working weight using Brzycki formula
-        const targetWeight = Math.round((targetWithoutSetBonus * ((37 - reps) / 36)) * 100) / 100;
+        // Remove set bonus to get base 1RM needed
+        const baseNeeded = Number((last1RM / (1 + 0.025 * (sets - 1))).toFixed(2));
+        // Convert to working weight using inverse Brzycki
+        const targetWeight = Number((baseNeeded * ((37 - reps) / 36)).toFixed(2));
 
         // Generate weight options around the target
         for (let i = -2; i <= 2; i++) {
