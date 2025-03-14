@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useApi<void, Error>({
     url: "/api/logout",
     method: "POST",
+    parseResponse: false, // Don't try to parse empty response as JSON
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
     },

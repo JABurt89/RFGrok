@@ -12,6 +12,7 @@ interface UseApiOptions<TData = unknown, TError = Error> {
   data?: unknown;
   onSuccess?: (data: TData) => void;
   onError?: (error: TError) => void;
+  parseResponse?: boolean;
 }
 
 interface PendingSync {
@@ -30,6 +31,7 @@ export function useApi<TData = unknown, TError = Error>({
   data,
   onSuccess,
   onError,
+  parseResponse = true,
 }: UseApiOptions<TData, TError>): UseQueryResult<TData, TError> | UseMutationResult<TData, TError, unknown> {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [conflict, setConflict] = useState<{ local: WorkoutLog; cloud: WorkoutLog } | null>(null);
@@ -139,7 +141,14 @@ export function useApi<TData = unknown, TError = Error>({
         const error = await response.json();
         throw new Error(error.message || `API call failed: ${response.statusText}`);
       }
-      return response.json();
+
+      // Only try to parse response as JSON if parseResponse is true and content exists
+      if (parseResponse && response.headers.get('content-length') !== '0') {
+        return response.json();
+      }
+
+      // Return empty object for successful responses with no content
+      return {} as TData;
     },
     onSuccess: (responseData) => {
       queryClient.invalidateQueries({ queryKey });
