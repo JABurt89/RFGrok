@@ -112,6 +112,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
   const { toast } = useToast();
   const { data: exercises = [] } = useExercises();
 
+  // Initialize form with proper default values
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: workoutDay
@@ -135,12 +136,13 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
 
   const workoutMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      console.log("[Workout Form] Submitting data:", JSON.stringify(data, null, 2));
+
       const method = workoutDay?.id ? "PATCH" : "POST";
       const url = workoutDay?.id
         ? `/api/workout-days/${workoutDay.id}`
         : "/api/workout-days";
 
-      console.log("Submitting workout day data:", data);
       const response = await apiRequest(method, url, data);
       if (!response.ok) {
         const error = await response.json();
@@ -165,6 +167,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
       }
     },
     onError: (error: Error) => {
+      console.error("[Workout Form] Error:", error);
       toast({
         title: "Error",
         description: error.message,
@@ -174,7 +177,12 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
   });
 
   const onSubmit = (data: FormData) => {
-    console.log("Form submitted with data:", data);
+    console.log("[Workout Form] Form submitted with data:", JSON.stringify(data, null, 2));
+    // Log form state for debugging
+    console.log("[Workout Form] Form state:", {
+      isDirty: form.formState.isDirty,
+      errors: form.formState.errors,
+    });
     workoutMutation.mutate(data);
   };
 

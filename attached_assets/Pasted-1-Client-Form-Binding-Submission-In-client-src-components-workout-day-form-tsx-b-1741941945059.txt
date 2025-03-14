@@ -1,0 +1,37 @@
+1. **Client - Form Binding & Submission**  
+   - In `client/src/components/workout-day-form.tsx`, bind input fields (e.g., `exercises.${index}.parameters.minSets`) using react-hook-form.  
+   - Use:  
+     ```tsx
+     <FormField
+       control={form.control}
+       name={`exercises.${index}.parameters.minSets`}
+       render={({ field }) => (
+         <FormItem>
+           <FormLabel>Min Sets</FormLabel>
+           <FormControl>
+             <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} />
+           </FormControl>
+           <FormMessage />
+         </FormItem>
+       )}
+     />
+     ```  
+   - Insert a `console.log` in `handleSubmit` to log form data before submission.  
+   - Confirm `defaultValues` are set correctly when editing.
+
+2. **Network Payload Verification**  
+   - Using browser dev tools, inspect the PATCH request to `/api/workout-days/:id`.  
+   - Ensure the request payload contains the full `exercises` array with updated progression parameters (e.g., `"minSets": 4`).
+
+3. **Backend - Schema & Data Update**  
+   - In `server/routes.ts`, verify the PATCH endpoint uses a schema that accepts partial updates with a proper `z.discriminatedUnion` for progression schemes.  
+   - In `server/storage.ts`, add logging in `updateWorkoutDay` to output `updateData` and the returned updated object.  
+   - Confirm that `updateData` includes the modified parameters.
+
+4. **UI Update & Cache Invalidation**  
+   - In `client/src/components/workout-day-form.tsx`, ensure the mutation calls `queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] })` after a successful update.  
+   - Verify that the component fetching workout days (e.g., via `useQuery`) logs the updated data.
+
+5. **Validation & Debugging**  
+   - Test the workflow: modify a progression parameter, submit, check console logs (frontend and backend), inspect network payload, and verify UI reflects the change.  
+   - If issues persist, check for unhandled errors, schema mismatches, and database update integrity.
