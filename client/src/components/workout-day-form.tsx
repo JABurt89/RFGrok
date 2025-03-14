@@ -312,134 +312,138 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Workout Name</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="e.g., Push Day A" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 h-[calc(100vh-8rem)]">
+        <div className="space-y-4 overflow-y-auto h-[calc(100%-4rem)] pb-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Workout Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="e.g., Push Day A" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {form.watch("exercises").map((exercise, index) => (
-          <div key={index} className="space-y-4 p-4 border rounded">
-            <div>
-              <label className="block text-sm font-medium">Exercise</label>
-              <Select
-                value={exercise.exerciseId.toString()}
-                onValueChange={(value) => {
+          {form.watch("exercises").map((exercise, index) => (
+            <div key={index} className="space-y-4 p-4 border rounded">
+              <div>
+                <label className="block text-sm font-medium">Exercise</label>
+                <Select
+                  value={exercise.exerciseId.toString()}
+                  onValueChange={(value) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].exerciseId = parseInt(value);
+                    form.setValue("exercises", exercises);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an exercise" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {exercises.map((e) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {e.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium">Progression Scheme</label>
+                <Select
+                  value={exercise.parameters.scheme}
+                  onValueChange={(value) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].parameters = defaultParameters[value];
+                    form.setValue("exercises", exercises);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select progression scheme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STS">Straight Sets (STS)</SelectItem>
+                    <SelectItem value="Double Progression">Double Progression</SelectItem>
+                    <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
+                    <SelectItem value="RPT Individual">RPT Individual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {renderParameterFields(index, exercise.parameters.scheme)}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium">Rest Between Sets (s)</label>
+                  <Input
+                    type="number"
+                    value={exercise.parameters.restBetweenSets}
+                    onChange={(e) => {
+                      const exercises = [...form.getValues("exercises")];
+                      exercises[index].parameters = {
+                        ...exercise.parameters,
+                        restBetweenSets: parseInt(e.target.value)
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
+                  <Input
+                    type="number"
+                    value={exercise.parameters.restBetweenExercises}
+                    onChange={(e) => {
+                      const exercises = [...form.getValues("exercises")];
+                      exercises[index].parameters = {
+                        ...exercise.parameters,
+                        restBetweenExercises: parseInt(e.target.value)
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
                   const exercises = [...form.getValues("exercises")];
-                  exercises[index].exerciseId = parseInt(value);
+                  exercises.splice(index, 1);
                   form.setValue("exercises", exercises);
                 }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an exercise" />
-                </SelectTrigger>
-                <SelectContent>
-                  {exercises.map((e) => (
-                    <SelectItem key={e.id} value={e.id.toString()}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Remove Exercise
+              </Button>
             </div>
+          ))}
 
-            <div>
-              <label className="block text-sm font-medium">Progression Scheme</label>
-              <Select
-                value={exercise.parameters.scheme}
-                onValueChange={(value) => {
-                  const exercises = [...form.getValues("exercises")];
-                  exercises[index].parameters = defaultParameters[value];
-                  form.setValue("exercises", exercises);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select progression scheme" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="STS">Straight Sets (STS)</SelectItem>
-                  <SelectItem value="Double Progression">Double Progression</SelectItem>
-                  <SelectItem value="RPT Top-Set">RPT Top-Set</SelectItem>
-                  <SelectItem value="RPT Individual">RPT Individual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <Button
+            type="button"
+            onClick={() => {
+              const exercises = [...form.getValues("exercises")];
+              exercises.push({
+                exerciseId: 0,
+                parameters: defaultParameters["STS"]
+              });
+              form.setValue("exercises", exercises);
+            }}
+          >
+            Add Exercise
+          </Button>
+        </div>
 
-            {renderParameterFields(index, exercise.parameters.scheme)}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium">Rest Between Sets (s)</label>
-                <Input
-                  type="number"
-                  value={exercise.parameters.restBetweenSets}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...exercise.parameters,
-                      restBetweenSets: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Rest Between Exercises (s)</label>
-                <Input
-                  type="number"
-                  value={exercise.parameters.restBetweenExercises}
-                  onChange={(e) => {
-                    const exercises = [...form.getValues("exercises")];
-                    exercises[index].parameters = {
-                      ...exercise.parameters,
-                      restBetweenExercises: parseInt(e.target.value)
-                    };
-                    form.setValue("exercises", exercises);
-                  }}
-                />
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                const exercises = [...form.getValues("exercises")];
-                exercises.splice(index, 1);
-                form.setValue("exercises", exercises);
-              }}
-            >
-              Remove Exercise
-            </Button>
-          </div>
-        ))}
-
-        <Button
-          type="button"
-          onClick={() => {
-            const exercises = [...form.getValues("exercises")];
-            exercises.push({
-              exerciseId: 0,
-              parameters: defaultParameters["STS"]
-            });
-            form.setValue("exercises", exercises);
-          }}
-        >
-          Add Exercise
-        </Button>
-
-        <Button type="submit" className="w-full">
-          Create Workout
-        </Button>
+        <div className="sticky bottom-0 pt-4 bg-background border-t">
+          <Button type="submit" className="w-full">
+            Create Workout
+          </Button>
+        </div>
       </form>
     </Form>
   );
