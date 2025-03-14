@@ -6,6 +6,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import { encrypt, decrypt } from "./utils";
+import { STSProgression, DoubleProgression, RPTTopSetDependent, RPTIndividualProgression, type ProgressionSuggestion } from "@shared/progression";
 
 const PgSession = connectPgSimple(session);
 
@@ -110,7 +111,10 @@ export class DatabaseStorage {
     return updated;
   }
 
-  async getWorkoutDays(userId: number): Promise<WorkoutDay[]> {
+  async getWorkoutDays(userId: number | undefined): Promise<WorkoutDay[]> {
+    if (userId === undefined){
+      return db.select().from(workoutDays);
+    }
     return db.select().from(workoutDays).where(eq(workoutDays.userId, userId));
   }
 
@@ -154,6 +158,86 @@ export class DatabaseStorage {
       await tx.delete(exercises).where(eq(exercises.userId, id));
       await tx.delete(users).where(eq(users.id, id));
     });
+  }
+
+  async getExercise(id: number): Promise<Exercise | undefined> {
+    const [exercise] = await db.select().from(exercises).where(eq(exercises.id, id));
+    return exercise;
+  }
+
+  async getExerciseWorkoutConfig(exerciseId: number): Promise<WorkoutDay | undefined> {
+    const workoutDays = await this.getWorkoutDays(undefined);
+    return workoutDays.find(day => 
+      day.exercises.some(ex => ex.exerciseId === exerciseId)
+    );
+  }
+
+  async getLastWorkoutLog(exerciseId: number): Promise<WorkoutLog | undefined> {
+    const logs = await db.select()
+      .from(workoutLogs)
+      .where(eq(workoutLogs.isComplete, true))
+      .orderBy(workoutLogs.date, 'desc')
+      .limit(1);
+
+    return logs[0];
+  }
+
+  async getNextSuggestion(exerciseId: number): Promise<ProgressionSuggestion> {
+    // Get exercise details
+    const exercise = await this.getExercise(exerciseId);
+    if (!exercise) throw new Error("Exercise not found");
+
+    // Get workout configuration
+    const workoutDay = await this.getExerciseWorkoutConfig(exerciseId);
+    if (!workoutDay) throw new Error("Exercise not configured in any workout day");
+
+    const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
+    if (!exerciseConfig) throw new Error("Exercise configuration not found");
+
+    // Get last workout log
+    const lastLog = await this.getLastWorkoutLog(exerciseId);
+
+    // Create appropriate progression scheme
+    let progression;
+    switch (exerciseConfig.parameters.scheme) {
+      case "STS":
+        progression = new STSProgression(
+          exerciseConfig.parameters.minSets,
+          exerciseConfig.parameters.maxSets,
+          exerciseConfig.parameters.minReps,
+          exerciseConfig.parameters.maxReps
+        );
+        break;
+      case "Double Progression":
+        progression = new DoubleProgression(
+          exerciseConfig.parameters.targetSets,
+          exerciseConfig.parameters.minReps,
+          exerciseConfig.parameters.maxReps
+        );
+        break;
+      case "RPT Top-Set":
+        progression = new RPTTopSetDependent(
+          exerciseConfig.parameters.sets,
+          exerciseConfig.parameters.minReps,
+          exerciseConfig.parameters.maxReps,
+          exerciseConfig.parameters.dropPercentages
+        );
+        break;
+      case "RPT Individual":
+        progression = new RPTIndividualProgression(
+          exerciseConfig.parameters.sets,
+          exerciseConfig.parameters.setConfigs
+        );
+        break;
+      default:
+        throw new Error("Unknown progression scheme");
+    }
+
+    // Get next suggestion
+    const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+    const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
+
+    return progression.getNextSuggestion(lastWeight, exercise.increment);
   }
 }
 

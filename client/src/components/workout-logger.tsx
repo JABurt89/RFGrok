@@ -589,7 +589,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
   // Fetch suggestion from API
   const { data: suggestion } = useQuery<ProgressionSuggestion>({
-    queryKey: [`/api/workout-suggestion`, currentExerciseData?.exerciseId],
+    queryKey: [`/api/workout-suggestion?exerciseId=${currentExerciseData?.exerciseId}`],
     enabled: !!currentExerciseData?.exerciseId,
   });
 
