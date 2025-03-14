@@ -2,6 +2,7 @@
 export interface ExerciseSet {
   reps: number;
   weight: number;
+  isFailure?: boolean;
 }
 
 export interface ProgressionSuggestion {
@@ -9,11 +10,13 @@ export interface ProgressionSuggestion {
   reps: number;
   weight: number;
   calculated1RM?: number;
+  setWeights?: number[];  // For RPT schemes
+  repTargets?: { min: number; max: number; }[];  // For RPT Individual
 }
 
 export interface ProgressionScheme {
   calculate1RM?(sets: ExerciseSet[], extraSetReps?: number): number;
-  getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[];
+  getNextSuggestion(lastWeight: number, increment: number, previousFailures?: number | boolean[]): ProgressionSuggestion[];
 }
 
 export class STSProgression implements ProgressionScheme {
@@ -138,50 +141,73 @@ export class DoubleProgression implements ProgressionScheme {
 
 export class RPTTopSetDependent implements ProgressionScheme {
   private sets: number;
-  private targetReps: number;
-  private dropPercent: number;
+  private minReps: number;
+  private maxReps: number;
+  private dropPercentages: number[];
 
   constructor(
     sets: number = 3,
-    targetReps: number = 6,
-    dropPercent: number = 10
+    minReps: number = 6,
+    maxReps: number = 8,
+    dropPercentages: number[] = [0, 10, 10]
   ) {
     this.sets = sets;
-    this.targetReps = targetReps;
-    this.dropPercent = dropPercent;
+    this.minReps = minReps;
+    this.maxReps = maxReps;
+    this.dropPercentages = dropPercentages;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
+  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
     const suggestions: ProgressionSuggestion[] = [];
 
-    // If last weight is not provided, start with minimum increment
+    // If no previous weight, start with minimum increment
     if (!lastWeight) {
       return [{
         sets: this.sets,
-        reps: this.targetReps,
-        weight: increment
+        reps: this.minReps,
+        weight: increment,
+        setWeights: Array(this.sets).fill(increment),
+        repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
       }];
     }
 
-    // Calculate weights for all sets based on top set
-    const setWeights = Array(this.sets).fill(0).map((_, idx) => {
-      const dropFactor = Math.pow(1 - this.dropPercent / 100, idx);
-      return Number((lastWeight * dropFactor).toFixed(2));
+    // Calculate base weight based on consecutive failures
+    let baseWeight = lastWeight;
+    if (consecutiveFailures >= 2) {
+      // Reduce weight by 10% after two consecutive failures
+      baseWeight = lastWeight * 0.9;
+    }
+
+    // Calculate weights for all sets based on top set and drop percentages
+    const currentSetWeights = this.dropPercentages.map((dropPercent, idx) => {
+      const dropFactor = 1 - (dropPercent / 100);
+      return Number((baseWeight * dropFactor).toFixed(2));
     });
 
     // Current weight suggestion
     suggestions.push({
       sets: this.sets,
-      reps: this.targetReps,
-      weight: lastWeight
+      reps: this.minReps,
+      weight: baseWeight,
+      setWeights: currentSetWeights,
+      repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
     });
 
-    // Progressive overload suggestion
-    suggestions.push({
-      sets: this.sets,
-      reps: this.targetReps,
-      weight: lastWeight + increment
-    });
+    // If no failures, provide progressive overload suggestion
+    if (consecutiveFailures === 0) {
+      const progressiveSetWeights = this.dropPercentages.map((dropPercent, idx) => {
+        const dropFactor = 1 - (dropPercent / 100);
+        return Number(((baseWeight + increment) * dropFactor).toFixed(2));
+      });
+
+      suggestions.push({
+        sets: this.sets,
+        reps: this.minReps,
+        weight: baseWeight + increment,
+        setWeights: progressiveSetWeights,
+        repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
+      });
+    }
 
     return suggestions;
   }
@@ -189,47 +215,69 @@ export class RPTTopSetDependent implements ProgressionScheme {
 
 export class RPTIndividualProgression implements ProgressionScheme {
   private sets: number;
-  private targetReps: number;
-  private dropPercent: number;
+  private setConfigs: Array<{ min: number; max: number; }>;
 
   constructor(
     sets: number = 3,
-    targetReps: number = 6,
-    dropPercent: number = 10
+    setConfigs: Array<{ min: number; max: number; }> = [
+      { min: 5, max: 7 },
+      { min: 6, max: 8 },
+      { min: 7, max: 9 }
+    ]
   ) {
     this.sets = sets;
-    this.targetReps = targetReps;
-    this.dropPercent = dropPercent;
+    this.setConfigs = setConfigs;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
+  getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
     const suggestions: ProgressionSuggestion[] = [];
 
-    // If last weight is not provided, start with minimum increment
+    // If no previous weight, start with minimum increment
     if (!lastWeight) {
       return [{
         sets: this.sets,
-        reps: this.targetReps,
-        weight: increment
+        reps: this.setConfigs[0].min,
+        weight: increment,
+        setWeights: Array(this.sets).fill(increment),
+        repTargets: this.setConfigs
       }];
     }
 
-    // Each set progresses independently based on whether its target reps were met
-    // For the initial suggestion, we'll provide the base pattern
-    const baseWeight = lastWeight;
-
-    suggestions.push({
-      sets: this.sets,
-      reps: this.targetReps,
-      weight: baseWeight
+    // Calculate weights for each set based on failure history
+    const currentSetWeights = Array(this.sets).fill(lastWeight).map((weight, idx) => {
+      if (failureFlags && failureFlags[idx] === true) {
+        // Reduce weight by 10% for sets with two consecutive failures
+        return Number((weight * 0.9).toFixed(2));
+      }
+      return weight;
     });
 
-    // Progressive overload suggestion
+    // Current weight suggestion
     suggestions.push({
       sets: this.sets,
-      reps: this.targetReps,
-      weight: baseWeight + increment
+      reps: this.setConfigs[0].min,
+      weight: lastWeight,
+      setWeights: currentSetWeights,
+      repTargets: this.setConfigs
     });
+
+    // Progressive overload suggestion - only for sets without failures
+    const progressiveSetWeights = currentSetWeights.map((weight, idx) => {
+      if (!failureFlags || !failureFlags[idx]) {
+        return Number((weight + increment).toFixed(2));
+      }
+      return weight;
+    });
+
+    if (progressiveSetWeights.some((w, i) => w !== currentSetWeights[i])) {
+      suggestions.push({
+        sets: this.sets,
+        reps: this.setConfigs[0].min,
+        weight: lastWeight + increment,
+        setWeights: progressiveSetWeights,
+        repTargets: this.setConfigs
+      });
+    }
 
     return suggestions;
   }

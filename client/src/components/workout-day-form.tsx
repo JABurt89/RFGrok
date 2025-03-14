@@ -33,13 +33,27 @@ interface DoubleProgressionParameters {
 
 interface RPTParameters {
   scheme: "RPT Top-Set" | "RPT Individual";
+  sets: number;
   targetReps: number;
-  dropPercent: number;
+  minReps: number;
+  maxReps: number;
+  dropPercentages: number[]; // Array of drop percentages for each set
   restBetweenSets: number;
   restBetweenExercises: number;
 }
 
-type ExerciseParameters = STSParameters | DoubleProgressionParameters | RPTParameters;
+interface RPTIndividualParameters {
+  scheme: "RPT Individual";
+  sets: number;
+  setConfigs: Array<{
+    min: number;
+    max: number;
+  }>;
+  restBetweenSets: number;
+  restBetweenExercises: number;
+}
+
+type ExerciseParameters = STSParameters | DoubleProgressionParameters | RPTParameters | RPTIndividualParameters;
 
 interface WorkoutExercise {
   exerciseId: number;
@@ -55,7 +69,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
     exerciseId: z.number().min(1, "Exercise selection is required"),
-    parameters: z.union([
+    parameters: z.discriminatedUnion("scheme", [
       z.object({
         scheme: z.literal("STS"),
         minSets: z.number(),
@@ -74,9 +88,21 @@ const formSchema = z.object({
         restBetweenExercises: z.number(),
       }),
       z.object({
-        scheme: z.union([z.literal("RPT Top-Set"), z.literal("RPT Individual")]),
-        targetReps: z.number(),
-        dropPercent: z.number(),
+        scheme: z.literal("RPT Top-Set"),
+        sets: z.number().min(2, "At least 2 sets required"),
+        minReps: z.number(),
+        maxReps: z.number(),
+        dropPercentages: z.array(z.number()),
+        restBetweenSets: z.number(),
+        restBetweenExercises: z.number(),
+      }),
+      z.object({
+        scheme: z.literal("RPT Individual"),
+        sets: z.number().min(1, "At least 1 set required"),
+        setConfigs: z.array(z.object({
+          min: z.number(),
+          max: z.number(),
+        })),
         restBetweenSets: z.number(),
         restBetweenExercises: z.number(),
       }),
@@ -84,7 +110,7 @@ const formSchema = z.object({
   })),
 });
 
-const defaultParameters: Record<string, ExerciseParameters> = {
+const defaultParameters: Record<string, any> = {
   "STS": {
     scheme: "STS",
     minSets: 3,
@@ -104,15 +130,21 @@ const defaultParameters: Record<string, ExerciseParameters> = {
   },
   "RPT Top-Set": {
     scheme: "RPT Top-Set",
-    targetReps: 6,
-    dropPercent: 10,
+    sets: 3,
+    minReps: 6,
+    maxReps: 8,
+    dropPercentages: [0, 10, 10], // First set is top set (0% drop), subsequent sets drop by 10%
     restBetweenSets: 180,
     restBetweenExercises: 240
   },
   "RPT Individual": {
     scheme: "RPT Individual",
-    targetReps: 6,
-    dropPercent: 10,
+    sets: 3,
+    setConfigs: [
+      { min: 5, max: 7 },
+      { min: 6, max: 8 },
+      { min: 7, max: 9 }
+    ],
     restBetweenSets: 180,
     restBetweenExercises: 240
   }
@@ -267,40 +299,169 @@ export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
           </div>
         );
       }
-      case "RPT Top-Set":
-      case "RPT Individual": {
-        const rptParams = currentParameters as RPTParameters;
+      case "RPT Top-Set": {
+        const rptParams = currentParameters as typeof defaultParameters["RPT Top-Set"];
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium">Target Reps</label>
+              <label className="block text-sm font-medium">Number of Sets</label>
               <Input
                 type="number"
-                value={rptParams.targetReps}
+                min={2}
+                value={rptParams.sets}
                 onChange={(e) => {
+                  const newSets = parseInt(e.target.value);
                   const exercises = [...form.getValues("exercises")];
+                  const newDropPercentages = Array(newSets).fill(0).map((_, i) =>
+                    i === 0 ? 0 : rptParams.dropPercentages[i] || 10
+                  );
                   exercises[index].parameters = {
                     ...rptParams,
-                    targetReps: parseInt(e.target.value)
+                    sets: newSets,
+                    dropPercentages: newDropPercentages
                   };
                   form.setValue("exercises", exercises);
                 }}
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium">Min Reps</label>
+                <Input
+                  type="number"
+                  value={rptParams.minReps}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].parameters = {
+                      ...rptParams,
+                      minReps: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">Max Reps</label>
+                <Input
+                  type="number"
+                  value={rptParams.maxReps}
+                  onChange={(e) => {
+                    const exercises = [...form.getValues("exercises")];
+                    exercises[index].parameters = {
+                      ...rptParams,
+                      maxReps: parseInt(e.target.value)
+                    };
+                    form.setValue("exercises", exercises);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Drop Percentages</label>
+              {Array(rptParams.sets).fill(0).map((_, setIndex) => (
+                <div key={setIndex} className="flex items-center gap-2">
+                  <span className="text-sm">Set {setIndex + 1}:</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={rptParams.dropPercentages[setIndex]}
+                    disabled={setIndex === 0}
+                    onChange={(e) => {
+                      const exercises = [...form.getValues("exercises")];
+                      const newDropPercentages = [...rptParams.dropPercentages];
+                      newDropPercentages[setIndex] = parseInt(e.target.value);
+                      exercises[index].parameters = {
+                        ...rptParams,
+                        dropPercentages: newDropPercentages
+                      };
+                      form.setValue("exercises", exercises);
+                    }}
+                  />
+                  <span className="text-sm">%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      case "RPT Individual": {
+        const rptParams = currentParameters as typeof defaultParameters["RPT Individual"];
+        return (
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium">Drop Percentage</label>
+              <label className="block text-sm font-medium">Number of Sets</label>
               <Input
                 type="number"
-                value={rptParams.dropPercent}
+                min={1}
+                value={rptParams.sets}
                 onChange={(e) => {
+                  const newSets = parseInt(e.target.value);
                   const exercises = [...form.getValues("exercises")];
+                  const newSetConfigs = Array(newSets).fill(0).map((_, i) =>
+                    rptParams.setConfigs[i] || { min: 6, max: 8 }
+                  );
                   exercises[index].parameters = {
                     ...rptParams,
-                    dropPercent: parseInt(e.target.value)
+                    sets: newSets,
+                    setConfigs: newSetConfigs
                   };
                   form.setValue("exercises", exercises);
                 }}
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Set Configurations</label>
+              {Array(rptParams.sets).fill(0).map((_, setIndex) => (
+                <div key={setIndex} className="border rounded p-2 space-y-2">
+                  <div className="text-sm font-medium">Set {setIndex + 1}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm">Min Reps</label>
+                      <Input
+                        type="number"
+                        value={rptParams.setConfigs[setIndex].min}
+                        onChange={(e) => {
+                          const exercises = [...form.getValues("exercises")];
+                          const newSetConfigs = [...rptParams.setConfigs];
+                          newSetConfigs[setIndex] = {
+                            ...newSetConfigs[setIndex],
+                            min: parseInt(e.target.value)
+                          };
+                          exercises[index].parameters = {
+                            ...rptParams,
+                            setConfigs: newSetConfigs
+                          };
+                          form.setValue("exercises", exercises);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm">Max Reps</label>
+                      <Input
+                        type="number"
+                        value={rptParams.setConfigs[setIndex].max}
+                        onChange={(e) => {
+                          const exercises = [...form.getValues("exercises")];
+                          const newSetConfigs = [...rptParams.setConfigs];
+                          newSetConfigs[setIndex] = {
+                            ...newSetConfigs[setIndex],
+                            max: parseInt(e.target.value)
+                          };
+                          exercises[index].parameters = {
+                            ...rptParams,
+                            setConfigs: newSetConfigs
+                          };
+                          form.setValue("exercises", exercises);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         );
