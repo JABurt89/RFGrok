@@ -8,7 +8,7 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
-  setTheme: () => {}
+  setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

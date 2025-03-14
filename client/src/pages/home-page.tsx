@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Dumbbell, Calendar, Settings, LogOut, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme-provider";
 
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 const SIDEBAR_WIDTH = "16rem";
@@ -12,7 +12,7 @@ type SidebarProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Sidebar({ children, className, isOpen, onToggle, ...props }: SidebarProps) {
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
 
   return (
     <>

@@ -1,57 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "./utils";
 
-type Theme = 'light' | 'dark';
-type ThemeContextType = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-};
-
-const ThemeContext = createContext<ThemeContextType>({
-  theme: 'light',
-  setTheme: () => {}
-});
-
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'light';
-
-    // Check localStorage first
-    const stored = localStorage.getItem('theme') as Theme;
-    if (stored === 'light' || stored === 'dark') return stored;
-
-    // Then check system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-
-  useEffect(() => {
-    // Update localStorage
-    localStorage.setItem('theme', theme);
-
-    // Update document class
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-  }, [theme]);
-
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
-}
-
-// Export other style configurations
-export const buttonStyles = cva(
+// Export only style configurations and utilities
+export const buttonVariants = cva(
   "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
@@ -96,8 +47,7 @@ export const animations = {
 // Shared focus styles
 export const focusStyles = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-
-// Define card styles
+// Card styles
 export const cardStyles = {
   base: "rounded-lg border bg-card text-card-foreground shadow-sm",
   header: "flex flex-col space-y-1.5 p-6",
@@ -107,7 +57,7 @@ export const cardStyles = {
   footer: "flex items-center p-6 pt-0",
 };
 
-// Define input styles
+// Input styles
 export const inputStyles = {
   base: cn(
     "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
@@ -117,7 +67,7 @@ export const inputStyles = {
   ),
 };
 
-// Define form styles
+// Form styles
 export const formStyles = {
   label: "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
   item: "space-y-2",

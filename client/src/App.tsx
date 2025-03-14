@@ -6,7 +6,7 @@ import { Route, Switch } from "wouter";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
-import { ThemeProvider } from "@/lib/theme";
+import { ThemeProvider } from "@/lib/theme-provider";
 
 // Lazy load pages
 const HomePage = lazy(() => import("@/pages/home-page"));
