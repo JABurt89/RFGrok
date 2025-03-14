@@ -14,51 +14,53 @@ import { Plus, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
-// Form schema updates for proper progression schemes
+// Form schema with proper type coercion
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
-    exerciseId: z.number().min(1, "Exercise selection is required"),
+    exerciseId: z.coerce.number().min(1, "Exercise selection is required"),
     parameters: z.discriminatedUnion("scheme", [
       z.object({
         scheme: z.literal("STS"),
-        minSets: z.number(),
-        maxSets: z.number(),
-        minReps: z.number(),
-        maxReps: z.number(),
-        restBetweenSets: z.number(),
-        restBetweenExercises: z.number(),
+        minSets: z.coerce.number(),
+        maxSets: z.coerce.number(),
+        minReps: z.coerce.number(),
+        maxReps: z.coerce.number(),
+        restBetweenSets: z.coerce.number(),
+        restBetweenExercises: z.coerce.number(),
       }),
       z.object({
         scheme: z.literal("Double Progression"),
-        targetSets: z.number(),
-        minReps: z.number(),
-        maxReps: z.number(),
-        restBetweenSets: z.number(),
-        restBetweenExercises: z.number(),
+        targetSets: z.coerce.number(),
+        minReps: z.coerce.number(),
+        maxReps: z.coerce.number(),
+        restBetweenSets: z.coerce.number(),
+        restBetweenExercises: z.coerce.number(),
       }),
       z.object({
         scheme: z.literal("RPT Top-Set"),
-        sets: z.number().min(2, "At least 2 sets required"),
-        minReps: z.number(),
-        maxReps: z.number(),
-        dropPercentages: z.array(z.number()),
-        restBetweenSets: z.number(),
-        restBetweenExercises: z.number(),
+        sets: z.coerce.number().min(2, "At least 2 sets required"),
+        minReps: z.coerce.number(),
+        maxReps: z.coerce.number(),
+        dropPercentages: z.array(z.coerce.number()),
+        restBetweenSets: z.coerce.number(),
+        restBetweenExercises: z.coerce.number(),
       }),
       z.object({
         scheme: z.literal("RPT Individual"),
-        sets: z.number().min(1, "At least 1 set required"),
+        sets: z.coerce.number().min(1, "At least 1 set required"),
         setConfigs: z.array(z.object({
-          min: z.number(),
-          max: z.number(),
+          min: z.coerce.number(),
+          max: z.coerce.number(),
         })),
-        restBetweenSets: z.number(),
-        restBetweenExercises: z.number(),
+        restBetweenSets: z.coerce.number(),
+        restBetweenExercises: z.coerce.number(),
       }),
     ]),
   })),
 });
+
+type FormData = z.infer<typeof formSchema>;
 
 const defaultParameters = {
   "STS": {
@@ -83,7 +85,7 @@ const defaultParameters = {
     sets: 3,
     minReps: 6,
     maxReps: 8,
-    dropPercentages: [0, 10, 10], // First set is top set (0% drop), subsequent sets drop by 10%
+    dropPercentages: [0, 10, 10],
     restBetweenSets: 180,
     restBetweenExercises: 240
   },
@@ -110,7 +112,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
   const { toast } = useToast();
   const { data: exercises = [] } = useExercises();
 
-  const form = useForm<WorkoutDayFormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: workoutDay
       ? {
@@ -132,7 +134,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
   });
 
   const workoutMutation = useMutation({
-    mutationFn: async (data: Partial<WorkoutDay>) => {
+    mutationFn: async (data: FormData) => {
       const method = workoutDay?.id ? "PATCH" : "POST";
       const url = workoutDay?.id
         ? `/api/workout-days/${workoutDay.id}`
@@ -164,7 +166,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
     },
   });
 
-  const onSubmit = (data: WorkoutDayFormData) => {
+  const onSubmit = (data: FormData) => {
     console.log("Form submitted with data:", data);
     workoutMutation.mutate(data);
   };
