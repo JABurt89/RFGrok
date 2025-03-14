@@ -1,0 +1,38 @@
+1. **Create Sections**  
+   - Divide page into three `<section>` elements: Profile, Account, Preferences.
+
+2. **Profile Section**  
+   - Use `react-hook-form` with a zod schema:
+     - **Age**: `<Input type="number" min="0">`
+     - **Weight**: `<Input type="number" step="0.1" min="0">` with dynamic unit display from `user.preferredUnits`.
+     - **Fitness Goals**: `<Input>` or `<Textarea>` (max 255 characters).  
+   - Default values from `user` object.
+   - On submit, send a PATCH request to `/api/user` with `{ age, weight, goals }`.
+
+3. **Account Section**  
+   - Display current email (`user.email`).
+   - "Update Email" button: Opens modal with form (new email validated via `z.string().email()`, current password); submit via PATCH to `/api/user/email`.
+   - "Change Password" button: Opens modal with form (current password, new password, confirm new password; ensure matching); submit via PATCH to `/api/user` or `/api/user/password`.
+   - "Delete Account" button: Use `AlertDialog` for confirmation; on confirm, send DELETE to `/api/user` and redirect to login.
+
+4. **Preferences Section**  
+   - **Units**: Use a `<Select>` component with options "kg" and "lb".  
+     - On change, send PATCH to `/api/user` with `{ preferredUnits }` and update React Query cache.
+   - **Theme**: Use `<Switch>` component.  
+     - On toggle, update `document.documentElement.classList` (add/remove "dark") and persist preference in `localStorage`.
+
+5. **UI & Responsiveness**  
+   - Apply Tailwind CSS classes (e.g., `space-y-8`, `md:grid md:grid-cols-2`) for layout.
+   - Integrate `useMobile` hook for responsive design and collapsible sidebar.
+   - Use existing UI components: `Form`, `Input`, `Button`, `Dialog`, `AlertDialog`, `Select`, `Switch`, and `Toaster`.
+
+6. **API & State Management**  
+   - Use `apiRequest` for all PATCH, DELETE operations.
+   - Implement mutations with `@tanstack/react-query` (`useMutation`, `useQueryClient`) for API calls and cache invalidation.
+   - Ensure error handling and display notifications via `useToast`.
+
+7. **Integration**  
+   - Fetch current user via `useAuth`.
+   - Add settings page route to sidebar navigation (`client/src/components/ui/sidebar.tsx`).
+
+Implement the above instructions using TypeScript and integrate with existing libraries for consistency and maintainability.

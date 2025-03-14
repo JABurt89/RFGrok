@@ -14,6 +14,7 @@ const AuthPage = lazy(() => import("@/pages/auth-page"));
 const WorkoutsPage = lazy(() => import("@/pages/workouts-page"));
 const ExercisesPage = lazy(() => import("@/pages/exercises-page"));
 const WorkoutHistoryPage = lazy(() => import("@/pages/workout-history-page"));
+const SettingsPage = lazy(() => import("@/pages/settings-page"));
 const NotFoundPage = lazy(() => import("@/pages/not-found"));
 
 // Loading fallback component
@@ -36,6 +37,7 @@ function App() {
                 <ProtectedRoute path="/workouts" component={WorkoutsPage} />
                 <ProtectedRoute path="/exercises" component={ExercisesPage} />
                 <ProtectedRoute path="/workout-history" component={WorkoutHistoryPage} />
+                <ProtectedRoute path="/settings" component={SettingsPage} />
                 <Route component={NotFoundPage} />
               </Switch>
             </Suspense>
