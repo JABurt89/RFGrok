@@ -6,6 +6,7 @@ import { Route, Switch } from "wouter";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { ThemeProvider } from "@/lib/theme";
 
 // Lazy load pages
 const HomePage = lazy(() => import("@/pages/home-page"));
@@ -26,19 +27,21 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="min-h-screen bg-background text-foreground">
-          <Suspense fallback={<LoadingFallback />}>
-            <Switch>
-              <Route path="/auth" component={AuthPage} />
-              <ProtectedRoute path="/" component={HomePage} />
-              <ProtectedRoute path="/workouts" component={WorkoutsPage} />
-              <ProtectedRoute path="/exercises" component={ExercisesPage} />
-              <ProtectedRoute path="/workout-history" component={WorkoutHistoryPage} />
-              <Route component={NotFoundPage} />
-            </Switch>
-          </Suspense>
-          <Toaster />
-        </div>
+        <ThemeProvider>
+          <div className="min-h-screen bg-background text-foreground">
+            <Suspense fallback={<LoadingFallback />}>
+              <Switch>
+                <Route path="/auth" component={AuthPage} />
+                <ProtectedRoute path="/" component={HomePage} />
+                <ProtectedRoute path="/workouts" component={WorkoutsPage} />
+                <ProtectedRoute path="/exercises" component={ExercisesPage} />
+                <ProtectedRoute path="/workout-history" component={WorkoutHistoryPage} />
+                <Route component={NotFoundPage} />
+              </Switch>
+            </Suspense>
+            <Toaster />
+          </div>
+        </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
