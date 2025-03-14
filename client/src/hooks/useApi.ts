@@ -99,6 +99,26 @@ export function useApi<TData = unknown, TError = Error>({
     onSuccess?.(offlineData);
   };
 
+  const parseApiResponse = async (response: Response): Promise<TData> => {
+    // If parseResponse is false or response is empty, return empty object
+    if (!parseResponse || response.headers.get('content-length') === '0') {
+      return {} as TData;
+    }
+
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return {} as TData;
+    }
+
+    try {
+      return await response.json();
+    } catch (error) {
+      console.error('Error parsing JSON response:', error);
+      return {} as TData;
+    }
+  };
+
   // For GET requests, use useQuery
   if (method === "GET") {
     return useQuery<TData, TError>({
@@ -110,7 +130,7 @@ export function useApi<TData = unknown, TError = Error>({
             const error = await response.json();
             throw new Error(error.message || `API call failed: ${response.statusText}`);
           }
-          return response.json();
+          return parseApiResponse(response);
         } catch (error) {
           if (!isOnline) {
             // Return cached data if available
@@ -142,13 +162,7 @@ export function useApi<TData = unknown, TError = Error>({
         throw new Error(error.message || `API call failed: ${response.statusText}`);
       }
 
-      // Only try to parse response as JSON if parseResponse is true and content exists
-      if (parseResponse && response.headers.get('content-length') !== '0') {
-        return response.json();
-      }
-
-      // Return empty object for successful responses with no content
-      return {} as TData;
+      return parseApiResponse(response);
     },
     onSuccess: (responseData) => {
       queryClient.invalidateQueries({ queryKey });
