@@ -9,7 +9,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle, WifiOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -71,6 +70,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const [showExtraSetPrompt, setShowExtraSetPrompt] = useState(false);
   const [conflict, setConflict] = useState<WorkoutLog | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<ProgressionSuggestion | null>(null);
+
 
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
@@ -314,46 +315,11 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     setShowExtraSetPrompt(false);
   }, [currentExerciseData, progressionScheme]);
 
-  const handleCombinationSelect = useCallback((combination: ProgressionSuggestion) => {
-    if (!currentExerciseData) return;
+  const handleUseWeights = (suggestion: ProgressionSuggestion) => {
+    setSelectedSuggestion(suggestion);
+    console.log("Weights confirmed:", suggestion);
+  };
 
-    setWorkoutState(prev => {
-      const updatedExercises = prev.exercises.map(exercise => {
-        if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
-
-        let sets: ExerciseSet[] = [];
-        switch (currentExerciseData.parameters.scheme) {
-          case "RPT Top-Set":
-          case "RPT Individual":
-            sets = (combination.setWeights || []).map((weight, idx) => ({
-              weight,
-              reps: combination.repTargets?.[idx]?.min || combination.reps,
-              timestamp: new Date(),
-              isCompleted: false
-            }));
-            break;
-          default:
-            sets = Array(combination.sets).fill(null).map(() => ({
-              weight: combination.weight,
-              reps: combination.reps,
-              timestamp: new Date(),
-              isCompleted: false
-            }));
-        }
-
-        return {
-          ...exercise,
-          sets,
-          plannedSets: combination.sets
-        };
-      });
-
-      return {
-        ...prev,
-        exercises: updatedExercises
-      };
-    });
-  }, [currentExerciseData]);
 
   const getRestTimes = useCallback(() => {
     if (!currentExerciseData) return { setRest: 90, exerciseRest: 180 };
@@ -364,16 +330,51 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData]);
 
   const handleStartWorkout = useCallback(() => {
-    if (!Array.isArray(currentState?.sets) || currentState.sets.length === 0) {
+    if (!selectedSuggestion) {
       toast({
-        title: "Select a combination",
-        description: "Please select a set/weight combination before starting the workout",
+        title: "Select Weights",
+        description: "Please confirm the weight selection before starting",
         variant: "destructive"
       });
       return;
     }
+
+    setWorkoutState(prev => {
+      const updatedExercises = prev.exercises.map(exercise => {
+        if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
+
+        let sets: ExerciseSet[] = [];
+        if (selectedSuggestion.setWeights) {
+          sets = selectedSuggestion.setWeights.map((weight, idx) => ({
+            weight,
+            reps: selectedSuggestion.repTargets?.[idx]?.min || selectedSuggestion.reps,
+            timestamp: new Date(),
+            isCompleted: false
+          }));
+        } else {
+          sets = Array(selectedSuggestion.sets).fill(null).map(() => ({
+            weight: selectedSuggestion.weight,
+            reps: selectedSuggestion.reps,
+            timestamp: new Date(),
+            isCompleted: false
+          }));
+        }
+
+        return {
+          ...exercise,
+          sets,
+          plannedSets: selectedSuggestion.sets
+        };
+      });
+
+      return {
+        ...prev,
+        exercises: updatedExercises
+      };
+    });
+
     setCurrentView("active");
-  }, [currentState, toast]);
+  }, [selectedSuggestion, currentExerciseData, toast]);
 
   useEffect(() => {
     let interval: number;
@@ -459,30 +460,10 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const renderProgressionSuggestions = () => {
     if (!progressionSuggestions.length) return null;
 
-    const suggestion = progressionSuggestions[0]; // We now only have one suggestion
+    const suggestion = progressionSuggestions[0]; 
 
     switch (currentExerciseData?.parameters.scheme) {
       case "RPT Top-Set":
-        return (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Suggested weights:</h3>
-            <div className="space-y-1 p-4 rounded-md bg-muted">
-              <div className="font-medium">Top set: {suggestion.weight}{currentExercise?.units}</div>
-              {suggestion.setWeights?.map((weight, setIdx) => (
-                <div key={setIdx} className="text-sm text-muted-foreground">
-                  Set {setIdx + 1}: {weight}{currentExercise?.units} ({suggestion.repTargets?.[setIdx]?.min}-{suggestion.repTargets?.[setIdx]?.max} reps)
-                </div>
-              ))}
-            </div>
-            <Button
-              className="w-full mt-2"
-              onClick={() => handleCombinationSelect(suggestion)}
-            >
-              Use These Weights
-            </Button>
-          </div>
-        );
-
       case "RPT Individual":
         return (
           <div className="space-y-2">
@@ -496,44 +477,35 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             </div>
             <Button
               className="w-full mt-2"
-              onClick={() => handleCombinationSelect(suggestion)}
+              onClick={() => handleUseWeights(suggestion)}
+              variant={selectedSuggestion === suggestion ? "default" : "outline"}
             >
-              Use These Weights
+              {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
             </Button>
           </div>
         );
 
       default:
-        // For other schemes (STS, Double Progression), keep the existing radio group logic
         return (
           <div className="space-y-2">
             <Label>Select a combination:</Label>
-            <RadioGroup
-              value={currentState.plannedSets ?
-                JSON.stringify({
-                  sets: currentState.plannedSets,
-                  reps: currentState.sets[0]?.reps,
-                  weight: Number(currentState.sets[0]?.weight.toFixed(2))
-                }) :
-                undefined}
-              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
-            >
-              <div className="space-y-2">
-                {progressionSuggestions.map((combo, idx) => (
-                  <div key={idx} className="flex items-center space-x-2">
-                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
-                    <Label htmlFor={`combo-${idx}`}>
-                      {combo.sets} sets × {combo.reps} reps @ {combo.weight.toFixed(2)}{currentExercise?.units}
-                      {combo.calculated1RM && (
-                        <span className="text-sm text-muted-foreground ml-2">
-                          (1RM: {combo.calculated1RM.toFixed(2)}{currentExercise?.units})
-                        </span>
-                      )}
-                    </Label>
+            <div className="space-y-2">
+              <div className="p-4 rounded-md bg-muted">
+                {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight.toFixed(2)}{currentExercise?.units}
+                {suggestion.calculated1RM && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
                   </div>
-                ))}
+                )}
               </div>
-            </RadioGroup>
+              <Button
+                className="w-full"
+                onClick={() => handleUseWeights(suggestion)}
+                variant={selectedSuggestion === suggestion ? "default" : "outline"}
+              >
+                {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
+              </Button>
+            </div>
           </div>
         );
     }
@@ -572,13 +544,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                   <Button
                     className="w-full"
                     onClick={handleStartWorkout}
-                    disabled={!currentState.sets.length}
+                    disabled={!selectedSuggestion}
                   >
                     Start Exercise
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {currentState.sets.length ?
+                  {selectedSuggestion ?
                     "Begin your workout with the selected weights" :
                     "Select a weight combination to start"
                   }
