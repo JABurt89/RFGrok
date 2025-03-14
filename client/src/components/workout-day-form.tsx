@@ -18,58 +18,7 @@ interface WorkoutDayFormProps {
   onComplete?: () => void;
 }
 
-interface STSParameters {
-  scheme: "STS";
-  minSets: number;
-  maxSets: number;
-  minReps: number;
-  maxReps: number;
-  restBetweenSets: number;
-  restBetweenExercises: number;
-}
-
-interface DoubleProgressionParameters {
-  scheme: "Double Progression";
-  targetSets: number;
-  minReps: number;
-  maxReps: number;
-  restBetweenSets: number;
-  restBetweenExercises: number;
-}
-
-interface RPTTopSetParameters {
-  scheme: "RPT Top-Set";
-  sets: number;
-  minReps: number;
-  maxReps: number;
-  dropPercentages: number[];
-  restBetweenSets: number;
-  restBetweenExercises: number;
-}
-
-interface RPTIndividualParameters {
-  scheme: "RPT Individual";
-  sets: number;
-  setConfigs: Array<{
-    min: number;
-    max: number;
-  }>;
-  restBetweenSets: number;
-  restBetweenExercises: number;
-}
-
-type ExerciseParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
-
-interface WorkoutExercise {
-  exerciseId: number;
-  parameters: ExerciseParameters;
-}
-
-interface WorkoutDayFormData {
-  name: string;
-  exercises: WorkoutExercise[];
-}
-
+// Form schema updates for proper progression schemes
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
@@ -115,7 +64,7 @@ const formSchema = z.object({
   })),
 });
 
-const defaultParameters: Record<string, any> = {
+const defaultParameters = {
   "STS": {
     scheme: "STS" as const,
     minSets: 3,
@@ -138,7 +87,7 @@ const defaultParameters: Record<string, any> = {
     sets: 3,
     minReps: 6,
     maxReps: 8,
-    dropPercentages: [0, 10, 10],
+    dropPercentages: [0, 10, 10], // First set is top set (0% drop), subsequent sets drop by 10%
     restBetweenSets: 180,
     restBetweenExercises: 240
   },
@@ -146,9 +95,9 @@ const defaultParameters: Record<string, any> = {
     scheme: "RPT Individual" as const,
     sets: 3,
     setConfigs: [
-      { min: 5, max: 7 },
       { min: 6, max: 8 },
-      { min: 7, max: 9 }
+      { min: 8, max: 10 },
+      { min: 10, max: 12 }
     ],
     restBetweenSets: 180,
     restBetweenExercises: 240
@@ -303,6 +252,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                 )}
               />
 
+              {/* STS Parameters */}
               {form.watch(`exercises.${index}.parameters.scheme`) === "STS" && (
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -331,8 +281,36 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.minReps`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Min Reps</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`exercises.${index}.parameters.maxReps`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Reps</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               )}
+
+              {/* Double Progression Parameters */}
               {form.watch(`exercises.${index}.parameters.scheme`) === "Double Progression" && (
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -376,6 +354,8 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                   />
                 </div>
               )}
+
+              {/* RPT Top-Set Parameters */}
               {form.watch(`exercises.${index}.parameters.scheme`) === "RPT Top-Set" && (
                 <div className="space-y-4">
                   <FormField
@@ -391,9 +371,9 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                             {...field}
                             onChange={(e) => {
                               const newSets = parseInt(e.target.value);
-                              const currentParams = form.getValues(`exercises.${index}.parameters`);
-                              const newDropPercentages = Array(newSets).fill(0).map((_, i) =>
-                                i === 0 ? 0 : currentParams.dropPercentages?.[i] || 10
+                              // Initialize drop percentages for new sets
+                              const newDropPercentages = Array(newSets).fill(0).map((_, i) => 
+                                i === 0 ? 0 : 10 // First set is top set (0% drop), others drop 10%
                               );
                               form.setValue(`exercises.${index}.parameters.dropPercentages`, newDropPercentages);
                               field.onChange(newSets);
@@ -410,7 +390,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                       name={`exercises.${index}.parameters.minReps`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Min Reps</FormLabel>
+                          <FormLabel>Min Reps (All Sets)</FormLabel>
                           <FormControl>
                             <Input type="number" {...field} />
                           </FormControl>
@@ -423,7 +403,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                       name={`exercises.${index}.parameters.maxReps`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Max Reps</FormLabel>
+                          <FormLabel>Max Reps (All Sets)</FormLabel>
                           <FormControl>
                             <Input type="number" {...field} />
                           </FormControl>
@@ -433,7 +413,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                     />
                   </div>
                   <div className="space-y-2">
-                    <FormLabel>Drop Percentages</FormLabel>
+                    <FormLabel>Drop Percentages (from top set)</FormLabel>
                     {Array.from({ length: form.watch(`exercises.${index}.parameters.sets`) || 0 }).map((_, setIdx) => (
                       <FormField
                         key={setIdx}
@@ -462,6 +442,8 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                   </div>
                 </div>
               )}
+
+              {/* RPT Individual Parameters */}
               {form.watch(`exercises.${index}.parameters.scheme`) === "RPT Individual" && (
                 <div className="space-y-4">
                   <FormField
@@ -477,10 +459,11 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                             {...field}
                             onChange={(e) => {
                               const newSets = parseInt(e.target.value);
-                              const currentParams = form.getValues(`exercises.${index}.parameters`);
-                              const newSetConfigs = Array(newSets).fill(0).map((_, i) =>
-                                currentParams.setConfigs?.[i] || { min: 6, max: 8 }
-                              );
+                              // Initialize independent set configurations
+                              const newSetConfigs = Array(newSets).fill(0).map((_, i) => ({
+                                min: 6 + i * 2, // Example: Increasing rep ranges
+                                max: 8 + i * 2  // 6-8, 8-10, 10-12, etc.
+                              }));
                               form.setValue(`exercises.${index}.parameters.setConfigs`, newSetConfigs);
                               field.onChange(newSets);
                             }}
@@ -494,7 +477,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                     <FormLabel>Set Configurations</FormLabel>
                     {Array.from({ length: form.watch(`exercises.${index}.parameters.sets`) || 0 }).map((_, setIdx) => (
                       <div key={setIdx} className="border rounded p-2 space-y-2">
-                        <FormLabel>Set {setIdx + 1}</FormLabel>
+                        <FormLabel>Set {setIdx + 1} Rep Range</FormLabel>
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -529,7 +512,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
                 </div>
               )}
 
-
+              {/* Rest period fields (common to all schemes) */}
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
