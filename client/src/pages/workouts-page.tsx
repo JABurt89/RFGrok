@@ -21,16 +21,18 @@ function WorkoutsPage() {
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
   const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
 
-  // Fetch workouts and exercises
-  const { data: workouts = [] } = useQuery<WorkoutDay[]>({
+  // Fetch workouts and exercises with proper config
+  const { data: workouts = [], refetch: refetchWorkouts } = useQuery<WorkoutDay[]>({
     queryKey: ["/api/workout-days"],
+    refetchOnWindowFocus: false,
+    staleTime: 0 // Always fetch fresh data
   });
 
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
 
-  // Create workout mutation
+  // Update mutation with proper cache handling
   const createWorkoutMutation = useMutation({
     mutationFn: async (data: Partial<WorkoutDay>) => {
       const response = await apiRequest("POST", "/api/workout-days", data);
@@ -247,7 +249,11 @@ function WorkoutsPage() {
       {selectedWorkoutDay && (
         <WorkoutDayForm
           workoutDay={selectedWorkoutDay}
-          onComplete={() => setSelectedWorkoutDay(null)}
+          onComplete={() => {
+            setSelectedWorkoutDay(null);
+            // Force refresh the workouts list
+            refetchWorkouts();
+          }}
         />
       )}
     </div>

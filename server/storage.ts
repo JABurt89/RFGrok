@@ -125,6 +125,8 @@ export class DatabaseStorage {
     if (workoutDay.name !== undefined) updateData.name = workoutDay.name;
     if (workoutDay.exercises !== undefined) updateData.exercises = workoutDay.exercises;
 
+    console.log("[Storage] Updating workout day:", id, "with data:", JSON.stringify(updateData, null, 2));
+
     const [updated] = await db
       .update(workoutDays)
       .set(updateData)
@@ -132,6 +134,8 @@ export class DatabaseStorage {
       .returning();
 
     if (!updated) throw new Error("Workout day not found");
+
+    console.log("[Storage] Updated workout day result:", JSON.stringify(updated, null, 2));
     return updated;
   }
 

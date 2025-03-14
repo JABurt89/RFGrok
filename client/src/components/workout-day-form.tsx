@@ -140,6 +140,7 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
         ? `/api/workout-days/${workoutDay.id}`
         : "/api/workout-days";
 
+      console.log("Submitting workout day data:", data);
       const response = await apiRequest(method, url, data);
       if (!response.ok) {
         const error = await response.json();
@@ -148,7 +149,13 @@ export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) 
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both the list and the individual workout day queries
       queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
+      if (workoutDay?.id) {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/workout-days/${workoutDay.id}`]
+        });
+      }
       toast({
         title: "Success",
         description: `Workout day ${workoutDay?.id ? 'updated' : 'created'} successfully`,
