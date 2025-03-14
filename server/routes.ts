@@ -253,6 +253,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/workout-suggestion", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      const exerciseId = parseInt(req.query.exerciseId as string);
+      if (!exerciseId) {
+        return res.status(400).json({ error: "Exercise ID is required" });
+      }
+
+      // Get the exercise and workout configuration
+      const exercise = await storage.getExercise(exerciseId);
+      if (!exercise) {
+        return res.status(404).json({ error: "Exercise not found" });
+      }
+
+      // Get the next suggestion using progression logic
+      const suggestion = await storage.getNextSuggestion(exerciseId);
+
+      res.json(suggestion);
+    } catch (error) {
+      console.error("[Workout Suggestion] Error:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to get workout suggestion" 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

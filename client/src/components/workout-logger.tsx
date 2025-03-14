@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle, WifiOff } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -587,6 +587,55 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     }
   };
 
+  // Fetch suggestion from API
+  const { data: suggestion } = useQuery<ProgressionSuggestion>({
+    queryKey: [`/api/workout-suggestion`, currentExerciseData?.exerciseId],
+    enabled: !!currentExerciseData?.exerciseId,
+  });
+
+  // Effect to set initial suggestion
+  useEffect(() => {
+    if (suggestion && !selectedSuggestion) {
+      setSelectedSuggestion(suggestion);
+    }
+  }, [suggestion, selectedSuggestion]);
+
+  // Render suggestion card with improved layout
+  const renderSuggestionCard = (suggestion: ProgressionSuggestion) => (
+    <Card className={`transition-all duration-200 ${selectedSuggestion === suggestion ? 'border-primary' : ''}`}>
+      <CardHeader>
+        <CardTitle>Suggested Workout</CardTitle>
+        <CardDescription>
+          Based on your previous performance
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {suggestion.setWeights?.map((weight, idx) => (
+          <div key={idx} className="flex justify-between items-center">
+            <span>Set {idx + 1}:</span>
+            <span className="font-medium">
+              {weight}{currentExercise?.units} × {suggestion.repTargets?.[idx]?.min || suggestion.reps} reps
+            </span>
+          </div>
+        ))}
+        {suggestion.calculated1RM && (
+          <div className="mt-4 text-sm text-muted-foreground">
+            Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter>
+        <Button
+          className="w-full"
+          variant={selectedSuggestion === suggestion ? "default" : "outline"}
+          onClick={() => handleUseWeights(suggestion)}
+        >
+          {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+
   if (currentView === "setup") {
     return (
       <TooltipProvider>
@@ -595,105 +644,23 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             <CardHeader>
               <CardTitle>{currentExercise.name} - Setup</CardTitle>
               <CardDescription>
-                {hasSuggestions
-                  ? "Select your target sets and weights for this exercise"
-                  : "Enter your manual workout parameters"
-                }
+                {suggestion ? "Confirm your workout weights" : "Loading suggestion..."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {currentExerciseData.parameters.scheme === "STS" && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Current 1RM ({currentExercise.units})</Label>
-                    <Input
-                      type="number"
-                      value={editable1RM}
-                      onChange={(e) => setEditable1RM(Number(e.target.value))}
-                      step={currentExercise.increment}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {hasSuggestions ? (
-                renderProgressionSuggestions()
+              {suggestion ? (
+                renderSuggestionCard(suggestion)
               ) : (
-                <Form {...manualForm}>
-                  <form onSubmit={manualForm.handleSubmit(onManualSubmit)} className="space-y-4">
-                    <FormField
-                      control={manualForm.control}
-                      name="sets"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sets</FormLabel>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <FormControl>
-                                <Input type="number" {...field} onChange={e => field.onChange(+e.target.value)} />
-                              </FormControl>
-                            </TooltipTrigger>
-                            <TooltipContent>Enter number of sets (minimum 1)</TooltipContent>
-                          </Tooltip>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={manualForm.control}
-                      name="reps"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Reps</FormLabel>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <FormControl>
-                                <Input type="number" {...field} onChange={e => field.onChange(+e.target.value)} />
-                              </FormControl>
-                            </TooltipTrigger>
-                            <TooltipContent>Enter reps per set (1-100)</TooltipContent>
-                          </Tooltip>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={manualForm.control}
-                      name="weight"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Weight ({currentExercise.units})</FormLabel>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  {...field}
-                                  onChange={e => field.onChange(+e.target.value)}
-                                  step={currentExercise.increment}
-                                />
-                              </FormControl>
-                            </TooltipTrigger>
-                            <TooltipContent>Enter weight (1-1000 {currentExercise.units})</TooltipContent>
-                          </Tooltip>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit" className="w-full">
-                      Start Exercise
-                    </Button>
-                  </form>
-                </Form>
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="ml-2">Loading suggestion...</span>
+                </div>
               )}
 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    className="w-full"
+                    className="w-full mt-4"
                     onClick={handleStartWorkout}
                     disabled={!selectedSuggestion}
                   >

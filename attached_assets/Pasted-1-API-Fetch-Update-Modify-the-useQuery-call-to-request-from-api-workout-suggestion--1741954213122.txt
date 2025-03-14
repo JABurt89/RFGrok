@@ -1,0 +1,34 @@
+1. **API Fetch Update**  
+   - Modify the `useQuery` call to request from `/api/workout-suggestion?exerciseId=${exerciseId}` and parse the JSON response.  
+   - Ensure `exerciseId` is passed as a prop or retrieved from context.
+
+2. **Suggestion Confirmation State**  
+   - Add a state variable `selectedSuggestion` of type `ProgressionSuggestion | null`.  
+   - In a `useEffect`, set `selectedSuggestion` to the fetched suggestion if not already set.
+
+3. **UI Card Layout**  
+   - Import and use the `Card`, `CardHeader`, `CardTitle`, `CardContent`, and `CardFooter` components.  
+   - Render suggestion details (sets, reps, weight) with conditional rendering for `setWeights` and `repTargets`.  
+   - Use Tailwind CSS classes (`max-w-md mx-auto`, `shadow-md`, `space-y-2`, etc.) for styling.
+
+4. **Confirmation and Start Actions**  
+   - Wrap the confirm button in a `Tooltip` component (using `TooltipProvider`, `TooltipTrigger`, and `TooltipContent`).  
+   - On confirm button click, set `selectedSuggestion` and display a toast notification.  
+   - Create a `handleStartWorkout` function to verify `selectedSuggestion` and transition to workout state (replace `console.log` with actual logic).
+
+5. **Edge Case Handling**  
+   - If no suggestion is returned, display a message and a placeholder for manual entry (add a TODO comment for implementing the manual entry form).
+
+6. **Backend API Adjustment**  
+   - In `server/routes.ts`, update the `/api/workout-suggestion` endpoint to use `getNextSuggestion` from `shared/progression.ts`.  
+   - For each scheme (STS, Double Progression, RPT Top-Set, RPT Individual), select and return the appropriate suggestion object.  
+   - Replace placeholder comments (e.g., `/* Derive from workout day configuration */`) with the actual logic to obtain the workout scheme.
+
+7. **Visual Feedback and Mobile Responsiveness**  
+   - Add conditional styling (e.g., `${selectedSuggestion ? "border-primary" : ""}`) to the card after confirmation.  
+   - Optionally, use a `useMobile` hook to adjust layout classes (e.g., change spacing for mobile devices).
+
+8. **Final Component Integration**  
+   - Integrate all modifications into the `workout-logger.tsx` file, ensuring the component handles loading, confirmation, and workout initiation states as specified.
+
+All changes must be implemented precisely as described in the provided code snippets.
