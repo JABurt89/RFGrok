@@ -17,9 +17,9 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 function WorkoutsPage() {
   const { toast } = useToast();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
+  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
 
   // Fetch workouts and exercises
   const { data: workouts = [] } = useQuery<WorkoutDay[]>({
@@ -63,8 +63,7 @@ function WorkoutsPage() {
   };
 
   const handleEdit = (workout: WorkoutDay) => {
-    setEditingWorkout({ index: workouts.findIndex(w => w.id === workout.id), workout });
-    setIsSheetOpen(true);
+    setSelectedWorkoutDay(workout);
   };
 
   const handleStartWorkout = () => {
@@ -132,10 +131,7 @@ function WorkoutsPage() {
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Workouts</h2>
-          <Sheet open={isSheetOpen} onOpenChange={(open) => {
-            setIsSheetOpen(open);
-            if (!open) setEditingWorkout(null);
-          }}>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -246,6 +242,14 @@ function WorkoutsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Workout Form */}
+      {selectedWorkoutDay && (
+        <WorkoutDayForm
+          workoutDay={selectedWorkoutDay}
+          onComplete={() => setSelectedWorkoutDay(null)}
+        />
+      )}
     </div>
   );
 }
