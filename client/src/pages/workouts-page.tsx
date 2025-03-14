@@ -12,7 +12,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 function WorkoutsPage() {
   const { toast } = useToast();
@@ -211,23 +211,25 @@ function WorkoutsPage() {
                 ))}
               </RadioGroup>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="w-full mt-4"
-                    onClick={handleStartWorkout}
-                    disabled={!selectedWorkoutId}
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Begin Workout
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {selectedWorkoutId 
-                    ? "Click to start your workout with the selected program"
-                    : "Select a workout program to begin"}
-                </TooltipContent>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-full mt-4"
+                      onClick={handleStartWorkout}
+                      disabled={!selectedWorkoutId}
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      Begin Workout
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {selectedWorkoutId 
+                      ? "Click to start your workout with the selected program"
+                      : "Select a workout program to begin"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
         </div>
