@@ -3,11 +3,11 @@ import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
-import { buttonStyles } from "@/lib/theme"
+import { buttonVariants } from "@/lib/theme"
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonStyles> {
+    VariantProps<typeof buttonVariants> {
   asChild?: boolean
 }
 
@@ -16,7 +16,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button"
     return (
       <Comp
-        className={cn(buttonStyles({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
       />
@@ -25,4 +25,4 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 )
 Button.displayName = "Button"
 
-export { Button, buttonStyles as buttonVariants }
+export { Button, buttonVariants }
