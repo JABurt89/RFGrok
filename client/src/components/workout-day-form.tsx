@@ -2,14 +2,19 @@ import { useForm } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Exercise } from "@/types";
+import { Exercise, WorkoutDay } from "@/types";
 import { useExercises } from "@/hooks/useExercises";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 interface WorkoutDayFormProps {
-  submitWorkoutDay: (data: Partial<WorkoutDay>) => void;
+  submitWorkoutDay?: (data: Partial<WorkoutDay>) => void;
+  workoutDay?: WorkoutDay;
+  onComplete?: () => void;
 }
 
 interface STSParameters {
@@ -150,23 +155,62 @@ const defaultParameters: Record<string, any> = {
   }
 };
 
-export function WorkoutDayForm({ submitWorkoutDay }: WorkoutDayFormProps) {
+export function WorkoutDayForm({ workoutDay, onComplete }: WorkoutDayFormProps) {
+  const { toast } = useToast();
   const { data: exercises = [] } = useExercises();
 
   const form = useForm<WorkoutDayFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      exercises: [{
-        exerciseId: 0,
-        parameters: defaultParameters["STS"]
-      }]
+    defaultValues: workoutDay
+      ? {
+          name: workoutDay.name,
+          exercises: workoutDay.exercises,
+        }
+      : {
+          name: "",
+          exercises: [{
+            exerciseId: 0,
+            parameters: defaultParameters["STS"]
+          }]
+        },
+  });
+
+  const workoutMutation = useMutation({
+    mutationFn: async (data: Partial<WorkoutDay>) => {
+      const method = workoutDay?.id ? "PATCH" : "POST";
+      const url = workoutDay?.id 
+        ? `/api/workout-days/${workoutDay.id}`
+        : "/api/workout-days";
+
+      const response = await apiRequest(method, url, data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to save workout");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
+      toast({
+        title: "Success",
+        description: `Workout day ${workoutDay?.id ? 'updated' : 'created'} successfully`,
+      });
+      if (onComplete) {
+        onComplete();
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   const onSubmit = (data: WorkoutDayFormData) => {
     console.log("Form submitted with data:", data);
-    submitWorkoutDay(data);
+    workoutMutation.mutate(data);
   };
 
   const renderParameterFields = (index: number, scheme: string) => {
