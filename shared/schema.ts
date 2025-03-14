@@ -51,17 +51,20 @@ const doubleProgressionParameters = z.object({
 
 const rptTopSetParameters = z.object({
   scheme: z.literal("RPT Top-Set"),
-  sets: z.number().min(1),
-  targetReps: z.number().min(1),
-  dropPercent: z.number().min(0).max(100),
+  sets: z.number().min(2, "At least 2 sets required"),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  dropPercentages: z.array(z.number().min(0).max(100)),
   ...commonParameters,
 }).strict();
 
 const rptIndividualParameters = z.object({
   scheme: z.literal("RPT Individual"),
-  sets: z.number().min(1),
-  targetReps: z.number().min(1),
-  dropPercent: z.number().min(0).max(100),
+  sets: z.number().min(1, "At least 1 set required"),
+  setConfigs: z.array(z.object({
+    min: z.number().min(1),
+    max: z.number().min(1),
+  })),
   ...commonParameters,
 }).strict();
 
@@ -87,18 +90,22 @@ export const defaultProgressionParameters = {
   "RPT Top-Set": {
     scheme: "RPT Top-Set" as const,
     sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
+    minReps: 6,
+    maxReps: 8,
+    dropPercentages: [0, 10, 10],
+    restBetweenSets: 180,
+    restBetweenExercises: 240,
   },
   "RPT Individual": {
     scheme: "RPT Individual" as const,
     sets: 3,
-    targetReps: 6,
-    dropPercent: 10,
-    restBetweenSets: 90,
-    restBetweenExercises: 180,
+    setConfigs: [
+      { min: 5, max: 7 },
+      { min: 6, max: 8 },
+      { min: 7, max: 9 }
+    ],
+    restBetweenSets: 180,
+    restBetweenExercises: 240,
   },
 } as const;
 
