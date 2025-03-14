@@ -298,7 +298,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           extraSetReps: reps,
           oneRm: progressionScheme.calculate1RM(
             [
-              {weight: Number(lastSet.weight), reps: Number(lastSet.reps)}
+              { weight: Number(lastSet.weight), reps: Number(lastSet.reps) }
             ], reps
           )
         };
@@ -313,21 +313,39 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     setShowExtraSetPrompt(false);
   }, [currentExerciseData, progressionScheme]);
 
-  const handleCombinationSelect = useCallback((combination: STSCombination) => {
+  const handleCombinationSelect = useCallback((combination: ProgressionSuggestion) => {
     if (!currentExerciseData) return;
 
     setWorkoutState(prev => {
       const updatedExercises = prev.exercises.map(exercise => {
         if (exercise.exerciseId !== currentExerciseData.exerciseId) return exercise;
 
+        // Handle set weights based on progression scheme
+        let sets: ExerciseSet[] = [];
+        switch (currentExerciseData.parameters.scheme) {
+          case "RPT Top-Set":
+          case "RPT Individual":
+            // Use the set weights array for RPT schemes
+            sets = (combination.setWeights || []).map((weight, idx) => ({
+              weight,
+              reps: combination.repTargets?.[idx]?.min || combination.reps,
+              timestamp: new Date(),
+              isCompleted: false
+            }));
+            break;
+          default:
+            // For other schemes, use the same weight/reps for all sets
+            sets = Array(combination.sets).fill(null).map(() => ({
+              weight: combination.weight,
+              reps: combination.reps,
+              timestamp: new Date(),
+              isCompleted: false
+            }));
+        }
+
         return {
           ...exercise,
-          sets: Array(combination.sets).fill(null).map(() => ({
-            weight: combination.weight,
-            reps: combination.reps,
-            timestamp: new Date(),
-            isCompleted: false
-          })),
+          sets,
           plannedSets: combination.sets
         };
       });
@@ -358,7 +376,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     }
     setCurrentView("active");
   }, [currentState, toast]);
-
 
   useEffect(() => {
     let interval: number;
@@ -441,6 +458,121 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     );
   }
 
+  const renderProgressionSuggestions = () => {
+    if (!progressionSuggestions.length) return null;
+
+    switch (currentExerciseData?.parameters.scheme) {
+      case "RPT Top-Set":
+        return (
+          <div className="space-y-2">
+            <Label>Select weights for each set:</Label>
+            <RadioGroup
+              value={currentState.plannedSets ?
+                JSON.stringify({
+                  sets: currentState.plannedSets,
+                  reps: currentState.sets[0]?.reps,
+                  weight: currentState.sets[0]?.weight,
+                  setWeights: currentState.sets.map(s => s.weight)
+                }) :
+                undefined}
+              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+            >
+              <div className="space-y-2">
+                {progressionSuggestions.map((combo, idx) => (
+                  <div key={idx} className="flex items-center space-x-2">
+                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
+                    <Label htmlFor={`combo-${idx}`} className="flex-1">
+                      <div className="space-y-1">
+                        <div>Top set: {combo.weight}{currentExercise?.units}</div>
+                        {combo.setWeights?.map((weight, setIdx) => (
+                          <div key={setIdx} className="text-sm text-muted-foreground">
+                            Set {setIdx + 1}: {weight}{currentExercise?.units} ({combo.repTargets?.[setIdx]?.min}-{combo.repTargets?.[setIdx]?.max} reps)
+                          </div>
+                        ))}
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </RadioGroup>
+          </div>
+        );
+
+      case "RPT Individual":
+        return (
+          <div className="space-y-2">
+            <Label>Select weights for individual sets:</Label>
+            <RadioGroup
+              value={currentState.plannedSets ?
+                JSON.stringify({
+                  sets: currentState.plannedSets,
+                  reps: currentState.sets[0]?.reps,
+                  weight: currentState.sets[0]?.weight,
+                  setWeights: currentState.sets.map(s => s.weight)
+                }) :
+                undefined}
+              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+            >
+              <div className="space-y-2">
+                {progressionSuggestions.map((combo, idx) => (
+                  <div key={idx} className="flex items-center space-x-2">
+                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
+                    <Label htmlFor={`combo-${idx}`} className="flex-1">
+                      <div className="space-y-1">
+                        {combo.setWeights?.map((weight, setIdx) => (
+                          <div key={setIdx}>
+                            Set {setIdx + 1}: {weight}{currentExercise?.units} ({combo.repTargets?.[setIdx]?.min}-{combo.repTargets?.[setIdx]?.max} reps)
+                          </div>
+                        ))}
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </RadioGroup>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="space-y-2">
+            <Label>Select a combination:</Label>
+            <RadioGroup
+              value={currentState.plannedSets ?
+                JSON.stringify({
+                  sets: currentState.plannedSets,
+                  reps: currentState.sets[0]?.reps,
+                  weight: Number(currentState.sets[0]?.weight.toFixed(2)),
+                  calculated1RM: calculate1RM(
+                    currentState.sets[0]?.weight || 0,
+                    currentState.sets[0]?.reps || 0,
+                    currentState.plannedSets || 0
+                  )
+                }) :
+                undefined}
+              onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
+            >
+              <div className="space-y-2">
+                {progressionSuggestions.map((combo, idx) => (
+                  <div key={idx} className="flex items-center space-x-2">
+                    <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
+                    <Label htmlFor={`combo-${idx}`}>
+                      {combo.sets} sets × {combo.reps} reps @ {combo.weight.toFixed(2)}{currentExercise?.units}
+                      {combo.calculated1RM && (
+                        <span className="text-sm text-muted-foreground ml-2">
+                          (1RM: {combo.calculated1RM.toFixed(2)}{currentExercise?.units})
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </RadioGroup>
+          </div>
+        );
+    }
+  };
+
   if (currentView === "setup") {
     return (
       <div className="space-y-6">
@@ -500,6 +632,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                 )}
               </div>
             )}
+
+            {renderProgressionSuggestions()}
 
             <Button
               className="w-full"
