@@ -20,8 +20,12 @@ import { useApi } from "@/hooks/useApi";
 
 // Profile form schema
 const profileSchema = z.object({
-  age: z.number().min(0).optional(),
-  weight: z.number().min(0).optional(),
+  age: z.string()
+    .transform((val) => (val === "" ? undefined : parseInt(val, 10)))
+    .pipe(z.number().min(0).optional()),
+  weight: z.string()
+    .transform((val) => (val === "" ? undefined : parseFloat(val)))
+    .pipe(z.number().min(0).optional()),
   goals: z.string().max(255).optional(),
   preferredUnits: z.union([z.literal("kg"), z.literal("lb")]).optional(),
 });
@@ -169,7 +173,12 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Age</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -182,7 +191,13 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Weight ({user?.preferredUnits})</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" {...field} />
+                        <Input
+                          type="number"
+                          step="0.1"
+                          {...field}
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
