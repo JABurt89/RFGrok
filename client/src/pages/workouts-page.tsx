@@ -10,11 +10,15 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 function WorkoutsPage() {
   const { toast } = useToast();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<{ index: number; workout: WorkoutDay } | null>(null);
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
 
   // Fetch workouts and exercises
@@ -63,8 +67,20 @@ function WorkoutsPage() {
     setIsSheetOpen(true);
   };
 
-  const handleBeginWorkout = (workout: WorkoutDay) => {
-    setActiveWorkout(workout);
+  const handleStartWorkout = () => {
+    if (!selectedWorkoutId) {
+      toast({
+        title: "Select a Workout",
+        description: "Please select a workout before starting",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const workout = workouts.find(w => w.id === selectedWorkoutId);
+    if (workout) {
+      setActiveWorkout(workout);
+    }
   };
 
   const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
@@ -74,8 +90,9 @@ function WorkoutsPage() {
       case "Double Progression":
         return `${parameters.scheme} (${parameters.targetSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
       case "RPT Top-Set":
+        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.minReps}-${parameters.maxReps} reps)`;
       case "RPT Individual":
-        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.targetReps} target reps, ${parameters.dropPercent}% drop)`;
+        return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
       default:
         return parameters.scheme;
     }
@@ -128,76 +145,90 @@ function WorkoutsPage() {
             <SheetContent>
               <WorkoutDayForm 
                 submitWorkoutDay={submitWorkoutDay}
-                key={isSheetOpen ? "open" : "closed"} // Force form reset when sheet opens/closes
+                key={isSheetOpen ? "open" : "closed"}
               />
             </SheetContent>
           </Sheet>
         </div>
 
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {workouts.length === 0 ? (
             <div className="text-center p-8 border rounded-lg bg-muted/50">
               <p className="text-muted-foreground">No workouts yet. Click "Add Workout Day" to create your first workout.</p>
             </div>
           ) : (
-            workouts.map((workout) => (
-              <div key={workout.id} className="border rounded-lg p-4 bg-card">
-                <div className="flex items-center justify-between border-b pb-4 mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold">{workout.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(workout)}
-                      className="flex items-center gap-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleBeginWorkout(workout)}
-                      className="flex items-center gap-2"
-                    >
-                      <Play className="h-4 w-4" />
-                      Begin Workout
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {workout.exercises.map((exercise, idx) => {
-                    const exerciseName = getExerciseName(exercise.exerciseId);
-                    const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
-
-                    return (
-                      <div key={idx} className="p-4 rounded-md bg-muted/50">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-lg">{exerciseName}</h4>
-                          {exerciseDetails && (
-                            <span className="text-sm text-muted-foreground">
-                              {exerciseDetails.equipmentName}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                          <p>{formatSchemeDetails(exercise.parameters)}</p>
-                          <p>Rest periods: {exercise.parameters.restBetweenSets}s between sets, {exercise.parameters.restBetweenExercises}s between exercises</p>
-                          {exerciseDetails && (
-                            <p>Equipment details: Starting weight {exerciseDetails.startingWeight}{exerciseDetails.units}, {exerciseDetails.increment}{exerciseDetails.units} increments</p>
-                          )}
+            <div className="space-y-4">
+              <RadioGroup value={selectedWorkoutId?.toString()} onValueChange={(value) => setSelectedWorkoutId(Number(value))}>
+                {workouts.map((workout) => (
+                  <div key={workout.id} className="border rounded-lg p-4 bg-card">
+                    <div className="flex items-center justify-between border-b pb-4 mb-4">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value={workout.id.toString()} id={`workout-${workout.id}`} />
+                        <div>
+                          <Label htmlFor={`workout-${workout.id}`} className="text-xl font-semibold">{workout.name}</Label>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(workout)}
+                        className="flex items-center gap-2"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    </div>
+                    <div className="space-y-4">
+                      {workout.exercises.map((exercise, idx) => {
+                        const exerciseName = getExerciseName(exercise.exerciseId);
+                        const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
+
+                        return (
+                          <div key={idx} className="p-4 rounded-md bg-muted/50">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-lg">{exerciseName}</h4>
+                              {exerciseDetails && (
+                                <span className="text-sm text-muted-foreground">
+                                  {exerciseDetails.equipmentName}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                              <p>{formatSchemeDetails(exercise.parameters)}</p>
+                              <p>Rest periods: {exercise.parameters.restBetweenSets}s between sets, {exercise.parameters.restBetweenExercises}s between exercises</p>
+                              {exerciseDetails && (
+                                <p>Equipment details: Starting weight {exerciseDetails.startingWeight}{exerciseDetails.units}, {exerciseDetails.increment}{exerciseDetails.units} increments</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </RadioGroup>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full mt-4"
+                    onClick={handleStartWorkout}
+                    disabled={!selectedWorkoutId}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Begin Workout
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {selectedWorkoutId 
+                    ? "Click to start your workout with the selected program"
+                    : "Select a workout program to begin"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
           )}
         </div>
       </div>
