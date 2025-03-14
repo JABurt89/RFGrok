@@ -120,11 +120,17 @@ export class DatabaseStorage {
   }
 
   async updateWorkoutDay(id: number, workoutDay: Partial<WorkoutDay>): Promise<WorkoutDay> {
+    // Only update specified fields
+    const updateData: Partial<WorkoutDay> = {};
+    if (workoutDay.name !== undefined) updateData.name = workoutDay.name;
+    if (workoutDay.exercises !== undefined) updateData.exercises = workoutDay.exercises;
+
     const [updated] = await db
       .update(workoutDays)
-      .set(workoutDay)
+      .set(updateData)
       .where(eq(workoutDays.id, id))
       .returning();
+
     if (!updated) throw new Error("Workout day not found");
     return updated;
   }

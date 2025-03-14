@@ -101,7 +101,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[Workout Day Update] Request path:", req.path);
       console.log("[Workout Day Update] Request body:", JSON.stringify(req.body, null, 2));
 
-      const parsed = insertWorkoutDaySchema.partial().parse({
+      // Use partial schema for updates, but ensure exercises are fully validated
+      const parsed = z.object({
+        name: z.string().min(1, "Name is required").optional(),
+        exercises: z.array(z.object({
+          exerciseId: z.number().min(1, "Exercise selection is required"),
+          parameters: z.discriminatedUnion("scheme", [
+            z.object({
+              scheme: z.literal("STS"),
+              minSets: z.number(),
+              maxSets: z.number(),
+              minReps: z.number(),
+              maxReps: z.number(),
+              restBetweenSets: z.number(),
+              restBetweenExercises: z.number(),
+            }),
+            z.object({
+              scheme: z.literal("Double Progression"),
+              targetSets: z.number(),
+              minReps: z.number(),
+              maxReps: z.number(),
+              restBetweenSets: z.number(),
+              restBetweenExercises: z.number(),
+            }),
+            z.object({
+              scheme: z.literal("RPT Top-Set"),
+              sets: z.number().min(2, "At least 2 sets required"),
+              minReps: z.number(),
+              maxReps: z.number(),
+              dropPercentages: z.array(z.number()),
+              restBetweenSets: z.number(),
+              restBetweenExercises: z.number(),
+            }),
+            z.object({
+              scheme: z.literal("RPT Individual"),
+              sets: z.number().min(1, "At least 1 set required"),
+              setConfigs: z.array(z.object({
+                min: z.number(),
+                max: z.number(),
+              })),
+              restBetweenSets: z.number(),
+              restBetweenExercises: z.number(),
+            }),
+          ]),
+        })).optional(),
+      }).parse({
         ...req.body,
         userId: req.user.id
       });
