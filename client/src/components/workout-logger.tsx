@@ -1,17 +1,30 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise } from "../types";
+import { WorkoutDay, WorkoutLog, Exercise, ExerciseSet } from "../types";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { STSProgression, DoubleProgression, RPTTopSetDependent, RPTIndividualProgression, type ProgressionSuggestion } from "@shared/progression";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Loader2, PlayCircle, PauseCircle, CheckCircle, XCircle, WifiOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+// Manual input form schema
+const manualInputSchema = z.object({
+  sets: z.number().min(1, "Sets must be at least 1"),
+  reps: z.number().min(1, "Reps must be at least 1").max(100, "Reps cannot exceed 100"),
+  weight: z.number().min(1, "Weight must be at least 1").max(1000, "Weight cannot exceed 1000"),
+});
+
+type ManualInputForm = z.infer<typeof manualInputSchema>;
 
 type WorkoutLoggerProps = {
   workoutDay: WorkoutDay;
@@ -539,6 +552,41 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     return null;
   };
 
+  const manualForm = useForm<ManualInputForm>({
+    resolver: zodResolver(manualInputSchema),
+    defaultValues: {
+      sets: 1,
+      reps: 8,
+      weight: currentExercise?.startingWeight || 0,
+    },
+  });
+
+  const hasSuggestions = useMemo(() =>
+    progressionSuggestions.length > 0,
+    [progressionSuggestions]
+  );
+
+  const onManualSubmit = (data: ManualInputForm) => {
+    try {
+      const { sets, reps, weight } = data;
+      const suggestion: ProgressionSuggestion = {
+        sets,
+        reps,
+        weight,
+        setWeights: Array(sets).fill(weight),
+        calculated1RM: calculate1RM(weight, reps, sets),
+      };
+
+      handleUseWeights(suggestion);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process manual input",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (currentView === "setup") {
     return (
       <TooltipProvider>
@@ -547,7 +595,10 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             <CardHeader>
               <CardTitle>{currentExercise.name} - Setup</CardTitle>
               <CardDescription>
-                Select your target sets and weights for this exercise
+                {hasSuggestions
+                  ? "Select your target sets and weights for this exercise"
+                  : "Enter your manual workout parameters"
+                }
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -565,7 +616,79 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                 </div>
               )}
 
-              {renderProgressionSuggestions()}
+              {hasSuggestions ? (
+                renderProgressionSuggestions()
+              ) : (
+                <Form {...manualForm}>
+                  <form onSubmit={manualForm.handleSubmit(onManualSubmit)} className="space-y-4">
+                    <FormField
+                      control={manualForm.control}
+                      name="sets"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sets</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <FormControl>
+                                <Input type="number" {...field} onChange={e => field.onChange(+e.target.value)} />
+                              </FormControl>
+                            </TooltipTrigger>
+                            <TooltipContent>Enter number of sets (minimum 1)</TooltipContent>
+                          </Tooltip>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={manualForm.control}
+                      name="reps"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reps</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <FormControl>
+                                <Input type="number" {...field} onChange={e => field.onChange(+e.target.value)} />
+                              </FormControl>
+                            </TooltipTrigger>
+                            <TooltipContent>Enter reps per set (1-100)</TooltipContent>
+                          </Tooltip>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={manualForm.control}
+                      name="weight"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Weight ({currentExercise.units})</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  {...field}
+                                  onChange={e => field.onChange(+e.target.value)}
+                                  step={currentExercise.increment}
+                                />
+                              </FormControl>
+                            </TooltipTrigger>
+                            <TooltipContent>Enter weight (1-1000 {currentExercise.units})</TooltipContent>
+                          </Tooltip>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button type="submit" className="w-full">
+                      Start Exercise
+                    </Button>
+                  </form>
+                </Form>
+              )}
 
               <Tooltip>
                 <TooltipTrigger asChild>
