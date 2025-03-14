@@ -8,11 +8,11 @@ export interface ProgressionSuggestion {
   sets: number;
   reps: number;
   weight: number;
-  calculated1RM: number;
+  calculated1RM?: number;
 }
 
 export interface ProgressionScheme {
-  calculate1RM(sets: ExerciseSet[], extraSetReps?: number): number;
+  calculate1RM?(sets: ExerciseSet[], extraSetReps?: number): number;
   getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[];
 }
 
@@ -43,7 +43,6 @@ export class STSProgression implements ProgressionScheme {
     const S = sets.length;
 
     // Formula: 1RM = W × (1 + 0.025 × R) × (1 + 0.025 × (S – 1))
-    // Round to match exact expected values (e.g. 97.70 for 3x8@77.50)
     const C = Math.round(W * (1 + 0.025 * R) * (1 + 0.025 * (S - 1)) * 100) / 100;
 
     if (typeof extraSetReps === 'number') {
@@ -88,6 +87,150 @@ export class STSProgression implements ProgressionScheme {
       }
     }
 
-    return suggestions.sort((a, b) => a.calculated1RM - b.calculated1RM).slice(0, 10);
+    return suggestions.sort((a, b) => a.calculated1RM! - b.calculated1RM!).slice(0, 10);
+  }
+}
+
+export class DoubleProgression implements ProgressionScheme {
+  private targetSets: number;
+  private minReps: number;
+  private maxReps: number;
+
+  constructor(
+    targetSets: number = 3,
+    minReps: number = 8,
+    maxReps: number = 12
+  ) {
+    this.targetSets = targetSets;
+    this.minReps = minReps;
+    this.maxReps = maxReps;
+  }
+
+  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
+    const suggestions: ProgressionSuggestion[] = [];
+
+    // If last weight is not provided, start with minimum increment
+    if (!lastWeight) {
+      return [{
+        sets: this.targetSets,
+        reps: this.minReps,
+        weight: increment
+      }];
+    }
+
+    // Basic weight suggestion - same weight or increase
+    suggestions.push({
+      sets: this.targetSets,
+      reps: this.minReps,
+      weight: lastWeight
+    });
+
+    // Increase weight if ready to progress
+    suggestions.push({
+      sets: this.targetSets,
+      reps: this.minReps,
+      weight: lastWeight + increment
+    });
+
+    return suggestions;
+  }
+}
+
+export class RPTTopSetDependent implements ProgressionScheme {
+  private sets: number;
+  private targetReps: number;
+  private dropPercent: number;
+
+  constructor(
+    sets: number = 3,
+    targetReps: number = 6,
+    dropPercent: number = 10
+  ) {
+    this.sets = sets;
+    this.targetReps = targetReps;
+    this.dropPercent = dropPercent;
+  }
+
+  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
+    const suggestions: ProgressionSuggestion[] = [];
+
+    // If last weight is not provided, start with minimum increment
+    if (!lastWeight) {
+      return [{
+        sets: this.sets,
+        reps: this.targetReps,
+        weight: increment
+      }];
+    }
+
+    // Calculate weights for all sets based on top set
+    const setWeights = Array(this.sets).fill(0).map((_, idx) => {
+      const dropFactor = Math.pow(1 - this.dropPercent / 100, idx);
+      return Number((lastWeight * dropFactor).toFixed(2));
+    });
+
+    // Current weight suggestion
+    suggestions.push({
+      sets: this.sets,
+      reps: this.targetReps,
+      weight: lastWeight
+    });
+
+    // Progressive overload suggestion
+    suggestions.push({
+      sets: this.sets,
+      reps: this.targetReps,
+      weight: lastWeight + increment
+    });
+
+    return suggestions;
+  }
+}
+
+export class RPTIndividualProgression implements ProgressionScheme {
+  private sets: number;
+  private targetReps: number;
+  private dropPercent: number;
+
+  constructor(
+    sets: number = 3,
+    targetReps: number = 6,
+    dropPercent: number = 10
+  ) {
+    this.sets = sets;
+    this.targetReps = targetReps;
+    this.dropPercent = dropPercent;
+  }
+
+  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
+    const suggestions: ProgressionSuggestion[] = [];
+
+    // If last weight is not provided, start with minimum increment
+    if (!lastWeight) {
+      return [{
+        sets: this.sets,
+        reps: this.targetReps,
+        weight: increment
+      }];
+    }
+
+    // Each set progresses independently based on whether its target reps were met
+    // For the initial suggestion, we'll provide the base pattern
+    const baseWeight = lastWeight;
+
+    suggestions.push({
+      sets: this.sets,
+      reps: this.targetReps,
+      weight: baseWeight
+    });
+
+    // Progressive overload suggestion
+    suggestions.push({
+      sets: this.sets,
+      reps: this.targetReps,
+      weight: baseWeight + increment
+    });
+
+    return suggestions;
   }
 }

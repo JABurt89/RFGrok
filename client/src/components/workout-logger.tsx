@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { WorkoutDay, WorkoutLog, Exercise } from "../types";
-import { STSProgression, type ProgressionSuggestion } from "@shared/progression";
+import { STSProgression, DoubleProgression, RPTTopSetDependent, RPTIndividualProgression, type ProgressionSuggestion } from "@shared/progression";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -106,12 +106,63 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     [currentState.sets]
   );
 
-  const stsProgression = useMemo(() => new STSProgression(), []);
+  const progressionScheme = useMemo(() => {
+    if (!currentExerciseData) return new STSProgression();
+
+    const params = currentExerciseData.parameters;
+    switch (params.scheme) {
+      case "STS":
+        return new STSProgression(
+          params.minSets,
+          params.maxSets,
+          params.minReps,
+          params.maxReps
+        );
+      case "Double Progression":
+        return new DoubleProgression(
+          params.targetSets,
+          params.minReps,
+          params.maxReps
+        );
+      case "RPT Top-Set":
+        return new RPTTopSetDependent(
+          params.sets,
+          params.targetReps,
+          params.dropPercent
+        );
+      case "RPT Individual":
+        return new RPTIndividualProgression(
+          params.sets,
+          params.targetReps,
+          params.dropPercent
+        );
+      default:
+        return new STSProgression();
+    }
+  }, [currentExerciseData]);
+
+  const progressionSuggestions = useMemo(() => {
+    if (!currentExercise || !currentExerciseData) return [];
+
+    switch (currentExerciseData.parameters.scheme) {
+      case "STS":
+        return (progressionScheme as STSProgression).getNextSuggestion(editable1RM, currentExercise.increment);
+      case "Double Progression":
+      case "RPT Top-Set":
+      case "RPT Individual":
+        const lastSet = currentState.sets?.[currentState.sets.length - 1];
+        const lastWeight = lastSet ? lastSet.weight : currentExercise.startingWeight;
+        return progressionScheme.getNextSuggestion(lastWeight, currentExercise.increment);
+      default:
+        return [];
+    }
+  }, [currentExercise, currentExerciseData, progressionScheme, editable1RM, currentState.sets]);
+
 
   const calculate1RM = useCallback((weight: number, reps: number, sets: number, extraSetReps?: number): number => {
     const exerciseSets = Array(sets).fill({ weight, reps });
-    return stsProgression.calculate1RM(exerciseSets, extraSetReps);
-  }, [stsProgression]);
+    return (progressionScheme as STSProgression).calculate1RM(exerciseSets, extraSetReps);
+  }, [progressionScheme]);
 
   const saveWorkoutMutation = useMutation({
     mutationFn: async (workoutLog: WorkoutLog) => {
@@ -197,6 +248,17 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           timestamp: new Date()
         };
 
+        let oneRm = undefined;
+        if (currentExerciseData.parameters.scheme === "STS" && progressionScheme.calculate1RM) {
+          oneRm = progressionScheme.calculate1RM(
+            sets.filter(s => s.isCompleted).map(s => ({
+              weight: Number(s.weight),
+              reps: Number(s.actualReps || s.reps)
+            })),
+            exercise.extraSetReps
+          );
+        }
+
         const allSetsCompleted = sets.every(set => set.isCompleted);
         if (allSetsCompleted && currentExerciseData.parameters.scheme === "STS") {
           setShowExtraSetPrompt(true);
@@ -205,12 +267,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         return {
           ...exercise,
           sets,
-          oneRm: calculate1RM(
-            Number(sets[setIndex].weight),
-            Number(sets[setIndex].actualReps || sets[setIndex].reps),
-            setIndex + 1,
-            exercise.extraSetReps
-          )
+          oneRm
         };
       });
 
@@ -222,7 +279,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
 
     const { setRest } = getRestTimes();
     setRestTimer(setRest);
-  }, [currentExerciseData, calculate1RM]);
+  }, [currentExerciseData, progressionScheme]);
 
   const handleExtraSetComplete = useCallback((reps: number | null) => {
     if (!currentExerciseData || reps === null) {
@@ -239,11 +296,10 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         return {
           ...exercise,
           extraSetReps: reps,
-          oneRm: calculate1RM(
-            Number(lastSet.weight),
-            Number(lastSet.reps),
-            exercise.sets.length,
-            reps
+          oneRm: progressionScheme.calculate1RM(
+            [
+              {weight: Number(lastSet.weight), reps: Number(lastSet.reps)}
+            ], reps
           )
         };
       });
@@ -255,7 +311,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     });
 
     setShowExtraSetPrompt(false);
-  }, [currentExerciseData, calculate1RM]);
+  }, [currentExerciseData, progressionScheme]);
 
   const handleCombinationSelect = useCallback((combination: STSCombination) => {
     if (!currentExerciseData) return;
@@ -302,20 +358,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     }
     setCurrentView("active");
   }, [currentState, toast]);
-
-  const stsCombinations = useMemo(() => {
-    if (!currentExercise || currentExerciseData?.parameters?.scheme !== "STS") return [];
-
-    const stsParams = currentExerciseData.parameters as any;
-    const progression = new STSProgression(
-      stsParams.minSets,
-      stsParams.maxSets,
-      stsParams.minReps,
-      stsParams.maxReps
-    );
-
-    return progression.getNextSuggestion(editable1RM, currentExercise.increment);
-  }, [currentExercise, currentExerciseData, editable1RM]);
 
 
   useEffect(() => {
@@ -422,7 +464,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                   />
                 </div>
 
-                {stsCombinations.length > 0 && (
+                {progressionSuggestions.length > 0 && (
                   <div className="space-y-2">
                     <Label>Select a combination:</Label>
                     <RadioGroup
@@ -441,7 +483,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                       onValueChange={(value) => handleCombinationSelect(JSON.parse(value))}
                     >
                       <div className="space-y-2">
-                        {stsCombinations.map((combo, idx) => (
+                        {progressionSuggestions.map((combo, idx) => (
                           <div key={idx} className="flex items-center space-x-2">
                             <RadioGroupItem value={JSON.stringify(combo)} id={`combo-${idx}`} />
                             <Label htmlFor={`combo-${idx}`}>
@@ -497,10 +539,15 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       <Card>
         <CardHeader>
           <CardTitle>
-            {currentExercise.name} - Active Workout
+            {currentExercise.name} - {currentExerciseData?.parameters.scheme}
           </CardTitle>
           <CardDescription>
             {completedSetsCount} of {currentState.plannedSets || 0} sets completed
+            {currentExerciseData?.parameters.scheme === "STS" && currentState.oneRm && (
+              <div className="mt-1 text-sm">
+                Current 1RM: {currentState.oneRm.toFixed(2)}{currentExercise.units}
+              </div>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
