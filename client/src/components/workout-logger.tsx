@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, PauseCircle } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -15,6 +16,7 @@ interface WorkoutLoggerProps {
 
 export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [currentSet, setCurrentSet] = useState(0);
   const [loggedReps, setLoggedReps] = useState<number[]>([]);
@@ -34,7 +36,7 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
       console.log("Received suggestion:", data);
       return data;
     },
-    enabled: Boolean(exerciseId), // Only run query if exerciseId is provided
+    enabled: Boolean(exerciseId) && Boolean(user), // Only run query if exerciseId is provided and user is authenticated
     retry: 1, // Only retry once
   });
 
@@ -86,6 +88,17 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
     }
     return () => window.clearInterval(interval);
   }, [restTimer]);
+
+  // Not authenticated state
+  if (!user) {
+    return (
+      <Alert>
+        <AlertDescription>
+          Please log in to view workout suggestions.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   // Error state
   if (error) {
@@ -193,9 +206,9 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
           <Button 
             className="w-full" 
             onClick={handleStartWorkout}
-            disabled={!suggestion}
+            disabled={!suggestion || isLoading}
           >
-            Start Workout
+            {isLoading ? "Loading..." : "Start Workout"}
           </Button>
         </CardFooter>
       </Card>

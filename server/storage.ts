@@ -1,7 +1,7 @@
 import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog } from "@shared/schema";
 import { db } from "./db";
 import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
@@ -35,6 +35,17 @@ export class DatabaseStorage {
         log.sets
     }));
   }
+
+  async getUserWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
+    const logs = await db.select()
+        .from(workoutLogs)
+        .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.isComplete, true)))
+        .orderBy(workoutLogs.date, 'desc');
+    return logs.map(log => ({
+        ...log,
+        sets: typeof log.sets === 'string' ? JSON.parse(decrypt(log.sets)) : log.sets
+    }));
+}
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
     console.log("Creating workout log:", insertWorkoutLog);
@@ -177,16 +188,11 @@ export class DatabaseStorage {
     return workoutDay;
   }
 
-  async getLastWorkoutLog(exerciseId: number, userId: number): Promise<WorkoutLog | undefined> {
-    console.log("[Storage] Getting last workout log for exercise:", exerciseId, "userId:", userId);
-    const logs = await db.select()
-      .from(workoutLogs)
-      .where(eq(workoutLogs.userId, userId))
-      .orderBy(workoutLogs.date, 'desc')
-      .limit(1);
-
+  async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
+    console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
+    const logs = await this.getUserWorkoutLogs(userId);
     console.log("[Storage] Found logs:", logs);
-    return logs[0];
+    return logs.find(log => log.sets.some(set => set.exerciseId === exerciseId));
   }
 
   async getNextSuggestion(exerciseId: number, userId: number): Promise<ProgressionSuggestion> {
