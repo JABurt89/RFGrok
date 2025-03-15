@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -11,7 +12,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // Form schema with proper type coercion
@@ -22,39 +23,39 @@ const formSchema = z.object({
     parameters: z.discriminatedUnion("scheme", [
       z.object({
         scheme: z.literal("STS"),
-        minSets: z.coerce.number(),
-        maxSets: z.coerce.number(),
-        minReps: z.coerce.number(),
-        maxReps: z.coerce.number(),
-        restBetweenSets: z.coerce.number(),
-        restBetweenExercises: z.coerce.number(),
+        minSets: z.coerce.number().min(1, "Minimum sets required"),
+        maxSets: z.coerce.number().min(1, "Maximum sets required"),
+        minReps: z.coerce.number().min(1, "Minimum reps required"),
+        maxReps: z.coerce.number().min(1, "Maximum reps required"),
+        restBetweenSets: z.coerce.number().min(1, "Rest time required"),
+        restBetweenExercises: z.coerce.number().min(1, "Rest time required"),
       }),
       z.object({
         scheme: z.literal("Double Progression"),
-        targetSets: z.coerce.number(),
-        minReps: z.coerce.number(),
-        maxReps: z.coerce.number(),
-        restBetweenSets: z.coerce.number(),
-        restBetweenExercises: z.coerce.number(),
+        targetSets: z.coerce.number().min(1, "Target sets required"),
+        minReps: z.coerce.number().min(1, "Minimum reps required"),
+        maxReps: z.coerce.number().min(1, "Maximum reps required"),
+        restBetweenSets: z.coerce.number().min(1, "Rest time required"),
+        restBetweenExercises: z.coerce.number().min(1, "Rest time required"),
       }),
       z.object({
         scheme: z.literal("RPT Top-Set"),
-        sets: z.coerce.number(),
-        minReps: z.coerce.number(),
-        maxReps: z.coerce.number(),
+        sets: z.coerce.number().min(1, "Number of sets required"),
+        minReps: z.coerce.number().min(1, "Minimum reps required"),
+        maxReps: z.coerce.number().min(1, "Maximum reps required"),
         dropPercentages: z.array(z.coerce.number()),
-        restBetweenSets: z.coerce.number(),
-        restBetweenExercises: z.coerce.number(),
+        restBetweenSets: z.coerce.number().min(1, "Rest time required"),
+        restBetweenExercises: z.coerce.number().min(1, "Rest time required"),
       }),
       z.object({
         scheme: z.literal("RPT Individual"),
-        sets: z.coerce.number(),
+        sets: z.coerce.number().min(1, "Number of sets required"),
         setConfigs: z.array(z.object({
-          min: z.coerce.number(),
-          max: z.coerce.number(),
+          min: z.coerce.number().min(1, "Minimum reps required"),
+          max: z.coerce.number().min(1, "Maximum reps required"),
         })),
-        restBetweenSets: z.coerce.number(),
-        restBetweenExercises: z.coerce.number(),
+        restBetweenSets: z.coerce.number().min(1, "Rest time required"),
+        restBetweenExercises: z.coerce.number().min(1, "Rest time required"),
       }),
     ]),
   })).min(1, "At least one exercise is required"),
@@ -102,7 +103,7 @@ const defaultParameters = {
     restBetweenSets: 180,
     restBetweenExercises: 240
   }
-} as const;
+};
 
 interface WorkoutDayFormProps {
   onComplete?: () => void;
@@ -113,6 +114,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   const { toast } = useToast();
   const { data: exercises = [] } = useExercises();
   const isEditMode = Boolean(workoutDay);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -136,15 +138,23 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   const workoutMutation = useMutation({
     mutationFn: async (data: FormData) => {
       console.log("[Workout Form] Submitting data:", JSON.stringify(data, null, 2));
-      const method = isEditMode ? "PATCH" : "POST";
-      const endpoint = isEditMode ? `/api/workout-days/${workoutDay?.id}` : "/api/workout-days";
+      setIsSubmitting(true);
+      try {
+        const method = isEditMode ? "PATCH" : "POST";
+        const endpoint = isEditMode ? `/api/workout-days/${workoutDay?.id}` : "/api/workout-days";
 
-      const response = await apiRequest(method, endpoint, data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to save workout");
+        const response = await apiRequest(method, endpoint, data);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || "Failed to save workout");
+        }
+        return response.json();
+      } catch (error) {
+        console.error("[Workout Form] Error:", error);
+        throw error;
+      } finally {
+        setIsSubmitting(false);
       }
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
@@ -157,6 +167,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
       }
     },
     onError: (error: Error) => {
+      console.error("[Workout Form] Mutation error:", error);
       toast({
         title: "Error",
         description: error.message,
@@ -194,18 +205,24 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     console.log("[Workout Form] Form submitted with data:", JSON.stringify(data, null, 2));
-    workoutMutation.mutate(data);
+    if (form.formState.isValid) {
+      try {
+        await workoutMutation.mutateAsync(data);
+      } catch (error) {
+        console.error("[Workout Form] Submit error:", error);
+      }
+    } else {
+      console.log("[Workout Form] Form validation errors:", form.formState.errors);
+    }
   };
 
   const handleSchemeChange = (value: SchemeType, index: number) => {
     console.log(`[Form] Changing scheme to ${value} for exercise ${index}`);
-    // Reset the entire exercise parameters to default for the new scheme
     const newParameters = defaultParameters[value];
     console.log('[Form] New parameters:', newParameters);
 
-    // Force a complete reset of the parameters
     form.setValue(`exercises.${index}`, {
       ...form.getValues(`exercises.${index}`),
       parameters: newParameters
@@ -254,6 +271,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
                       variant="destructive"
                       size="sm"
                       onClick={() => remove(index)}
+                      disabled={fields.length === 1}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -628,14 +646,23 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                {isEditMode ? 'Update' : 'Create'} Workout
+              <Button 
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  isEditMode ? 'Update' : 'Create'
+                )} Workout
               </Button>
             </div>
           </div>
         </div>
       </form>
     </Form>
-
   );
 }
