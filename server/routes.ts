@@ -4,6 +4,9 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 
 export function registerRoutes(app: Express): Server {
+  // Set up authentication routes first - must be before any API routes
+  setupAuth(app);
+
   app.use((req, res, next) => {
     console.log("[Auth] Request session:", req.session);
     console.log("[Auth] Authentication status:", {
@@ -16,9 +19,7 @@ export function registerRoutes(app: Express): Server {
   // Workout days routes
   app.get("/api/workout-days", async (req, res) => {
     try {
-      console.log("[Workout Days] Fetching workout days for user:", req.user?.id);
       if (!req.isAuthenticated()) {
-        console.log("[Workout Days] Unauthorized request");
         return res.sendStatus(401);
       }
 
@@ -29,6 +30,56 @@ export function registerRoutes(app: Express): Server {
       console.error("[Workout Days] Error:", error);
       res.status(500).json({
         error: error instanceof Error ? error.message : "Failed to fetch workout days"
+      });
+    }
+  });
+
+  // Update workout day
+  app.patch("/api/workout-days/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.sendStatus(401);
+      }
+
+      const workoutDayId = parseInt(req.params.id);
+      const workoutDay = await storage.getWorkoutDays(req.user.id);
+      const userWorkoutDay = workoutDay.find(wd => wd.id === workoutDayId);
+
+      if (!userWorkoutDay) {
+        return res.status(403).json({ error: "Workout day not found or unauthorized" });
+      }
+
+      const updatedWorkoutDay = await storage.updateWorkoutDay(workoutDayId, req.body);
+      res.json(updatedWorkoutDay);
+    } catch (error) {
+      console.error("[Workout Days] Error updating:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to update workout day"
+      });
+    }
+  });
+
+  // Delete workout day
+  app.delete("/api/workout-days/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.sendStatus(401);
+      }
+
+      const workoutDayId = parseInt(req.params.id);
+      const workoutDay = await storage.getWorkoutDays(req.user.id);
+      const userWorkoutDay = workoutDay.find(wd => wd.id === workoutDayId);
+
+      if (!userWorkoutDay) {
+        return res.status(403).json({ error: "Workout day not found or unauthorized" });
+      }
+
+      await storage.deleteWorkoutDay(workoutDayId);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("[Workout Days] Error deleting:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to delete workout day"
       });
     }
   });
@@ -53,17 +104,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+
   // Workout logs routes
   app.get("/api/workout-logs", async (req, res) => {
     try {
-      console.log("[Workout Logs] Fetching logs for user:", req.user?.id);
       if (!req.isAuthenticated()) {
-        console.log("[Workout Logs] Request not authenticated");
         return res.sendStatus(401);
       }
 
       const logs = await storage.getUserWorkoutLogs(req.user.id);
-      console.log("[Workout Logs] Found logs:", logs.length);
       res.json(logs);
     } catch (error) {
       console.error("[Workout Logs] Error:", error);
@@ -77,7 +126,6 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/workout-logs", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        console.log("[Workout Logs] Unauthorized request");
         return res.sendStatus(401);
       }
       const workoutLog = await storage.createWorkoutLog({
@@ -97,7 +145,6 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/workout-logs/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        console.log("[Workout Logs] Unauthorized update request");
         return res.sendStatus(401);
       }
 
@@ -121,7 +168,6 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        console.log("[Workout Suggestion] Unauthorized request");
         return res.sendStatus(401);
       }
 
@@ -141,8 +187,6 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
-  // Set up authentication routes - must be last to not interfere with API routes
-  setupAuth(app);
 
   const httpServer = createServer(app);
   return httpServer;

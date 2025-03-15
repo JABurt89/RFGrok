@@ -199,6 +199,7 @@ function WorkoutsPage() {
         <Dialog open={true} onOpenChange={() => setSelectedWorkoutDay(null)}>
           <DialogContent className="sm:max-w-[600px]">
             <WorkoutDayForm
+              workoutDay={selectedWorkoutDay}
               onComplete={() => {
                 setSelectedWorkoutDay(null);
                 queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });

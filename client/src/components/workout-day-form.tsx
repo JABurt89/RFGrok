@@ -2,7 +2,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Exercise } from "@/types";
+import { Exercise, WorkoutDay } from "@/types";
 import { useExercises } from "@/hooks/useExercises";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -63,15 +64,20 @@ type FormData = z.infer<typeof formSchema>;
 
 interface WorkoutDayFormProps {
   onComplete?: () => void;
+  workoutDay?: WorkoutDay; // Optional workout day for editing
 }
 
-export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
+export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) {
   const { toast } = useToast();
   const { data: exercises = [] } = useExercises();
+  const isEditMode = Boolean(workoutDay);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: workoutDay ? {
+      name: workoutDay.name,
+      exercises: workoutDay.exercises
+    } : {
       name: "",
       exercises: [{
         exerciseId: 0,
@@ -96,7 +102,10 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
   const workoutMutation = useMutation({
     mutationFn: async (data: FormData) => {
       console.log("[Workout Form] Submitting data:", JSON.stringify(data, null, 2));
-      const response = await apiRequest("POST", "/api/workout-days", data);
+      const method = isEditMode ? "PATCH" : "POST";
+      const endpoint = isEditMode ? `/api/workout-days/${workoutDay?.id}` : "/api/workout-days";
+
+      const response = await apiRequest(method, endpoint, data);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || "Failed to save workout");
@@ -107,7 +116,35 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
       toast({
         title: "Success",
-        description: "Workout day created successfully",
+        description: `Workout day ${isEditMode ? 'updated' : 'created'} successfully`,
+      });
+      if (onComplete) {
+        onComplete();
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!workoutDay) throw new Error("No workout day to delete");
+      const response = await apiRequest("DELETE", `/api/workout-days/${workoutDay.id}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete workout");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
+      toast({
+        title: "Success",
+        description: "Workout day deleted successfully",
       });
       if (onComplete) {
         onComplete();
@@ -130,8 +167,10 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Create Workout</h2>
-        <Badge variant="default">Create Mode</Badge>
+        <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
+        <Badge variant={isEditMode ? "secondary" : "default"}>
+          {isEditMode ? 'Edit Mode' : 'Create Mode'}
+        </Badge>
       </div>
 
       <Form {...form}>
@@ -199,7 +238,6 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
                     <Select
                       value={field.value}
                       onValueChange={(value: FormData["exercises"][0]["parameters"]["scheme"]) => {
-                        // Set default values based on scheme
                         let defaultParams;
                         switch (value) {
                           case "STS":
@@ -266,7 +304,6 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
                 )}
               />
 
-              {/* Scheme-specific parameters */}
               {form.watch(`exercises.${index}.parameters.scheme`) === "STS" && (
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -324,7 +361,6 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
                 </div>
               )}
 
-              {/* Rest period fields (common to all schemes) */}
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -378,6 +414,33 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
           </Button>
 
           <div className="flex gap-2">
+            {isEditMode && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive" className="flex-1">
+                    Delete Workout
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete this workout day
+                      and all associated data.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -387,7 +450,7 @@ export function WorkoutDayForm({ onComplete }: WorkoutDayFormProps) {
               Cancel
             </Button>
             <Button type="submit" className="flex-1">
-              Create Workout
+              {isEditMode ? 'Update' : 'Create'} Workout
             </Button>
           </div>
         </form>

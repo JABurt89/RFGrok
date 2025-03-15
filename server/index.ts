@@ -20,6 +20,20 @@ app.use(express.urlencoded({ extended: false }));
 // Trust first proxy for secure cookies
 app.set("trust proxy", 1);
 
+// Basic request logging
+app.use((req, _res, next) => {
+  console.log(`[Request] ${req.method} ${req.path}`, {
+    headers: {
+      cookie: req.headers.cookie,
+      authorization: req.headers.authorization,
+      'content-type': req.headers['content-type']
+    },
+    session: req.session,
+    user: req.user
+  });
+  next();
+});
+
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET!,
@@ -47,17 +61,6 @@ if (process.env.NODE_ENV !== "production") {
     next();
   });
 }
-
-// Basic request logging
-app.use((req, _res, next) => {
-  console.log(`${req.method} ${req.path}`, {
-    headers: req.headers,
-    cookies: req.cookies,
-    session: req.session,
-    user: req.user
-  });
-  next();
-});
 
 // Basic error handling
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

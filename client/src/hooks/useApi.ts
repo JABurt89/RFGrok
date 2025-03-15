@@ -15,15 +15,6 @@ interface UseApiOptions<TData = unknown, TError = Error> {
   parseResponse?: boolean;
 }
 
-interface PendingSync {
-  method: ApiMethod;
-  url: string;
-  data: unknown;
-  timestamp: number;
-}
-
-const SYNC_QUEUE_KEY = 'workout_sync_queue';
-
 export function useApi<TData = unknown, TError = Error>({
   url,
   method = "GET",
@@ -33,112 +24,17 @@ export function useApi<TData = unknown, TError = Error>({
   onError,
   parseResponse = true,
 }: UseApiOptions<TData, TError>): UseQueryResult<TData, TError> | UseMutationResult<TData, TError, unknown> {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [conflict, setConflict] = useState<{ local: WorkoutLog; cloud: WorkoutLog } | null>(null);
-
-  // Handle online/offline status
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      processSyncQueue();
-    };
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Queue management functions
-  const addToSyncQueue = (operation: PendingSync) => {
-    const queue = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-    queue.push(operation);
-    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
-  };
-
-  const processSyncQueue = async () => {
-    const queue: PendingSync[] = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || '[]');
-    if (queue.length === 0) return;
-
-    const sortedQueue = queue.sort((a, b) => a.timestamp - b.timestamp);
-
-    for (const operation of sortedQueue) {
-      try {
-        const cloudResponse = await apiRequest("GET", operation.url);
-        const cloudData = await cloudResponse.json();
-
-        if (operation.method === "POST" || operation.method === "PATCH") {
-          const localData = operation.data as WorkoutLog;
-          const cloudLog = cloudData as WorkoutLog;
-
-          if (new Date(localData.date) > new Date(cloudLog.date)) {
-            setConflict({ local: localData, cloud: cloudLog });
-            return;
-          }
-        }
-
-        await apiRequest(operation.method, operation.url, operation.data);
-      } catch (error) {
-        console.error('Error processing sync queue:', error);
-        return;
-      }
-    }
-
-    localStorage.setItem(SYNC_QUEUE_KEY, '[]');
-    queryClient.invalidateQueries();
-  };
-
-  const handleOfflineOperation = (operation: PendingSync) => {
-    addToSyncQueue(operation);
-    const offlineData = operation.data as TData;
-    queryClient.setQueryData(queryKey, offlineData);
-    onSuccess?.(offlineData);
-  };
-
-  const parseApiResponse = async (response: Response): Promise<TData> => {
-    // If parseResponse is false or response is empty, return empty object
-    if (!parseResponse || response.headers.get('content-length') === '0') {
-      return {} as TData;
-    }
-
-    // Check content type
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return {} as TData;
-    }
-
-    try {
-      return await response.json();
-    } catch (error) {
-      console.error('Error parsing JSON response:', error);
-      return {} as TData;
-    }
-  };
-
   // For GET requests, use useQuery
   if (method === "GET") {
     return useQuery<TData, TError>({
       queryKey,
       queryFn: async () => {
-        try {
-          const response = await apiRequest(method, url);
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || `API call failed: ${response.statusText}`);
-          }
-          return parseApiResponse(response);
-        } catch (error) {
-          if (!isOnline) {
-            // Return cached data if available
-            const cachedData = queryClient.getQueryData<TData>(queryKey);
-            if (cachedData) return cachedData;
-          }
-          throw error;
+        const response = await apiRequest(method, url);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || `API call failed: ${response.statusText}`);
         }
+        return parseResponse ? response.json() : ({} as TData);
       },
     });
   }
@@ -146,23 +42,12 @@ export function useApi<TData = unknown, TError = Error>({
   // For other methods, use useMutation
   return useMutation<TData, TError, unknown>({
     mutationFn: async (mutationData = data) => {
-      if (!isOnline) {
-        handleOfflineOperation({
-          method,
-          url,
-          data: mutationData,
-          timestamp: Date.now(),
-        });
-        return mutationData as TData;
-      }
-
       const response = await apiRequest(method, url, mutationData);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || `API call failed: ${response.statusText}`);
       }
-
-      return parseApiResponse(response);
+      return parseResponse ? response.json() : ({} as TData);
     },
     onSuccess: (responseData) => {
       queryClient.invalidateQueries({ queryKey });
