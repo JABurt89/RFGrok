@@ -166,10 +166,15 @@ export class DatabaseStorage {
   }
 
   async getExerciseWorkoutConfig(exerciseId: number): Promise<WorkoutDay | undefined> {
+    console.log("[Storage] Getting workout config for exercise:", exerciseId);
     const workoutDays = await this.getWorkoutDays(undefined);
-    return workoutDays.find(day => 
+    console.log("[Storage] Found workout days:", workoutDays);
+
+    const workoutDay = workoutDays.find(day => 
       day.exercises.some(ex => ex.exerciseId === exerciseId)
     );
+    console.log("[Storage] Found workout day config:", workoutDay);
+    return workoutDay;
   }
 
   async getLastWorkoutLog(exerciseId: number): Promise<WorkoutLog | undefined> {
@@ -189,16 +194,31 @@ export class DatabaseStorage {
 
     // Get exercise details
     const exercise = await this.getExercise(exerciseId);
-    if (!exercise) throw new Error("Exercise not found");
+    if (!exercise) {
+      console.log("[Storage] Exercise not found:", exerciseId);
+      throw new Error("Exercise not found");
+    }
     console.log("[Storage] Found exercise:", exercise);
 
     // Get workout configuration
     const workoutDay = await this.getExerciseWorkoutConfig(exerciseId);
-    if (!workoutDay) throw new Error("Exercise not configured in any workout day");
+    if (!workoutDay) {
+      console.log("[Storage] No workout day found for exercise:", exerciseId);
+      // Return a default suggestion if no workout day is configured
+      return {
+        sets: 3,
+        reps: 8,
+        weight: exercise.startingWeight,
+        calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+      };
+    }
     console.log("[Storage] Found workout day:", workoutDay);
 
     const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
-    if (!exerciseConfig) throw new Error("Exercise configuration not found");
+    if (!exerciseConfig) {
+      console.log("[Storage] No exercise config found in workout day");
+      throw new Error("Exercise configuration not found");
+    }
     console.log("[Storage] Found exercise config:", exerciseConfig);
 
     // Get last workout log
@@ -210,34 +230,35 @@ export class DatabaseStorage {
     switch (exerciseConfig.parameters.scheme) {
       case "STS":
         progression = new STSProgression(
-          exerciseConfig.parameters.minSets,
-          exerciseConfig.parameters.maxSets,
-          exerciseConfig.parameters.minReps,
-          exerciseConfig.parameters.maxReps
+          exerciseConfig.parameters.minSets || 3,
+          exerciseConfig.parameters.maxSets || 5,
+          exerciseConfig.parameters.minReps || 5,
+          exerciseConfig.parameters.maxReps || 8
         );
         break;
       case "Double Progression":
         progression = new DoubleProgression(
-          exerciseConfig.parameters.targetSets,
-          exerciseConfig.parameters.minReps,
-          exerciseConfig.parameters.maxReps
+          exerciseConfig.parameters.targetSets || 3,
+          exerciseConfig.parameters.minReps || 8,
+          exerciseConfig.parameters.maxReps || 12
         );
         break;
       case "RPT Top-Set":
         progression = new RPTTopSetDependent(
-          exerciseConfig.parameters.sets,
-          exerciseConfig.parameters.minReps,
-          exerciseConfig.parameters.maxReps
+          exerciseConfig.parameters.sets || 3,
+          exerciseConfig.parameters.minReps || 6,
+          exerciseConfig.parameters.maxReps || 8
         );
         break;
       case "RPT Individual":
         progression = new RPTIndividualProgression(
-          exerciseConfig.parameters.sets,
+          exerciseConfig.parameters.sets || 3,
           exerciseConfig.parameters.setConfigs
         );
         break;
       default:
-        throw new Error("Unknown progression scheme");
+        console.log("[Storage] Using default STS progression");
+        progression = new STSProgression();
     }
 
     // Get next suggestion
@@ -248,8 +269,13 @@ export class DatabaseStorage {
     const suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
     console.log("[Storage] Generated suggestions:", suggestions);
 
-    // Return first suggestion
-    return suggestions[0];
+    // Return first suggestion with default values if undefined
+    return suggestions[0] || {
+      sets: 3,
+      reps: 8,
+      weight: exercise.startingWeight,
+      calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+    };
   }
 }
 

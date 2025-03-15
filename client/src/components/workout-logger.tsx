@@ -23,15 +23,19 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
   // Fetch workout suggestion
   const { data: suggestion, isLoading, error } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
-    queryFn: () => 
-      apiRequest("GET", `/api/workout-suggestion?exerciseId=${exerciseId}`)
-        .then(res => {
-          if (!res.ok) {
-            throw new Error('Failed to fetch workout suggestion');
-          }
-          return res.json();
-        }),
-    enabled: !!exerciseId, // Only run query if exerciseId is provided
+    queryFn: async () => {
+      console.log("Fetching suggestion for exercise:", exerciseId);
+      const response = await apiRequest("GET", `/api/workout-suggestion?exerciseId=${exerciseId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch workout suggestion');
+      }
+      const data = await response.json();
+      console.log("Received suggestion:", data);
+      return data;
+    },
+    enabled: Boolean(exerciseId), // Only run query if exerciseId is provided
+    retry: 1, // Only retry once
   });
 
   // Handle workout start
@@ -88,7 +92,7 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Error loading workout suggestion. Please try again.
+          {error instanceof Error ? error.message : 'Error loading workout suggestion. Please try again.'}
         </AlertDescription>
       </Alert>
     );
@@ -162,7 +166,7 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
           {isLoading ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading...</span>
+              <span className="ml-2">Loading suggestions...</span>
             </div>
           ) : suggestion ? (
             <div className="space-y-2">
@@ -180,7 +184,7 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
           ) : (
             <Alert>
               <AlertDescription>
-                No workout suggestion available
+                No workout suggestion available. Please try refreshing the page.
               </AlertDescription>
             </Alert>
           )}
