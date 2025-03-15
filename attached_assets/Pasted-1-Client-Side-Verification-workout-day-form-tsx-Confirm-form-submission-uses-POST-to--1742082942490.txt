@@ -1,0 +1,68 @@
+1. **Client-Side Verification (workout-day-form.tsx)**
+   - Confirm form submission uses POST to `/api/workout-days`.
+   - Ensure mutation uses:  
+     ```typescript
+     const res = await apiRequest("POST", "/api/workout-days", data);
+     return res.json();
+     ```
+   - Validate endpoint URL spelling.
+
+2. **Server-Side Endpoint (server/routes.ts)**
+   - Add POST endpoint:
+     ```typescript
+     router.post("/api/workout-days", async (req, res) => {
+       try {
+         const validatedData = insertWorkoutDaySchema.parse(req.body);
+         const workoutDay = await storage.createWorkoutDay(validatedData);
+         res.status(201).json(workoutDay);
+       } catch (error) {
+         res.status(500).json({ error: (error as Error).message });
+       }
+     });
+     ```
+   - Ensure `storage.createWorkoutDay` is correctly implemented.
+
+3. **Route Ordering (server/index.ts)**
+   - Use JSON body parser:
+     ```typescript
+     app.use(express.json());
+     ```
+   - Mount API routes before Vite catch-all:
+     ```typescript
+     app.use("/api", apiRoutes);
+     // then call setupVite or serveStatic
+     ```
+
+4. **Global Error Handler (server/index.ts)**
+   - Insert after API routes but before catch-all:
+     ```typescript
+     app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+       console.error(err.stack);
+       res.status(500).json({ error: "Internal Server Error" });
+     });
+     ```
+
+5. **Client-Side Error Handling (apiRequest)**
+   - Modify function to handle non-JSON responses:
+     ```typescript
+     export async function apiRequest(method: string, url: string, data?: any) {
+       const options: RequestInit = {
+         method,
+         headers: { "Content-Type": "application/json" },
+         body: data ? JSON.stringify(data) : undefined,
+       };
+       const res = await fetch(url, options);
+       if (!res.ok) {
+         const text = await res.text();
+         throw new Error(`HTTP error! Status: ${res.status}, Body: ${text.slice(0, 100)}...`);
+       }
+       return res.json();
+     }
+     ```
+
+6. **Testing**
+   - Restart the server.
+   - Submit a workout day creation form.
+   - Verify POST `/api/workout-days` returns status 201 with JSON body.
+   - Check network logs for unexpected HTML responses.
+

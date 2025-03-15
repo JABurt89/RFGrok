@@ -143,11 +143,19 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
         const method = isEditMode ? "PATCH" : "POST";
         const endpoint = isEditMode ? `/api/workout-days/${workoutDay?.id}` : "/api/workout-days";
 
-        const response = await apiRequest(method, endpoint, data);
+        const response = await fetch(endpoint, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || "Failed to save workout");
+          const text = await response.text();
+          throw new Error(`HTTP error! Status: ${response.status}, Body: ${text}`);
         }
+
         return response.json();
       } catch (error) {
         console.error("[Workout Form] Error:", error);
@@ -180,7 +188,13 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     mutationFn: async () => {
       if (!workoutDay) throw new Error("No workout day to delete");
 
-      const response = await apiRequest("DELETE", `/api/workout-days/${workoutDay.id}`);
+      const response = await fetch(`/api/workout-days/${workoutDay.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || error.message || "Failed to delete workout");
