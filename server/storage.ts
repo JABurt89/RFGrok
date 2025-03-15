@@ -54,28 +54,99 @@ export class DatabaseStorage {
   }
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
-    console.log("Creating workout log:", insertWorkoutLog);
-    const encryptedSets = encrypt(JSON.stringify(insertWorkoutLog.sets));
-    const [workoutLog] = await db.insert(workoutLogs)
+    console.log("[Storage] Creating workout log:", insertWorkoutLog);
+
+    // Fetch the workout day to get progression schemes
+    const [workoutDay] = await db
+      .select()
+      .from(workoutDays)
+      .where(eq(workoutDays.id, insertWorkoutLog.workoutDayId));
+    if (!workoutDay) throw new Error("Workout day not found");
+
+    // Calculate 1RM for each exercise in sets
+    const setsWith1RM = insertWorkoutLog.sets.map(setData => {
+      const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === setData.exerciseId);
+      if (!exerciseConfig) {
+        console.warn(`[Storage] No exercise config found for exerciseId: ${setData.exerciseId}`);
+        return setData; // Return unchanged if no config
+      }
+
+      let calculated1RM: number;
+      switch (exerciseConfig.parameters.scheme) {
+        case "STS":
+          const stsProgression = new STSProgression();
+          calculated1RM = stsProgression.calculate1RM(
+            setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
+          );
+          break;
+        case "Double Progression":
+          calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+          break;
+        case "RPT Top-Set":
+        case "RPT Individual":
+          calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+          break;
+        default:
+          calculated1RM = 0;
+      }
+      console.log(`[Storage] Calculated 1RM for exercise ${setData.exerciseId}: ${calculated1RM}`);
+      return { ...setData, oneRm: calculated1RM };
+    });
+
+    const encryptedSets = encrypt(JSON.stringify(setsWith1RM));
+    const [workoutLog] = await db
+      .insert(workoutLogs)
       .values({
         ...insertWorkoutLog,
-        sets: encryptedSets
+        sets: encryptedSets,
       })
       .returning();
 
     return {
       ...workoutLog,
-      sets: typeof workoutLog.sets === 'string' ?
-        JSON.parse(decrypt(workoutLog.sets)) :
-        workoutLog.sets
+      sets: typeof workoutLog.sets === "string" ? JSON.parse(decrypt(workoutLog.sets)) : workoutLog.sets,
     };
   }
 
   async updateWorkoutLog(id: number, updates: Partial<WorkoutLog>): Promise<WorkoutLog> {
     const updateData = { ...updates };
+
     if (updateData.sets) {
-      const encryptedSets = encrypt(JSON.stringify(updateData.sets));
-      updateData.sets = encryptedSets;
+      const [workoutLog] = await db.select().from(workoutLogs).where(eq(workoutLogs.id, id));
+      if (!workoutLog) throw new Error("Workout log not found");
+
+      const [workoutDay] = await db
+        .select()
+        .from(workoutDays)
+        .where(eq(workoutDays.id, workoutLog.workoutDayId));
+      if (!workoutDay) throw new Error("Workout day not found");
+
+      const setsWith1RM = updateData.sets.map(setData => {
+        const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === setData.exerciseId);
+        if (!exerciseConfig) return setData;
+
+        let calculated1RM: number;
+        switch (exerciseConfig.parameters.scheme) {
+          case "STS":
+            const stsProgression = new STSProgression();
+            calculated1RM = stsProgression.calculate1RM(
+              setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
+            );
+            break;
+          case "Double Progression":
+            calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+            break;
+          case "RPT Top-Set":
+          case "RPT Individual":
+            calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+            break;
+          default:
+            calculated1RM = 0;
+        }
+        return { ...setData, oneRm: calculated1RM };
+      });
+
+      updateData.sets = encrypt(JSON.stringify(setsWith1RM));
     }
 
     console.log("[Storage] Updating workout log:", id, "with:", updateData);
@@ -90,9 +161,7 @@ export class DatabaseStorage {
 
     return {
       ...updated,
-      sets: typeof updated.sets === 'string' ?
-        JSON.parse(decrypt(updated.sets)) :
-        updated.sets
+      sets: typeof updated.sets === "string" ? JSON.parse(decrypt(updated.sets)) : updated.sets,
     };
   }
 
