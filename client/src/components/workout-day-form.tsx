@@ -227,9 +227,9 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
           </Badge>
         </div>
 
-        {/* Content area with padding for footer */}
-        <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
-          <div className="space-y-4 pb-24">
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -592,48 +592,46 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               <Plus className="h-4 w-4 mr-2" />
               Add Exercise
             </Button>
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 border-t bg-background p-4">
-          <div className="flex gap-2 justify-end">
-            {isEditMode && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button type="button" variant="destructive">
-                    Delete Workout
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete this workout day.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deleteMutation.mutate()}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onComplete?.()}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">
-              {isEditMode ? 'Update' : 'Create'} Workout
-            </Button>
+            {/* Action Buttons */}
+            <div className="flex gap-2 justify-end pt-6 border-t mt-8">
+              {isEditMode && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive">
+                      Delete Workout
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this workout day.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onComplete?.()}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                {isEditMode ? 'Update' : 'Create'} Workout
+              </Button>
+            </div>
           </div>
         </div>
       </form>
