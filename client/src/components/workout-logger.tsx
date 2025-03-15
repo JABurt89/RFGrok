@@ -189,7 +189,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                       Option {idx + 1}: {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight}kg
                     </span>
                     <span className="text-sm text-muted-foreground">
-                      Estimated 1RM: {suggestion.calculated1RM.toFixed(1)}kg
+                      Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}kg
                     </span>
                   </div>
                 </Button>
@@ -281,7 +281,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                   onChange={(e) => setExtraSetReps(parseInt(e.target.value))}
                 />
               )}
-              <Button 
+              <Button
                 onClick={() => completeMutation.mutate()}
                 disabled={completeMutation.isPending}
               >

@@ -419,6 +419,8 @@ export class DatabaseStorage {
                 // Find the combination that gets us closest to our target 1RM
                 let bestCombo = combinations[0];
                 let smallestDiff = Infinity;
+                let bestWeight = baseWeight;
+                let bestAchieved1RM = base1RM;
 
                 combinations.forEach(combo => {
                     const requiredWeight = targetRM / combo.multiplier;
@@ -429,25 +431,23 @@ export class DatabaseStorage {
                     if (diff < smallestDiff) {
                         smallestDiff = diff;
                         bestCombo = combo;
+                        bestWeight = roundedWeight;
+                        bestAchieved1RM = achieved1RM;
                     }
                 });
-
-                // Calculate the exact weight needed for this combination
-                const weight = Math.ceil((targetRM / bestCombo.multiplier) / increment) * increment;
-                const achieved1RM = weight * bestCombo.multiplier;
 
                 suggestions.push({
                     sets: bestCombo.sets,
                     reps: bestCombo.reps,
-                    weight: Math.round(weight * 2) / 2,
-                    calculated1RM: Math.round(achieved1RM * 2) / 2,
+                    weight: bestWeight, // Keep full precision for weight for calculations
+                    calculated1RM: bestAchieved1RM, // Keep full precision for 1RM
                     parameters: {
                         scheme: "STS",
                         ...exerciseConfig.parameters
                     }
                 });
 
-                currentWeight = weight;
+                currentWeight = bestWeight;
             }
 
             console.log("[Storage] Generated STS suggestions:", suggestions);
