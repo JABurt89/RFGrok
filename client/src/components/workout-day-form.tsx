@@ -217,7 +217,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)]">
+    <div className="flex flex-col h-full max-h-[85vh]">
       <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
         <Badge variant={isEditMode ? "secondary" : "default"}>
@@ -593,7 +593,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
             </Button>
           </div>
 
-          <div className="border-t p-4 bg-background">
+          <div className="sticky bottom-0 border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex gap-2">
               {isEditMode && (
                 <AlertDialog>
