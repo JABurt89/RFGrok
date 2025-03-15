@@ -32,15 +32,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const createLogMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
+      if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
 
       const response = await apiRequest("POST", "/api/workout-logs", {
         userId: user.id,
-        workoutDayId,
         date: new Date().toISOString(),
         sets: [{
           exerciseId,
           sets: [],
           extraSetReps: undefined,
+          parameters: selectedSuggestion.parameters,
         }],
         isComplete: false
       });
@@ -70,6 +71,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     mutationFn: async () => {
       if (!workoutLogId) throw new Error("No active workout log");
       if (!user) throw new Error("Not authenticated");
+      if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
 
       const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
         sets: [{
@@ -80,7 +82,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             timestamp: new Date().toISOString()
           })),
           extraSetReps,
-          oneRm: selectedSuggestion?.calculated1RM
+          oneRm: selectedSuggestion?.calculated1RM,
+          parameters: selectedSuggestion.parameters,
         }],
         isComplete: true
       });

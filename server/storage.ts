@@ -56,23 +56,10 @@ export class DatabaseStorage {
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
     console.log("[Storage] Creating workout log:", insertWorkoutLog);
 
-    // Fetch the workout day to get progression schemes
-    const [workoutDay] = await db
-      .select()
-      .from(workoutDays)
-      .where(eq(workoutDays.id, insertWorkoutLog.workoutDayId));
-    if (!workoutDay) throw new Error("Workout day not found");
-
     // Calculate 1RM for each exercise in sets
     const setsWith1RM = insertWorkoutLog.sets.map(setData => {
-      const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === setData.exerciseId);
-      if (!exerciseConfig) {
-        console.warn(`[Storage] No exercise config found for exerciseId: ${setData.exerciseId}`);
-        return setData; // Return unchanged if no config
-      }
-
       let calculated1RM: number;
-      switch (exerciseConfig.parameters.scheme) {
+      switch (setData.parameters.scheme) {
         case "STS":
           const stsProgression = new STSProgression();
           calculated1RM = stsProgression.calculate1RM(
@@ -115,18 +102,10 @@ export class DatabaseStorage {
       const [workoutLog] = await db.select().from(workoutLogs).where(eq(workoutLogs.id, id));
       if (!workoutLog) throw new Error("Workout log not found");
 
-      const [workoutDay] = await db
-        .select()
-        .from(workoutDays)
-        .where(eq(workoutDays.id, workoutLog.workoutDayId));
-      if (!workoutDay) throw new Error("Workout day not found");
 
       const setsWith1RM = updateData.sets.map(setData => {
-        const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === setData.exerciseId);
-        if (!exerciseConfig) return setData;
-
         let calculated1RM: number;
-        switch (exerciseConfig.parameters.scheme) {
+        switch (setData.parameters.scheme) {
           case "STS":
             const stsProgression = new STSProgression();
             calculated1RM = stsProgression.calculate1RM(
@@ -318,32 +297,29 @@ export class DatabaseStorage {
     console.log("[Storage] Found logs:", logs.length);
 
     // Find the most recent log that has sets for this exercise
-    const relevantLog = logs.find(log => {
-      console.log("[Storage] Checking log:", log.id, "sets:", log.sets);
-      return log.sets.some(set => set.exerciseId === exerciseId);
-    });
+    const relevantLog = logs.find(log => log.sets.some(set => set.exerciseId === exerciseId));
 
     if (relevantLog) {
       const exerciseSets = relevantLog.sets.find(s => s.exerciseId === exerciseId);
       if (exerciseSets && exerciseSets.sets.length > 0) {
-        // Calculate 1RM using the STS formula for each set and take the highest
-        const progression = new STSProgression();
-        const calculated1RM = progression.calculate1RM(
-          exerciseSets.sets.map(set => ({
-            reps: set.reps,
-            weight: set.weight,
-            isFailure: false
-          }))
-        );
-
-        console.log("[Storage] Exercise sets:", exerciseSets.sets);
-        console.log("[Storage] Calculated 1RM:", calculated1RM);
-
-        // Store the calculated 1RM
+        // Calculate 1RM using the progression scheme's formula
+        let calculated1RM: number;
+        switch (exerciseSets.parameters.scheme) {
+          case "STS":
+            const progression = new STSProgression();
+            calculated1RM = progression.calculate1RM(
+              exerciseSets.sets.map(set => ({
+                reps: set.reps,
+                weight: set.weight,
+                isFailure: false
+              }))
+            );
+            break;
+          default:
+            calculated1RM = exerciseSets.sets[0].weight * (1 + 0.025 * exerciseSets.sets[0].reps);
+        }
         exerciseSets.oneRm = calculated1RM;
       }
-    } else {
-      console.log("[Storage] No relevant workout logs found for exercise:", exerciseId);
     }
 
     return relevantLog;

@@ -37,7 +37,7 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false for development
       sameSite: "lax", // Allow cookies in cross-site requests
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: "/",
@@ -90,10 +90,11 @@ export function setupAuth(app: Express) {
       const user = await storage.getUser(id);
       if (user) {
         console.log("[Auth] User deserialized successfully:", user.id);
+        done(null, user);
       } else {
         console.log("[Auth] User not found during deserialization:", id);
+        done(null, false);
       }
-      done(null, user);
     } catch (error) {
       console.error("[Auth] Deserialization error:", error);
       done(error);

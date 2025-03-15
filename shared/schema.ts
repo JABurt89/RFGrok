@@ -152,7 +152,6 @@ export const workoutDays = pgTable("workout_days", {
 export const workoutLogs = pgTable("workout_logs", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
-  workoutDayId: integer("workout_day_id").references(() => workoutDays.id),
   date: timestamp("date").notNull(),
   sets: jsonb("sets").notNull().$type<{
     exerciseId: number;
@@ -163,6 +162,7 @@ export const workoutLogs = pgTable("workout_logs", {
     }>;
     extraSetReps?: number; // For STS progression tracking
     oneRm?: number; // Calculated 1RM for the exercise
+    parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   }>(),
   isComplete: boolean("is_complete").default(false).notNull(),
 });
@@ -209,7 +209,13 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
         ])
       })),
       extraSetReps: z.number().optional(),
-      oneRm: z.number().optional()
+      oneRm: z.number().optional(),
+      parameters: z.discriminatedUnion("scheme", [
+        stsParameters,
+        doubleProgressionParameters,
+        rptTopSetParameters,
+        rptIndividualParameters,
+      ])
     }))
   });
 
@@ -227,7 +233,6 @@ export type InsertWorkoutDay = z.infer<typeof insertWorkoutDaySchema>;
 export type WorkoutLog = {
   id?: number;
   userId?: number;
-  workoutDayId: number;
   date: Date | string;
   sets: {
     exerciseId: number;
@@ -238,6 +243,7 @@ export type WorkoutLog = {
     }>;
     extraSetReps?: number;
     oneRm?: number;
+    parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   }[];
   isComplete?: boolean;
 };

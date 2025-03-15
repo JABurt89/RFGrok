@@ -14,6 +14,7 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   try {
+    console.log(`[API] ${method} ${url}`, data ? { data } : '');
     const res = await fetch(url, {
       method,
       headers: data ? { "Content-Type": "application/json" } : {},
@@ -21,9 +22,11 @@ export async function apiRequest(
       credentials: "include", // Always include credentials
     });
 
+    console.log(`[API] Response status:`, res.status);
     await throwIfResNotOk(res);
     return res;
   } catch (error) {
+    console.error(`[API] Error in ${method} ${url}:`, error);
     toast({
       title: "Error",
       description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -40,10 +43,12 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     try {
+      console.log(`[Query] GET ${queryKey[0]}`);
       const res = await fetch(queryKey[0] as string, {
         credentials: "include", // Always include credentials for queries
       });
 
+      console.log(`[Query] Response status:`, res.status);
       if (unauthorizedBehavior === "returnNull" && res.status === 401) {
         return null;
       }
@@ -51,6 +56,7 @@ export const getQueryFn: <T>(options: {
       await throwIfResNotOk(res);
       return await res.json();
     } catch (error) {
+      console.error(`[Query] Error fetching ${queryKey[0]}:`, error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
