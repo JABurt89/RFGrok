@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { WorkoutLog, Exercise, WorkoutDay } from "@/types";
+import { WorkoutLog, Exercise } from "@/types";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import {
@@ -30,11 +30,6 @@ export default function WorkoutHistoryPage() {
   // Fetch exercises for reference
   const { data: exercises = [], isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
-  });
-
-  // Fetch workout days for reference
-  const { data: workoutDays = [], isLoading: workoutDaysLoading } = useQuery<WorkoutDay[]>({
-    queryKey: ["/api/workout-days"],
   });
 
   // Delete mutation
@@ -70,13 +65,7 @@ export default function WorkoutHistoryPage() {
     return exercise ? exercise.name : "Unknown Exercise";
   };
 
-  const getWorkoutDayName = (workoutDayId: number) => {
-    if (!workoutDays) return "Loading...";
-    const workoutDay = workoutDays.find(w => w.id === workoutDayId);
-    return workoutDay ? workoutDay.name : "Unknown Workout";
-  };
-
-  if (logsLoading || exercisesLoading || workoutDaysLoading) {
+  if (logsLoading || exercisesLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -115,9 +104,9 @@ export default function WorkoutHistoryPage() {
                 <Card key={log.id}>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle>{getWorkoutDayName(log.workoutDayId)}</CardTitle>
+                      <CardTitle>{format(new Date(log.date), "PPP")}</CardTitle>
                       <CardDescription>
-                        {format(new Date(log.date), "PPP")}
+                        {log.sets.length} exercises logged
                       </CardDescription>
                     </div>
                     <div className="flex gap-2">

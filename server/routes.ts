@@ -74,14 +74,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ error: "Workout day not found or unauthorized" });
       }
 
-      // Check for associated logs
-      const logs = await storage.getWorkoutLogsByWorkoutDayId(workoutDayId);
-      if (logs.length > 0) {
-        return res.status(400).json({ 
-          error: "Cannot delete workout day with existing logs. Please delete the associated workout logs first." 
-        });
-      }
-
       await storage.deleteWorkoutDay(workoutDayId);
       res.sendStatus(200);
     } catch (error) {
