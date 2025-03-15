@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { WorkoutDay, WorkoutLog, Exercise, ExerciseSet } from "../types";
+import { WorkoutDay, WorkoutLog, Exercise } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { STSProgression, DoubleProgression, RPTTopSetDependent, RPTIndividualProgression, type ProgressionSuggestion } from "@shared/progression";
+import { STSProgression, type ProgressionSuggestion } from "@shared/progression";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,36 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+// Types
+type WorkoutView = "setup" | "active";
+
+interface WorkoutState {
+  workoutDayId: number;
+  date: Date;
+  exercises: Array<{
+    exerciseId: number;
+    scheme: string;
+    sets: Array<{
+      weight: number;
+      reps: number;
+      actualReps?: number;
+      isCompleted?: boolean;
+      timestamp: Date;
+    }>;
+    extraSetReps?: number;
+    oneRm?: number;
+    plannedSets?: number;
+  }>;
+}
+
+interface ExerciseSet {
+  weight: number;
+  reps: number;
+  actualReps?: number;
+  isCompleted?: boolean;
+  timestamp: Date;
+}
 
 // Manual input form schema
 const manualInputSchema = z.object({
@@ -105,24 +135,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
           params.minReps,
           params.maxReps
         );
-      case "Double Progression":
-        return new DoubleProgression(
-          params.targetSets,
-          params.minReps,
-          params.maxReps
-        );
-      case "RPT Top-Set":
-        return new RPTTopSetDependent(
-          params.sets,
-          params.targetReps,
-          params.dropPercent
-        );
-      case "RPT Individual":
-        return new RPTIndividualProgression(
-          params.sets,
-          params.targetReps,
-          params.dropPercent
-        );
       default:
         return new STSProgression();
     }
@@ -134,12 +146,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     switch (currentExerciseData.parameters.scheme) {
       case "STS":
         return (progressionScheme as STSProgression).getNextSuggestion(editable1RM, currentExercise.increment);
-      case "Double Progression":
-      case "RPT Top-Set":
-      case "RPT Individual":
-        const lastSet = currentState.sets?.[currentState.sets.length - 1];
-        const lastWeight = lastSet ? lastSet.weight : currentExercise.startingWeight;
-        return progressionScheme.getNextSuggestion(lastWeight, currentExercise.increment);
       default:
         return [];
     }
@@ -455,28 +461,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     const suggestion = progressionSuggestions[0];
 
     switch (currentExerciseData?.parameters.scheme) {
-      case "RPT Top-Set":
-      case "RPT Individual":
-        return (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Suggested weights:</h3>
-            <div className="space-y-1 p-4 rounded-md bg-muted">
-              {suggestion.setWeights?.map((weight, setIdx) => (
-                <div key={setIdx}>
-                  Set {setIdx + 1}: {weight}{currentExercise?.units} ({suggestion.repTargets?.[setIdx]?.min}-{suggestion.repTargets?.[setIdx]?.max} reps)
-                </div>
-              ))}
-            </div>
-            <Button
-              className="w-full mt-2"
-              onClick={() => handleUseWeights(suggestion)}
-              variant={selectedSuggestion === suggestion ? "default" : "outline"}
-            >
-              {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
-            </Button>
-          </div>
-        );
-
       default:
         return (
           <div className="space-y-2">
@@ -588,17 +572,17 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   };
 
   // Fetch suggestion from API
-  const { data: suggestion } = useQuery<ProgressionSuggestion>({
+  const { data: apiSuggestion } = useQuery<ProgressionSuggestion>({
     queryKey: [`/api/workout-suggestion?exerciseId=${currentExerciseData?.exerciseId}`],
     enabled: !!currentExerciseData?.exerciseId,
   });
 
   // Effect to set initial suggestion
   useEffect(() => {
-    if (suggestion && !selectedSuggestion) {
-      setSelectedSuggestion(suggestion);
+    if (apiSuggestion && !selectedSuggestion) {
+      setSelectedSuggestion(apiSuggestion);
     }
-  }, [suggestion, selectedSuggestion]);
+  }, [apiSuggestion, selectedSuggestion]);
 
   // Render suggestion card with improved layout
   const renderSuggestionCard = (suggestion: ProgressionSuggestion) => (
@@ -644,12 +628,12 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             <CardHeader>
               <CardTitle>{currentExercise.name} - Setup</CardTitle>
               <CardDescription>
-                {suggestion ? "Confirm your workout weights" : "Loading suggestion..."}
+                {apiSuggestion ? "Confirm your workout weights" : "Loading suggestion..."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {suggestion ? (
-                renderSuggestionCard(suggestion)
+              {apiSuggestion ? (
+                renderSuggestionCard(apiSuggestion)
               ) : (
                 <div className="flex items-center justify-center p-4">
                   <Loader2 className="h-6 w-6 animate-spin" />
