@@ -217,16 +217,16 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[85vh]">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
-        <Badge variant={isEditMode ? "secondary" : "default"}>
-          {isEditMode ? 'Edit Mode' : 'Create Mode'}
-        </Badge>
-      </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="flex flex-col h-[calc(85vh-2rem)]">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
+            <Badge variant={isEditMode ? "secondary" : "default"}>
+              {isEditMode ? 'Edit Mode' : 'Create Mode'}
+            </Badge>
+          </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <FormField
               control={form.control}
@@ -594,7 +594,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
           </div>
 
           <div className="sticky bottom-0 border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="flex gap-2">
+            <div className="flex gap-2 max-w-[600px] mx-auto">
               {isEditMode && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -634,8 +634,8 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               </Button>
             </div>
           </div>
-        </form>
-      </Form>
-    </div>
+        </div>
+      </form>
+    </Form>
   );
 }
