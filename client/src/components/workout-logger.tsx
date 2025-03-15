@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,40 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
   const [loggedReps, setLoggedReps] = useState<number[]>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [estimated1RM, setEstimated1RM] = useState<number | null>(null);
+  const [currentWorkoutLogId, setCurrentWorkoutLogId] = useState<number | null>(null);
+
+  // Complete workout mutation
+  const completeMutation = useMutation({
+    mutationFn: async (logId: number) => {
+      const response = await apiRequest("PATCH", `/api/workout-logs/${logId}`, { isComplete: true });
+      if (!response.ok) {
+        throw new Error("Failed to complete workout");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
+      toast({
+        title: "Success",
+        description: "Workout completed successfully",
+      });
+      onComplete();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle completing the workout
+  const handleCompleteWorkout = async () => {
+    if (currentWorkoutLogId) {
+      await completeMutation.mutate(currentWorkoutLogId);
+    }
+  };
 
   // Fetch workout suggestion
   const { data: suggestion, isLoading, error } = useQuery({
@@ -223,7 +257,19 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
             End Workout
           </Button>
           {currentSet >= (suggestion?.sets || 0) && (
-            <Button onClick={onComplete}>Complete Workout</Button>
+            <Button 
+              onClick={handleCompleteWorkout}
+              disabled={completeMutation.isPending}
+            >
+              {completeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Completing...
+                </>
+              ) : (
+                "Complete Workout"
+              )}
+            </Button>
           )}
         </CardFooter>
       </Card>

@@ -135,6 +135,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/workout-logs/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const id = parseInt(req.params.id);
+      const { isComplete } = req.body;
+      console.log("[PATCH /api/workout-logs] Updating log:", id, "with:", { isComplete });
+      const updatedLog = await storage.updateWorkoutLog(id, { isComplete });
+      res.json(updatedLog);
+    } catch (error) {
+      console.error("[PATCH /api/workout-logs] Error:", error);
+      res.status(500).json({ error: "Failed to update workout log" });
+    }
+  });
+
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);

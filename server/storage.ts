@@ -51,7 +51,7 @@ export class DatabaseStorage {
     console.log("[Storage] First parsed log sets:", parsedLogs.length > 0 ? JSON.stringify(parsedLogs[0].sets, null, 2) : "No logs");
 
     return parsedLogs;
-}
+  }
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
     console.log("Creating workout log:", insertWorkoutLog);
@@ -71,12 +71,14 @@ export class DatabaseStorage {
     };
   }
 
-  async updateWorkoutLog(id: number, workoutLog: Partial<WorkoutLog>): Promise<WorkoutLog> {
-    const updateData = { ...workoutLog };
+  async updateWorkoutLog(id: number, updates: Partial<WorkoutLog>): Promise<WorkoutLog> {
+    const updateData = { ...updates };
     if (updateData.sets) {
       const encryptedSets = encrypt(JSON.stringify(updateData.sets));
       updateData.sets = encryptedSets;
     }
+
+    console.log("[Storage] Updating workout log:", id, "with:", updateData);
 
     const [updated] = await db
       .update(workoutLogs)
@@ -239,7 +241,7 @@ export class DatabaseStorage {
     }
 
     return workoutDay;
-}
+  }
 
   async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
     console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
@@ -374,7 +376,7 @@ export class DatabaseStorage {
 
         throw new Error("Exercise not found and cannot generate suggestion");
     }
-}
+  }
 }
 
 export const storage = new DatabaseStorage();
