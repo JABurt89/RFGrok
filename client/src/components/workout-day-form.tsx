@@ -218,7 +218,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-[90vh]">
         {/* Header */}
         <div className="p-4 border-b">
           <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
@@ -228,8 +228,8 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
         </div>
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-4">
+        <div className="h-[75vh] overflow-y-auto">
+          <div className="p-4 space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -636,5 +636,6 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
         </div>
       </form>
     </Form>
+
   );
 }
