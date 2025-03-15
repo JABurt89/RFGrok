@@ -307,62 +307,244 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
                     )}
                   />
 
-                  {form.watch(`exercises.${index}.parameters.scheme`) === "STS" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name={`exercises.${index}.parameters.minSets`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min Sets</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`exercises.${index}.parameters.maxSets`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Sets</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`exercises.${index}.parameters.minReps`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Min Reps</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name={`exercises.${index}.parameters.maxReps`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Max Reps</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
+                  {/* Show scheme-specific fields */}
+                  {(() => {
+                    const scheme = form.watch(`exercises.${index}.parameters.scheme`);
+                    switch (scheme) {
+                      case "STS":
+                        return (
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.minSets`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Min Sets</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.maxSets`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Max Sets</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.minReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Min Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.maxReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Max Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        );
+
+                      case "Double Progression":
+                        return (
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.targetSets`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Target Sets</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.minReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Min Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.maxReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Max Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        );
+
+                      case "RPT Top-Set":
+                        return (
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.sets`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Number of Sets</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} onChange={(e) => {
+                                      field.onChange(e);
+                                      const sets = parseInt(e.target.value);
+                                      form.setValue(`exercises.${index}.parameters.dropPercentages`,
+                                        Array(sets).fill(0).map((_, i) => i === 0 ? 0 : 10)
+                                      );
+                                    }} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.minReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Min Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.maxReps`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Max Reps</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            {form.watch(`exercises.${index}.parameters.dropPercentages`)?.map((_, setIndex) => (
+                              <FormField
+                                key={setIndex}
+                                control={form.control}
+                                name={`exercises.${index}.parameters.dropPercentages.${setIndex}`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{setIndex === 0 ? "Top Set (0%)" : `Set ${setIndex + 1} Drop %`}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        {...field}
+                                        disabled={setIndex === 0}
+                                        value={setIndex === 0 ? 0 : field.value}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                        );
+
+                      case "RPT Individual":
+                        return (
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`exercises.${index}.parameters.sets`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Number of Sets</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} onChange={(e) => {
+                                      field.onChange(e);
+                                      const sets = parseInt(e.target.value);
+                                      form.setValue(`exercises.${index}.parameters.setConfigs`,
+                                        Array(sets).fill(0).map((_, i) => ({ min: 6, max: 8 }))
+                                      );
+                                    }} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            {form.watch(`exercises.${index}.parameters.setConfigs`)?.map((_, setIndex) => (
+                              <div key={setIndex} className="col-span-2 grid grid-cols-2 gap-4 border p-2 rounded">
+                                <FormField
+                                  control={form.control}
+                                  name={`exercises.${index}.parameters.setConfigs.${setIndex}.min`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Set {setIndex + 1} Min Reps</FormLabel>
+                                      <FormControl>
+                                        <Input type="number" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name={`exercises.${index}.parameters.setConfigs.${setIndex}.max`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Set {setIndex + 1} Max Reps</FormLabel>
+                                      <FormControl>
+                                        <Input type="number" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+
+                      default:
+                        return null;
+                    }
+                  })()}
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
