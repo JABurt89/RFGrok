@@ -16,7 +16,7 @@ export interface ProgressionSuggestion {
 
 export interface ProgressionScheme {
   calculate1RM?(sets: ExerciseSet[], extraSetReps?: number): number;
-  getNextSuggestion(lastWeight: number, increment: number, previousFailures?: number | boolean[]): ProgressionSuggestion;
+  getNextSuggestion(lastWeight: number, increment: number, previousFailures?: number | boolean[]): ProgressionSuggestion[];
 }
 
 export class STSProgression implements ProgressionScheme {
@@ -60,9 +60,10 @@ export class STSProgression implements ProgressionScheme {
     return C;
   }
 
-  getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion {
+  getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[] {
     const suggestions: ProgressionSuggestion[] = [];
 
+    // Generate a range of combinations
     for (let sets = this.minSets; sets <= this.maxSets; sets++) {
       for (let reps = this.minReps; reps <= this.maxReps; reps++) {
         const baseW = last1RM / ((1 + 0.025 * reps) * (1 + 0.025 * (sets - 1)));
@@ -80,14 +81,10 @@ export class STSProgression implements ProgressionScheme {
       }
     }
 
-    // Return the suggestion with the smallest increase in 1RM
-    const sorted = suggestions.sort((a, b) => a.calculated1RM! - b.calculated1RM!);
-    return sorted[0] || {
-      sets: this.minSets,
-      reps: this.minReps,
-      weight: increment,
-      calculated1RM: increment
-    };
+    // Sort by smallest to largest 1RM increase and take top 5
+    return suggestions
+      .sort((a, b) => a.calculated1RM! - b.calculated1RM!)
+      .slice(0, 5);
   }
 }
 
@@ -106,20 +103,20 @@ export class DoubleProgression implements ProgressionScheme {
     this.maxReps = maxReps;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion {
+  getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion[] {
     if (!lastWeight) {
-      return {
+      return [{
         sets: this.targetSets,
         reps: this.minReps,
         weight: increment
-      };
+      }];
     }
 
-    return {
+    return [{
       sets: this.targetSets,
       reps: this.minReps,
       weight: lastWeight + increment
-    };
+    }];
   }
 }
 
@@ -127,30 +124,27 @@ export class RPTTopSetDependent implements ProgressionScheme {
   private sets: number;
   private minReps: number;
   private maxReps: number;
-  private dropPercentages: number[];
 
   constructor(
     sets: number = 3,
     minReps: number = 6,
-    maxReps: number = 8,
-    dropPercentages: number[] = [0, 10, 10]
+    maxReps: number = 8
   ) {
     this.sets = sets;
     this.minReps = minReps;
     this.maxReps = maxReps;
-    this.dropPercentages = dropPercentages;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion {
+  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
     const baseWeight = lastWeight || increment;
     const topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
 
-    return {
+    return [{
       sets: this.sets,
       reps: this.minReps,
       weight: topSetWeight,
       calculated1RM: topSetWeight * (1 + 0.025 * this.minReps)
-    };
+    }];
   }
 }
 
@@ -178,13 +172,14 @@ export class RPTIndividualProgression implements ProgressionScheme {
     return configs;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion {
+  getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
     const baseWeight = lastWeight || increment;
-    return {
+
+    return [{
       sets: this.sets,
       reps: this.setConfigs[0].min,
       weight: baseWeight,
       calculated1RM: baseWeight * (1 + 0.025 * this.setConfigs[0].min)
-    };
+    }];
   }
 }

@@ -149,7 +149,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
       default:
         return [];
     }
-  }, [currentExercise, currentExerciseData, progressionScheme, editable1RM, currentState.sets]);
+  }, [currentExercise, currentExerciseData, progressionScheme, editable1RM]);
 
 
   const calculate1RM = useCallback((weight: number, reps: number, sets: number, extraSetReps?: number): number => {
@@ -307,14 +307,6 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData, progressionScheme]);
 
   const handleUseWeights = (suggestion: ProgressionSuggestion) => {
-    if (!suggestion.setWeights || suggestion.setWeights.length === 0) {
-      toast({
-        title: "Error",
-        description: "Invalid weight suggestions received",
-        variant: "destructive"
-      });
-      return;
-    }
     setSelectedSuggestion(suggestion);
     console.log("Weights confirmed:", suggestion);
   };
@@ -458,15 +450,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   const renderProgressionSuggestions = () => {
     if (!progressionSuggestions.length) return null;
 
-    const suggestion = progressionSuggestions[0];
-
-    switch (currentExerciseData?.parameters.scheme) {
-      default:
-        return (
-          <div className="space-y-2">
-            <Label>Select a combination:</Label>
-            <div className="space-y-2">
-              <div className="p-4 rounded-md bg-muted">
+    return (
+      <div className="space-y-4">
+        <Label>Select a combination:</Label>
+        <div className="space-y-2">
+          {progressionSuggestions.map((suggestion, index) => (
+            <div key={index} className="p-4 rounded-md bg-muted">
+              <div>
                 {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight.toFixed(2)}{currentExercise?.units}
                 {suggestion.calculated1RM && (
                   <div className="text-sm text-muted-foreground mt-1">
@@ -475,16 +465,17 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                 )}
               </div>
               <Button
-                className="w-full"
+                className="w-full mt-2"
                 onClick={() => handleUseWeights(suggestion)}
                 variant={selectedSuggestion === suggestion ? "default" : "outline"}
               >
-                {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
+                {selectedSuggestion === suggestion ? "Selected" : "Use These Weights"}
               </Button>
             </div>
-          </div>
-        );
-    }
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const renderSetInputs = (set: ExerciseSet, index: number) => {
@@ -637,6 +628,8 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
                   <span className="ml-2">Loading suggestion...</span>
                 </div>
               )}
+
+              {renderProgressionSuggestions()}
 
               <Tooltip>
                 <TooltipTrigger asChild>
