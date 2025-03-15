@@ -4,12 +4,21 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 
 export function registerRoutes(app: Express): Server {
+  app.use((req, res, next) => {
+    console.log("[Auth] Request session:", req.session);
+    console.log("[Auth] Authentication status:", {
+      isAuthenticated: req.isAuthenticated(),
+      user: req.user?.id
+    });
+    next();
+  });
+
   // Workout days routes
   app.get("/api/workout-days", async (req, res) => {
     try {
       console.log("[Workout Days] Fetching workout days for user:", req.user?.id);
       if (!req.isAuthenticated()) {
-        console.log("[Workout Days] Request not authenticated");
+        console.log("[Workout Days] Unauthorized request");
         return res.sendStatus(401);
       }
 
@@ -64,41 +73,66 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Create workout log
+  app.post("/api/workout-logs", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        console.log("[Workout Logs] Unauthorized request");
+        return res.sendStatus(401);
+      }
+      const workoutLog = await storage.createWorkoutLog({
+        ...req.body,
+        userId: req.user.id // Ensure user ID is set from session
+      });
+      res.status(201).json(workoutLog);
+    } catch (error) {
+      console.error("[Workout Logs] Error creating log:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to create workout log"
+      });
+    }
+  });
+
+  // Update workout log
+  app.patch("/api/workout-logs/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        console.log("[Workout Logs] Unauthorized update request");
+        return res.sendStatus(401);
+      }
+
+      // Verify the workout log belongs to the authenticated user
+      const existingLog = await storage.getWorkoutLog(parseInt(req.params.id));
+      if (!existingLog || existingLog.userId !== req.user.id) {
+        return res.sendStatus(403);
+      }
+
+      const workoutLog = await storage.updateWorkoutLog(parseInt(req.params.id), req.body);
+      res.json(workoutLog);
+    } catch (error) {
+      console.error("[Workout Logs] Error updating log:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to update workout log"
+      });
+    }
+  });
+
+  // Workout suggestion
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        console.log("[Workout Suggestion] Request not authenticated");
+        console.log("[Workout Suggestion] Unauthorized request");
         return res.sendStatus(401);
       }
 
       const exerciseId = parseInt(req.query.exerciseId as string);
       const estimated1RM = req.query.estimated1RM ? parseFloat(req.query.estimated1RM as string) : undefined;
-      console.log("[Workout Suggestion] Request parameters:", {
-        exerciseId,
-        estimated1RM,
-        userId: req.user.id
-      });
 
       if (isNaN(exerciseId) || !exerciseId) {
-        console.log("[Workout Suggestion] Invalid exercise ID:", req.query.exerciseId);
         return res.status(400).json({ error: "Exercise ID is required" });
       }
 
-      const exercise = await storage.getExercise(exerciseId);
-      if (!exercise) {
-        console.log("[Workout Suggestion] Exercise not found:", exerciseId);
-        return res.status(404).json({ error: "Exercise not found" });
-      }
-      console.log("[Workout Suggestion] Found exercise:", exercise);
-
-      // Get workout configuration to determine if it's STS or another scheme
-      const workoutDay = await storage.getExerciseWorkoutConfig(exerciseId, req.user.id);
-      const exerciseConfig = workoutDay?.exercises.find(ex => ex.exerciseId === exerciseId);
-      console.log("[Workout Suggestion] Exercise config:", exerciseConfig);
-
       const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id, estimated1RM);
-      console.log("[Workout Suggestion] Generated suggestion:", suggestion);
-
       res.json(suggestion);
     } catch (error) {
       console.error("[Workout Suggestion] Error:", error);
@@ -107,8 +141,7 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
-
-  // Set up authentication routes
+  // Set up authentication routes - must be last to not interfere with API routes
   setupAuth(app);
 
   const httpServer = createServer(app);

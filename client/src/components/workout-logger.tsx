@@ -26,12 +26,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
+  const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
 
   // Create workout log mutation
   const createLogMutation = useMutation({
     mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+
       const response = await apiRequest("POST", "/api/workout-logs", {
-        userId: user?.id,
+        userId: user.id,
         workoutDayId,
         date: new Date().toISOString(),
         sets: [{
@@ -41,12 +44,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
         }],
         isComplete: false
       });
+
       if (!response.ok) {
-        throw new Error("Failed to create workout log");
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create workout log");
       }
+
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setWorkoutLogId(data.id);
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
     },
     onError: (error: Error) => {
@@ -61,7 +68,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   // Complete workout mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutDayId}`, {
+      if (!workoutLogId) throw new Error("No active workout log");
+      if (!user) throw new Error("Not authenticated");
+
+      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
         sets: [{
           exerciseId,
           sets: loggedReps.map((reps, index) => ({
@@ -76,7 +86,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       });
 
       if (!response.ok) {
-        throw new Error("Failed to complete workout");
+        const error = await response.json();
+        throw new Error(error.error || "Failed to complete workout");
       }
       return response.json();
     },
@@ -101,12 +112,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const { data: suggestions = [], isLoading, error } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
     queryFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+
       const url = new URL('/api/workout-suggestion', window.location.origin);
       url.searchParams.append('exerciseId', exerciseId.toString());
       const response = await apiRequest("GET", url.toString());
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch workout suggestion');
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch workout suggestion");
       }
       return response.json();
     },
@@ -208,7 +222,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                 </span>
                 {suggestions.calculated1RM && (
                   <span className="text-sm text-muted-foreground">
-                    Estimated 1RM: {suggestions.calculated1RM.toFixed(1)}kg
+                    Estimated 1RM: {suggestions.calculated1RM.toFixed(2)}kg
                   </span>
                 )}
               </div>
