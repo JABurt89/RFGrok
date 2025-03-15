@@ -190,9 +190,8 @@ export class DatabaseStorage {
   }
 
   async getNextSuggestion(exerciseId: number, userId: number): Promise<ProgressionSuggestion> {
-    console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "userId:", userId);
+    console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId);
 
-    // Get exercise details
     const exercise = await this.getExercise(exerciseId);
     if (!exercise) {
       console.log("[Storage] Exercise not found:", exerciseId);
@@ -200,11 +199,9 @@ export class DatabaseStorage {
     }
     console.log("[Storage] Found exercise:", exercise);
 
-    // Get workout configuration
     const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
     if (!workoutDay) {
       console.log("[Storage] No workout day found for exercise:", exerciseId);
-      // Return a default suggestion if no workout day is configured
       return {
         sets: 3,
         reps: 8,
@@ -221,11 +218,9 @@ export class DatabaseStorage {
     }
     console.log("[Storage] Found exercise config:", exerciseConfig);
 
-    // Get last workout log
     const lastLog = await this.getLastWorkoutLog(exerciseId, userId);
     console.log("[Storage] Last log:", lastLog);
 
-    // Create appropriate progression scheme
     let progression;
     switch (exerciseConfig.parameters.scheme) {
       case "STS":
@@ -261,15 +256,19 @@ export class DatabaseStorage {
         progression = new STSProgression();
     }
 
-    // Get next suggestion
     const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
-    const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
-    console.log("[Storage] Using last weight:", lastWeight);
-
-    const suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
+    let suggestions;
+    if (exerciseConfig.parameters.scheme === "STS") {
+      const last1RM = lastSetData?.oneRm ?? 0;
+      console.log("[Storage] Using last 1RM for STS:", last1RM);
+      suggestions = progression.getNextSuggestion(last1RM, exercise.increment);
+    } else {
+      const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
+      console.log("[Storage] Using last weight:", lastWeight);
+      suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
+    }
     console.log("[Storage] Generated suggestions:", suggestions);
 
-    // Return first suggestion with default values if undefined
     return suggestions[0] || {
       sets: 3,
       reps: 8,
