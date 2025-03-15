@@ -102,6 +102,7 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
 
   // Error state
   if (error) {
+    console.error("Workout suggestion error:", error);
     return (
       <Alert variant="destructive">
         <AlertDescription>
