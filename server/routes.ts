@@ -24,6 +24,26 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Exercises routes
+  app.get("/api/exercises", async (req, res) => {
+    try {
+      console.log("[Exercises] Fetching exercises for user:", req.user?.id);
+      if (!req.isAuthenticated()) {
+        console.log("[Exercises] Request not authenticated");
+        return res.sendStatus(401);
+      }
+
+      const exercises = await storage.getExercises(req.user.id);
+      console.log("[Exercises] Found exercises:", exercises.length);
+      res.json(exercises);
+    } catch (error) {
+      console.error("[Exercises] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch exercises"
+      });
+    }
+  });
+
   // Workout logs routes
   app.get("/api/workout-logs", async (req, res) => {
     try {
