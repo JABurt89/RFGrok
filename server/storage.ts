@@ -397,33 +397,31 @@ export class DatabaseStorage {
                 console.log("[Storage] Using calculated 1RM from logs:", last1RM);
             }
 
-            const progression = new STSProgression(
-                exerciseConfig.parameters.minSets || 3,
-                exerciseConfig.parameters.maxSets || 5,
-                exerciseConfig.parameters.minReps || 5,
-                exerciseConfig.parameters.maxReps || 8
-            );
-
-            // Generate 5 different suggestions with incrementing weights
+            // Generate 5 progressive suggestions
             const suggestions: ProgressionSuggestion[] = [];
-            let baseWeight = last1RM > 0 ? last1RM : (exercise.startingWeight || 20);
+            let baseWeight = last1RM > 0 ? last1RM / 1.25 : (exercise.startingWeight || 20); // Adjust for 1RM calculation
+            const increment = exercise.increment || 2.5;
+
+            // For consistent progression, we'll use fixed sets/reps combinations
+            const setRepCombinations = [
+                { sets: exerciseConfig.parameters.minSets, reps: exerciseConfig.parameters.maxReps }, // More reps, fewer sets
+                { sets: exerciseConfig.parameters.minSets + 1, reps: Math.floor((exerciseConfig.parameters.minReps + exerciseConfig.parameters.maxReps) / 2) },
+                { sets: exerciseConfig.parameters.maxSets - 1, reps: Math.floor((exerciseConfig.parameters.minReps + exerciseConfig.parameters.maxReps) / 2) },
+                { sets: exerciseConfig.parameters.maxSets, reps: exerciseConfig.parameters.minReps + 1 },
+                { sets: exerciseConfig.parameters.maxSets, reps: exerciseConfig.parameters.minReps } // More sets, fewer reps
+            ];
 
             for (let i = 0; i < 5; i++) {
-                const weight = baseWeight + (i * (exercise.increment || 2.5));
-                const reps = exerciseConfig.parameters.minReps + 
-                    Math.floor(Math.random() * (exerciseConfig.parameters.maxReps - exerciseConfig.parameters.minReps + 1));
-                const sets = exerciseConfig.parameters.minSets +
-                    Math.floor(Math.random() * (exerciseConfig.parameters.maxSets - exerciseConfig.parameters.minSets + 1));
+                const weight = baseWeight + (i * increment);
+                const { sets, reps } = setRepCombinations[i];
+                const calculated1RM = weight * (1 + 0.025 * reps * sets);
 
                 suggestions.push({
                     sets,
                     reps,
                     weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
-                    calculated1RM: weight * (1 + 0.025 * reps * sets),
-                    parameters: {
-                        scheme: "STS",
-                        ...exerciseConfig.parameters
-                    }
+                    calculated1RM: Math.round(calculated1RM * 2) / 2,
+                    parameters: exerciseConfig.parameters
                 });
             }
 
