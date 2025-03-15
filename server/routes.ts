@@ -155,14 +155,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get the next suggestion using progression logic
-      const suggestion = await storage.getNextSuggestion(exerciseId);
+      const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id);
       console.log("[Route] Returning suggestion:", suggestion);
 
       res.json(suggestion);
     } catch (error) {
       console.error("[Workout Suggestion] Error:", error);
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Failed to get workout suggestion" 
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to get workout suggestion"
       });
     }
   });

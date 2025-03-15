@@ -165,9 +165,9 @@ export class DatabaseStorage {
     return exercise;
   }
 
-  async getExerciseWorkoutConfig(exerciseId: number): Promise<WorkoutDay | undefined> {
-    console.log("[Storage] Getting workout config for exercise:", exerciseId);
-    const workoutDays = await this.getWorkoutDays(undefined);
+  async getExerciseWorkoutConfig(exerciseId: number, userId: number): Promise<WorkoutDay | undefined> {
+    console.log("[Storage] Getting workout config for exercise:", exerciseId, "userId:", userId);
+    const workoutDays = await this.getWorkoutDays(userId);
     console.log("[Storage] Found workout days:", workoutDays);
 
     const workoutDay = workoutDays.find(day => 
@@ -177,11 +177,11 @@ export class DatabaseStorage {
     return workoutDay;
   }
 
-  async getLastWorkoutLog(exerciseId: number): Promise<WorkoutLog | undefined> {
-    console.log("[Storage] Getting last workout log for exercise:", exerciseId);
+  async getLastWorkoutLog(exerciseId: number, userId: number): Promise<WorkoutLog | undefined> {
+    console.log("[Storage] Getting last workout log for exercise:", exerciseId, "userId:", userId);
     const logs = await db.select()
       .from(workoutLogs)
-      .where(eq(workoutLogs.isComplete, true))
+      .where(eq(workoutLogs.userId, userId))
       .orderBy(workoutLogs.date, 'desc')
       .limit(1);
 
@@ -189,8 +189,8 @@ export class DatabaseStorage {
     return logs[0];
   }
 
-  async getNextSuggestion(exerciseId: number): Promise<ProgressionSuggestion> {
-    console.log("[Storage] Getting next suggestion for exercise:", exerciseId);
+  async getNextSuggestion(exerciseId: number, userId: number): Promise<ProgressionSuggestion> {
+    console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "userId:", userId);
 
     // Get exercise details
     const exercise = await this.getExercise(exerciseId);
@@ -201,7 +201,7 @@ export class DatabaseStorage {
     console.log("[Storage] Found exercise:", exercise);
 
     // Get workout configuration
-    const workoutDay = await this.getExerciseWorkoutConfig(exerciseId);
+    const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
     if (!workoutDay) {
       console.log("[Storage] No workout day found for exercise:", exerciseId);
       // Return a default suggestion if no workout day is configured
@@ -222,7 +222,7 @@ export class DatabaseStorage {
     console.log("[Storage] Found exercise config:", exerciseConfig);
 
     // Get last workout log
-    const lastLog = await this.getLastWorkoutLog(exerciseId);
+    const lastLog = await this.getLastWorkoutLog(exerciseId, userId);
     console.log("[Storage] Last log:", lastLog);
 
     // Create appropriate progression scheme
@@ -277,6 +277,7 @@ export class DatabaseStorage {
       calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
     };
   }
+
 }
 
 export const storage = new DatabaseStorage();
