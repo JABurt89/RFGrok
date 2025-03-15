@@ -575,38 +575,42 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
     }
   }, [apiSuggestion, selectedSuggestion]);
 
-  // Render suggestion card with improved layout
-  const renderSuggestionCard = (suggestion: ProgressionSuggestion) => (
-    <Card className={`transition-all duration-200 ${selectedSuggestion === suggestion ? 'border-primary' : ''}`}>
-      <CardHeader>
-        <CardTitle>Suggested Workout</CardTitle>
-        <CardDescription>
-          Based on your previous performance
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="p-4 rounded-md bg-muted">
-          <div className="text-lg font-medium">
-            {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight.toFixed(2)}{currentExercise?.units}
-          </div>
-          {suggestion.calculated1RM && (
-            <div className="mt-2 text-sm text-muted-foreground">
-              Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
+  // Render suggestion card with improved layout and null checking
+  const renderSuggestionCard = (suggestion: ProgressionSuggestion | null) => {
+    if (!suggestion) return null;
+
+    return (
+      <Card className={`transition-all duration-200 ${selectedSuggestion === suggestion ? 'border-primary' : ''}`}>
+        <CardHeader>
+          <CardTitle>Suggested Workout</CardTitle>
+          <CardDescription>
+            Based on your previous performance
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="p-4 rounded-md bg-muted">
+            <div className="text-lg font-medium">
+              {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight?.toFixed(2) || '0.00'}{currentExercise?.units}
             </div>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter>
-        <Button
-          className="w-full"
-          variant={selectedSuggestion === suggestion ? "default" : "outline"}
-          onClick={() => handleUseWeights(suggestion)}
-        >
-          {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
+            {suggestion.calculated1RM && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
+              </div>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button
+            className="w-full"
+            onClick={() => handleUseWeights(suggestion)}
+            variant={selectedSuggestion === suggestion ? "default" : "outline"}
+          >
+            {selectedSuggestion === suggestion ? "Weights Selected" : "Use These Weights"}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  };
 
   if (currentView === "setup") {
     return (
@@ -616,20 +620,38 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
             <CardHeader>
               <CardTitle>{currentExercise.name} - Setup</CardTitle>
               <CardDescription>
-                {apiSuggestion ? "Confirm your workout weights" : "Loading suggestion..."}
+                {progressionSuggestions?.length > 0 ? "Confirm your workout weights" : "Loading suggestions..."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {apiSuggestion ? (
-                renderSuggestionCard(apiSuggestion)
+              {progressionSuggestions?.length > 0 ? (
+                <div className="space-y-4">
+                  {progressionSuggestions.map((suggestion, index) => (
+                    <div key={index} className="p-4 rounded-md bg-muted">
+                      <div>
+                        {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight?.toFixed(2) || '0.00'}{currentExercise?.units}
+                        {suggestion.calculated1RM && (
+                          <div className="text-sm text-muted-foreground mt-1">
+                            1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        className="w-full mt-2"
+                        onClick={() => handleUseWeights(suggestion)}
+                        variant={selectedSuggestion === suggestion ? "default" : "outline"}
+                      >
+                        {selectedSuggestion === suggestion ? "Selected" : "Use These Weights"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="flex items-center justify-center p-4">
                   <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2">Loading suggestion...</span>
+                  <span className="ml-2">Loading suggestions...</span>
                 </div>
               )}
-
-              {renderProgressionSuggestions()}
 
               <Tooltip>
                 <TooltipTrigger asChild>
