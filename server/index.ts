@@ -1,10 +1,12 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import session from "express-session";
+import passport from "passport";
 import { setupAuth } from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { createServer } from "http";
+import { storage } from "./storage";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -14,6 +16,26 @@ const app = express();
 // Essential middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Trust first proxy for secure cookies
+app.set("trust proxy", 1);
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET!,
+  resave: false,
+  saveUninitialized: false,
+  store: storage.sessionStore,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // CORS settings for development
 if (process.env.NODE_ENV !== "production") {
@@ -31,7 +53,8 @@ app.use((req, _res, next) => {
   console.log(`${req.method} ${req.path}`, {
     headers: req.headers,
     cookies: req.cookies,
-    session: req.session
+    session: req.session,
+    user: req.user
   });
   next();
 });
@@ -49,6 +72,9 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 async function main() {
   try {
+    // Set up authentication routes and strategies
+    setupAuth(app);
+
     const httpServer = await registerRoutes(app);
 
     if (process.env.NODE_ENV === "production") {
