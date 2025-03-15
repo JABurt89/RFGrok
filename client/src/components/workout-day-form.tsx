@@ -220,14 +220,14 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="flex flex-col h-[calc(85vh-2rem)]">
-          <div className="flex items-center justify-between p-4 border-b">
+          <div className="p-4 border-b">
             <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
-            <Badge variant={isEditMode ? "secondary" : "default"}>
+            <Badge variant={isEditMode ? "secondary" : "default"} className="mt-2">
               {isEditMode ? 'Edit Mode' : 'Create Mode'}
             </Badge>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 pb-24">
             <FormField
               control={form.control}
               name="name"
