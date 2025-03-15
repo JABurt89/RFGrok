@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@/types";
 import { queryClient } from "@/lib/queryClient";
+import WorkoutLogger from "@/components/workout-logger";  // Add this import
 
 function WorkoutsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -196,7 +197,8 @@ function WorkoutsPage() {
         <DialogContent className="max-w-lg">
           {activeWorkout && (
             <WorkoutLogger
-              workoutDay={activeWorkout}
+              exerciseId={activeWorkout.exercises[0].exerciseId}
+              workoutDayId={activeWorkout.id}
               onComplete={() => setActiveWorkout(null)}
             />
           )}
