@@ -181,10 +181,57 @@ export class DatabaseStorage {
     const workoutDays = await this.getWorkoutDays(userId);
     console.log("[Storage] Found workout days for user:", workoutDays);
 
+    // Create default workout day if none exists
+    if (!workoutDays || workoutDays.length === 0) {
+        console.log("[Storage] No workout days found, creating default configuration");
+        const defaultWorkoutDay = await this.createWorkoutDay({
+            userId,
+            name: "Default Workout",
+            exercises: [{
+                exerciseId,
+                parameters: {
+                    scheme: "STS",
+                    minSets: 3,
+                    maxSets: 5,
+                    minReps: 5,
+                    maxReps: 8,
+                    restBetweenSets: 90,
+                    restBetweenExercises: 180
+                }
+            }]
+        });
+        console.log("[Storage] Created default workout day:", defaultWorkoutDay);
+        return defaultWorkoutDay;
+    }
+
     const workoutDay = workoutDays.find(day => 
         day.exercises.some(ex => ex.exerciseId === exerciseId)
     );
     console.log("[Storage] Found workout day config:", workoutDay);
+
+    // Add exercise to first workout day if not found in any
+    if (!workoutDay && workoutDays.length > 0) {
+        console.log("[Storage] Exercise not found in any workout day, adding to first workout day");
+        const updatedWorkoutDay = {
+            ...workoutDays[0],
+            exercises: [...workoutDays[0].exercises, {
+                exerciseId,
+                parameters: {
+                    scheme: "STS",
+                    minSets: 3,
+                    maxSets: 5,
+                    minReps: 5,
+                    maxReps: 8,
+                    restBetweenSets: 90,
+                    restBetweenExercises: 180
+                }
+            }]
+        };
+        const updated = await this.updateWorkoutDay(updatedWorkoutDay.id, updatedWorkoutDay);
+        console.log("[Storage] Updated workout day with exercise:", updated);
+        return updated;
+    }
+
     return workoutDay;
 }
 
@@ -210,8 +257,8 @@ export class DatabaseStorage {
         const defaultSuggestion = {
             sets: 3,
             reps: 8,
-            weight: exercise.startingWeight,
-            calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+            weight: exercise.startingWeight || 20,
+            calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
         };
 
         if (!workoutDay) {
@@ -247,19 +294,6 @@ export class DatabaseStorage {
                     exerciseConfig.parameters.maxReps || 12
                 );
                 break;
-            case "RPT Top-Set":
-                progression = new RPTTopSetDependent(
-                    exerciseConfig.parameters.sets || 3,
-                    exerciseConfig.parameters.minReps || 6,
-                    exerciseConfig.parameters.maxReps || 8
-                );
-                break;
-            case "RPT Individual":
-                progression = new RPTIndividualProgression(
-                    exerciseConfig.parameters.sets || 3,
-                    exerciseConfig.parameters.setConfigs
-                );
-                break;
             default:
                 console.log("[Storage] Using default STS progression");
                 progression = new STSProgression();
@@ -273,6 +307,7 @@ export class DatabaseStorage {
             suggestions = progression.getNextSuggestion(last1RM, exercise.increment, exercise.startingWeight);
             console.log("[Storage] Generated STS suggestions:", suggestions);
             if (!suggestions || suggestions.length === 0) {
+                console.log("[Storage] No suggestions generated; returning default");
                 return defaultSuggestion;
             }
         } else {
@@ -290,8 +325,8 @@ export class DatabaseStorage {
             return {
                 sets: 3,
                 reps: 8,
-                weight: exercise.startingWeight,
-                calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+                weight: exercise.startingWeight || 20,
+                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
             };
         }
         throw new Error("Exercise not found and cannot generate suggestion");
