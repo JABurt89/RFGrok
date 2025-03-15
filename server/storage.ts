@@ -166,12 +166,12 @@ export class DatabaseStorage {
   }
 
   async getExerciseWorkoutConfig(exerciseId: number, userId: number): Promise<WorkoutDay | undefined> {
-    console.log("[Storage] Getting workout config for exercise:", exerciseId, "userId:", userId);
+    console.log("[Storage] Getting workout config for exercise:", exerciseId, "and user:", userId);
     const workoutDays = await this.getWorkoutDays(userId);
-    console.log("[Storage] Found workout days:", workoutDays);
+    console.log("[Storage] Found workout days for user:", workoutDays);
 
     const workoutDay = workoutDays.find(day => 
-      day.exercises.some(ex => ex.exerciseId === exerciseId)
+        day.exercises.some(ex => ex.exerciseId === exerciseId)
     );
     console.log("[Storage] Found workout day config:", workoutDay);
     return workoutDay;
