@@ -229,7 +229,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
 
         {/* Content area with padding for footer */}
         <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
-          <div className="space-y-4">
+          <div className="space-y-4 pb-24">
             <FormField
               control={form.control}
               name="name"
