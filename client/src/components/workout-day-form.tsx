@@ -62,6 +62,48 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+type SchemeType = FormData["exercises"][0]["parameters"]["scheme"];
+
+const defaultParameters = {
+  "STS": {
+    scheme: "STS" as const,
+    minSets: 3,
+    maxSets: 4,
+    minReps: 8,
+    maxReps: 12,
+    restBetweenSets: 90,
+    restBetweenExercises: 180
+  },
+  "Double Progression": {
+    scheme: "Double Progression" as const,
+    targetSets: 3,
+    minReps: 6,
+    maxReps: 8,
+    restBetweenSets: 90,
+    restBetweenExercises: 180
+  },
+  "RPT Top-Set": {
+    scheme: "RPT Top-Set" as const,
+    sets: 3,
+    minReps: 6,
+    maxReps: 8,
+    dropPercentages: [0, 10, 10],
+    restBetweenSets: 180,
+    restBetweenExercises: 240
+  },
+  "RPT Individual": {
+    scheme: "RPT Individual" as const,
+    sets: 3,
+    setConfigs: [
+      { min: 6, max: 8 },
+      { min: 8, max: 10 },
+      { min: 10, max: 12 }
+    ],
+    restBetweenSets: 180,
+    restBetweenExercises: 240
+  }
+} as const;
+
 interface WorkoutDayFormProps {
   onComplete?: () => void;
   workoutDay?: WorkoutDay;
@@ -81,15 +123,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
       name: "",
       exercises: [{
         exerciseId: 0,
-        parameters: {
-          scheme: "STS",
-          minSets: 3,
-          maxSets: 4,
-          minReps: 8,
-          maxReps: 12,
-          restBetweenSets: 90,
-          restBetweenExercises: 180
-        }
+        parameters: defaultParameters.STS
       }]
     },
   });
@@ -163,6 +197,23 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   const onSubmit = (data: FormData) => {
     console.log("[Workout Form] Form submitted with data:", JSON.stringify(data, null, 2));
     workoutMutation.mutate(data);
+  };
+
+  const handleSchemeChange = (value: SchemeType, index: number) => {
+    console.log(`[Form] Changing scheme to ${value} for exercise ${index}`);
+    // Reset the entire exercise parameters to default for the new scheme
+    const newParameters = defaultParameters[value];
+    console.log('[Form] New parameters:', newParameters);
+
+    // Force a complete reset of the parameters
+    form.setValue(`exercises.${index}`, {
+      ...form.getValues(`exercises.${index}`),
+      parameters: newParameters
+    }, {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   return (
@@ -240,57 +291,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
                         <FormLabel>Progression Scheme</FormLabel>
                         <Select
                           value={field.value}
-                          onValueChange={(value: FormData["exercises"][0]["parameters"]["scheme"]) => {
-                            let defaultParams;
-                            switch (value) {
-                              case "STS":
-                                defaultParams = {
-                                  scheme: "STS",
-                                  minSets: 3,
-                                  maxSets: 4,
-                                  minReps: 8,
-                                  maxReps: 12,
-                                  restBetweenSets: 90,
-                                  restBetweenExercises: 180
-                                };
-                                break;
-                              case "Double Progression":
-                                defaultParams = {
-                                  scheme: "Double Progression",
-                                  targetSets: 3,
-                                  minReps: 6,
-                                  maxReps: 8,
-                                  restBetweenSets: 90,
-                                  restBetweenExercises: 180
-                                };
-                                break;
-                              case "RPT Top-Set":
-                                defaultParams = {
-                                  scheme: "RPT Top-Set",
-                                  sets: 3,
-                                  minReps: 6,
-                                  maxReps: 8,
-                                  dropPercentages: [0, 10, 10],
-                                  restBetweenSets: 180,
-                                  restBetweenExercises: 240
-                                };
-                                break;
-                              case "RPT Individual":
-                                defaultParams = {
-                                  scheme: "RPT Individual",
-                                  sets: 3,
-                                  setConfigs: [
-                                    { min: 6, max: 8 },
-                                    { min: 8, max: 10 },
-                                    { min: 10, max: 12 }
-                                  ],
-                                  restBetweenSets: 180,
-                                  restBetweenExercises: 240
-                                };
-                                break;
-                            }
-                            form.setValue(`exercises.${index}.parameters`, defaultParams);
-                          }}
+                          onValueChange={(value: SchemeType) => handleSchemeChange(value, index)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select progression scheme" />
@@ -584,15 +585,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               className="w-full"
               onClick={() => append({
                 exerciseId: 0,
-                parameters: {
-                  scheme: "STS",
-                  minSets: 3,
-                  maxSets: 4,
-                  minReps: 8,
-                  maxReps: 12,
-                  restBetweenSets: 90,
-                  restBetweenExercises: 180
-                }
+                parameters: defaultParameters.STS
               })}
             >
               <Plus className="h-4 w-4 mr-2" />
