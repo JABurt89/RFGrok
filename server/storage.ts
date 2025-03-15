@@ -186,7 +186,7 @@ export class DatabaseStorage {
     );
     console.log("[Storage] Found workout day config:", workoutDay);
     return workoutDay;
-  }
+}
 
   async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
     console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
@@ -297,7 +297,6 @@ export class DatabaseStorage {
         throw new Error("Exercise not found and cannot generate suggestion");
     }
 }
-
 }
 
 export const storage = new DatabaseStorage();

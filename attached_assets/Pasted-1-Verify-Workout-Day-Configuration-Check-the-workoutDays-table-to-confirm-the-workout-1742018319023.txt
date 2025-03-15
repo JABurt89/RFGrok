@@ -1,0 +1,64 @@
+1. **Verify Workout Day Configuration**  
+   - Check the `workoutDays` table to confirm the workout day includes the correct `exerciseId` for the STS exercise.  
+   - In `server/storage.ts`, review `getExerciseWorkoutConfig(exerciseId, userId)` logs:  
+     - `[Storage] Getting workout config for exercise: <exerciseId> and user: <userId>`  
+     - `[Storage] Found workout days for user: [<array of workout days>]`  
+     - `[Storage] Found workout day config: <workoutDay or undefined>`  
+   - If `workoutDay` is `undefined`, update the configuration (e.g., in the database or via `workout-day-form.tsx`) to include an entry like:  
+     ```json
+     {
+       "id": 1,
+       "userId": <yourUserId>,
+       "name": "Leg Day",
+       "exercises": [
+         {
+           "exerciseId": <yourExerciseId>,
+           "parameters": {
+             "scheme": "STS",
+             "minSets": 3,
+             "maxSets": 5,
+             "minReps": 5,
+             "maxReps": 8,
+             "restBetweenSets": 90,
+             "restBetweenExercises": 180
+           }
+         }
+       ]
+     }
+     ```
+
+2. **Debug the Suggestion Flow in Storage**  
+   - In `server/storage.ts`, inspect `getNextSuggestion` and add logs to output:
+     - `[Storage] Found exercise: <exercise>`
+     - `[Storage] Found workout day: <workoutDay>`
+     - `[Storage] Found exercise config: <exerciseConfig>`
+     - `[Storage] Last log: <lastLog>`
+     - `[Storage] Using last 1RM for STS: <last1RM>`
+     - `[Storage] Generated STS suggestions: <suggestions>`
+   - If the suggestions array is empty, verify that `last1RM` is correctly retrieved and that `exercise.startingWeight` is properly set (e.g., 20kg in the `exercises` table).
+
+3. **Update Client-Side Handling**  
+   - In `workout-logger.tsx`, ensure the API response is processed as follows:
+     ```typescript
+     const { data: suggestion, error } = useQuery({
+       queryKey: ['suggestion', exerciseId],
+       queryFn: () => apiRequest('GET', `/api/workout-suggestion?exerciseId=${exerciseId}`),
+     });
+     if (error) return <div>Error: {error.message}</div>;
+     if (!suggestion) return <div>No workout suggestion available. Please try refreshing the page.</div>;
+     return (
+       <div>
+         Suggested: {suggestion.sets} sets of {suggestion.reps} reps at {suggestion.weight} {units}
+       </div>
+     );
+     ```
+   - Add a debugging statement:  
+     `console.log("Fetched suggestion:", suggestion);`
+   - If `suggestion` exists but isn’t displayed, adjust the UI logic accordingly.
+
+4. **Rule Out Authentication Issues**  
+   - Check server logs for entries like `[Route] Workout suggestion request for exercise: <exerciseId>` followed by a 401 response.  
+   - If a 401 error appears, verify the session and `server/auth.ts` middleware.
+
+**Final Recommendation:**  
+Focus on correcting the workout day configuration to include the proper `exerciseId`. Test the changes, monitor logs for correct data retrieval, and then review the suggestion generation and client-side handling if issues persist.
