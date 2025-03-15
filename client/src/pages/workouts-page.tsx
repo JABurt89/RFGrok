@@ -184,7 +184,7 @@ function WorkoutsPage() {
 
       {/* Create Workout Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="max-w-[600px] h-[90vh] p-0">
           <WorkoutDayForm
             onComplete={() => {
               setIsCreateModalOpen(false);
@@ -197,7 +197,7 @@ function WorkoutsPage() {
       {/* Edit Workout Modal */}
       {selectedWorkoutDay && (
         <Dialog open={true} onOpenChange={() => setSelectedWorkoutDay(null)}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="max-w-[600px] h-[90vh] p-0">
             <WorkoutDayForm
               workoutDay={selectedWorkoutDay}
               onComplete={() => {

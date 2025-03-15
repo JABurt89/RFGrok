@@ -218,16 +218,18 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="flex flex-col h-[calc(85vh-2rem)]">
-          <div className="p-4 border-b">
-            <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
-            <Badge variant={isEditMode ? "secondary" : "default"} className="mt-2">
-              {isEditMode ? 'Edit Mode' : 'Create Mode'}
-            </Badge>
-          </div>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+        {/* Header */}
+        <div className="p-4 border-b">
+          <h2 className="text-2xl font-bold">{isEditMode ? 'Edit' : 'Create'} Workout</h2>
+          <Badge variant={isEditMode ? "secondary" : "default"} className="mt-2">
+            {isEditMode ? 'Edit Mode' : 'Create Mode'}
+          </Badge>
+        </div>
 
-          <div className="flex-1 overflow-y-auto p-4 pb-24">
+        {/* Content area with padding for footer */}
+        <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -308,7 +310,6 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
                     )}
                   />
 
-                  {/* Show scheme-specific fields */}
                   {(() => {
                     const scheme = form.watch(`exercises.${index}.parameters.scheme`);
                     switch (scheme) {
@@ -592,47 +593,47 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               Add Exercise
             </Button>
           </div>
+        </div>
 
-          <div className="sticky bottom-0 border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="flex gap-2 max-w-[600px] mx-auto">
-              {isEditMode && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button type="button" variant="destructive" className="flex-1">
-                      Delete Workout
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete this workout day.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => onComplete?.()}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1">
-                {isEditMode ? 'Update' : 'Create'} Workout
-              </Button>
-            </div>
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 border-t bg-background p-4">
+          <div className="flex gap-2 justify-end">
+            {isEditMode && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive">
+                    Delete Workout
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete this workout day.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onComplete?.()}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">
+              {isEditMode ? 'Update' : 'Create'} Workout
+            </Button>
           </div>
         </div>
       </form>
