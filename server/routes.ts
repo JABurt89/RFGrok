@@ -66,16 +66,6 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
-      console.log("[Workout Suggestion] Request headers:", {
-        cookie: req.headers.cookie,
-        authorization: req.headers.authorization
-      });
-      console.log("[Workout Suggestion] Session:", req.session);
-      console.log("[Workout Suggestion] Auth status:", {
-        isAuthenticated: req.isAuthenticated(),
-        user: req.user
-      });
-
       if (!req.isAuthenticated()) {
         console.log("[Workout Suggestion] Request not authenticated");
         return res.sendStatus(401);
@@ -100,6 +90,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "Exercise not found" });
       }
       console.log("[Workout Suggestion] Found exercise:", exercise);
+
+      // Get workout configuration to determine if it's STS or another scheme
+      const workoutDay = await storage.getExerciseWorkoutConfig(exerciseId, req.user.id);
+      const exerciseConfig = workoutDay?.exercises.find(ex => ex.exerciseId === exerciseId);
+      console.log("[Workout Suggestion] Exercise config:", exerciseConfig);
 
       const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id, estimated1RM);
       console.log("[Workout Suggestion] Generated suggestion:", suggestion);
