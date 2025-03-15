@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   exercises: z.array(z.object({
-    exerciseId: z.coerce.number().min(1, "Exercise selection is required"),
+    exerciseId: z.coerce.number().refine((val) => val > 0, "Please select an exercise"),
     parameters: z.discriminatedUnion("scheme", [
       z.object({
         scheme: z.literal("STS"),
@@ -124,7 +124,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     } : {
       name: "",
       exercises: [{
-        exerciseId: 0,
+        exerciseId: 1, // Changed default to 1 to pass validation.
         parameters: defaultParameters.STS
       }]
     },
@@ -207,14 +207,33 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
 
   const onSubmit = async (data: FormData) => {
     console.log("[Workout Form] Form submitted with data:", JSON.stringify(data, null, 2));
+    console.log("[Workout Form] Form state:", form.formState);
+
     if (form.formState.isValid) {
       try {
         await workoutMutation.mutateAsync(data);
       } catch (error) {
         console.error("[Workout Form] Submit error:", error);
+
+        // Show validation errors if any
+        if (form.formState.errors) {
+          console.log("[Workout Form] Validation errors:", form.formState.errors);
+          Object.entries(form.formState.errors).forEach(([key, value]) => {
+            toast({
+              title: "Validation Error",
+              description: `${key}: ${value.message}`,
+              variant: "destructive",
+            });
+          });
+        }
       }
     } else {
       console.log("[Workout Form] Form validation errors:", form.formState.errors);
+      toast({
+        title: "Form Error",
+        description: "Please check all required fields",
+        variant: "destructive",
+      });
     }
   };
 
@@ -603,7 +622,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               variant="outline"
               className="w-full"
               onClick={() => append({
-                exerciseId: 0,
+                exerciseId: 1, // Changed default to 1 to pass validation.
                 parameters: defaultParameters.STS
               })}
             >
@@ -646,7 +665,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 type="submit"
                 disabled={isSubmitting}
               >
