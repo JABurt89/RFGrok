@@ -246,6 +246,7 @@ export class DatabaseStorage {
     console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId);
 
     try {
+        // Get the exercise first to have fallback values available
         const exercise = await this.getExercise(exerciseId);
         if (!exercise) {
             console.log("[Storage] Exercise not found:", exerciseId);
@@ -253,30 +254,35 @@ export class DatabaseStorage {
         }
         console.log("[Storage] Found exercise:", exercise);
 
+        // Get workout configuration
         const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
+
+        // Create a default suggestion that will always work
         const defaultSuggestion = {
             sets: 3,
-            reps: 8,
+            reps: 8, 
             weight: exercise.startingWeight || 20,
             calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
         };
 
+        // If no workout configuration exists, return the default
         if (!workoutDay) {
-            console.log("[Storage] No workout day found for exercise:", exerciseId);
+            console.log("[Storage] No workout day found, returning default suggestion");
             return defaultSuggestion;
         }
-        console.log("[Storage] Found workout day:", workoutDay);
 
+        // Find the specific exercise configuration
         const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
         if (!exerciseConfig) {
-            console.log("[Storage] No exercise config found in workout day");
+            console.log("[Storage] No exercise config found in workout day, returning default");
             return defaultSuggestion;
         }
-        console.log("[Storage] Found exercise config:", exerciseConfig);
 
+        // Get the last workout log
         const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
-        console.log("[Storage] Last log:", lastLog);
+        console.log("[Storage] Last log found:", lastLog ? "yes" : "no");
 
+        // Choose progression strategy
         let progression;
         switch (exerciseConfig.parameters.scheme) {
             case "STS":
@@ -295,40 +301,50 @@ export class DatabaseStorage {
                 );
                 break;
             default:
-                console.log("[Storage] Using default STS progression");
                 progression = new STSProgression();
         }
 
+        // Find the set data for this exercise in the last log
         const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+
+        // Generate suggestions based on progression type
         let suggestions;
         if (exerciseConfig.parameters.scheme === "STS") {
+            // For STS, use 1RM if available, otherwise use starting weight
             const last1RM = lastSetData?.oneRm ?? 0;
             console.log("[Storage] Using last 1RM for STS:", last1RM);
             suggestions = progression.getNextSuggestion(last1RM, exercise.increment, exercise.startingWeight);
-            console.log("[Storage] Generated STS suggestions:", suggestions);
-            if (!suggestions || suggestions.length === 0) {
-                console.log("[Storage] No suggestions generated; returning default");
-                return defaultSuggestion;
-            }
         } else {
+            // For other progressions, use weight directly
             const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
             console.log("[Storage] Using last weight:", lastWeight);
             suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
-            console.log("[Storage] Generated suggestions:", suggestions);
         }
 
-        return suggestions[0] || defaultSuggestion;
+        console.log("[Storage] Generated suggestions:", suggestions);
+
+        // If no suggestions were generated, return default
+        if (!suggestions || suggestions.length === 0) {
+            console.log("[Storage] No suggestions generated, returning default");
+            return defaultSuggestion;
+        }
+
+        return suggestions[0];
     } catch (error) {
         console.error("[Storage] Error in getNextSuggestion:", error);
-        const exercise = await this.getExercise(exerciseId);
-        if (exercise) {
-            return {
-                sets: 3,
-                reps: 8,
-                weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-            };
-        }
+        // Try to get the exercise for fallback values
+        try {
+            const exercise = await this.getExercise(exerciseId);
+            if (exercise) {
+                return {
+                    sets: 3,
+                    reps: 8,
+                    weight: exercise.startingWeight || 20,
+                    calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+                };
+            }
+        } catch {} // If this fails too, we'll throw the original error
+
         throw new Error("Exercise not found and cannot generate suggestion");
     }
 }
