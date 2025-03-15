@@ -349,7 +349,7 @@ export class DatabaseStorage {
     return relevantLog;
   }
 
-  async getNextSuggestion(exerciseId: number, userId: number, estimated1RM?: number): Promise<ProgressionSuggestion> {
+  async getNextSuggestion(exerciseId: number, userId: number, estimated1RM?: number): Promise<ProgressionSuggestion | ProgressionSuggestion[]> {
     console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId, "estimated1RM:", estimated1RM);
 
     try {
@@ -404,22 +404,34 @@ export class DatabaseStorage {
                 exerciseConfig.parameters.maxReps || 8
             );
 
-            const suggestions = progression.getNextSuggestion(last1RM, exercise.increment, exercise.startingWeight);
-            console.log("[Storage] Generated STS suggestions:", suggestions);
+            // Generate 5 different suggestions with incrementing weights
+            const suggestions: ProgressionSuggestion[] = [];
+            let baseWeight = last1RM > 0 ? last1RM : (exercise.startingWeight || 20);
 
-            if (!suggestions || suggestions.length === 0) {
-                console.log("[Storage] No valid suggestions generated, returning default");
-                return {
-                    sets: 3,
-                    reps: 8,
-                    weight: exercise.startingWeight || 20,
-                    calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-                };
+            for (let i = 0; i < 5; i++) {
+                const weight = baseWeight + (i * (exercise.increment || 2.5));
+                const reps = exerciseConfig.parameters.minReps + 
+                    Math.floor(Math.random() * (exerciseConfig.parameters.maxReps - exerciseConfig.parameters.minReps + 1));
+                const sets = exerciseConfig.parameters.minSets +
+                    Math.floor(Math.random() * (exerciseConfig.parameters.maxSets - exerciseConfig.parameters.minSets + 1));
+
+                suggestions.push({
+                    sets,
+                    reps,
+                    weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
+                    calculated1RM: weight * (1 + 0.025 * reps * sets),
+                    parameters: {
+                        scheme: "STS",
+                        ...exerciseConfig.parameters
+                    }
+                });
             }
 
-            return suggestions[0];
+            console.log("[Storage] Generated STS suggestions:", suggestions);
+            return suggestions;
         }
 
+        // For other progression schemes, return a single suggestion
         return {
             sets: 3,
             reps: 8,
@@ -429,21 +441,9 @@ export class DatabaseStorage {
 
     } catch (error) {
         console.error("[Storage] Error in getNextSuggestion:", error);
-        try {
-            const exercise = await this.getExercise(exerciseId);
-            if (exercise) {
-                return {
-                    sets: 3,
-                    reps: 8,
-                    weight: exercise.startingWeight || 20,
-                    calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-                };
-            }
-        } catch {} // If this fails too, we'll throw the original error
-
-        throw new Error("Exercise not found and cannot generate suggestion");
+        throw new Error("Failed to generate workout suggestion");
     }
-  }
+}
 }
 
 export const storage = new DatabaseStorage();
