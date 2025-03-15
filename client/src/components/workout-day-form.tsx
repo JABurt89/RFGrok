@@ -64,7 +64,7 @@ type FormData = z.infer<typeof formSchema>;
 
 interface WorkoutDayFormProps {
   onComplete?: () => void;
-  workoutDay?: WorkoutDay; // Optional workout day for editing
+  workoutDay?: WorkoutDay;
 }
 
 export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) {
@@ -134,10 +134,11 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!workoutDay) throw new Error("No workout day to delete");
+
       const response = await apiRequest("DELETE", `/api/workout-days/${workoutDay.id}`);
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to delete workout");
+        throw new Error(error.error || error.message || "Failed to delete workout");
       }
     },
     onSuccess: () => {
@@ -152,7 +153,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     },
     onError: (error: Error) => {
       toast({
-        title: "Error",
+        title: "Cannot Delete Workout Day",
         description: error.message,
         variant: "destructive",
       });
@@ -424,9 +425,9 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete this workout day
-                      and all associated data.
+                    <AlertDialogDescription className="space-y-2">
+                      <p>This action cannot be undone. This will permanently delete this workout day.</p>
+                      <p className="font-medium">Note: If this workout day has any logged workouts, you'll need to delete those first.</p>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
