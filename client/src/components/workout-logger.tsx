@@ -24,7 +24,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const [loggedReps, setLoggedReps] = useState<number[]>([]);
   const [loggedWeights, setLoggedWeights] = useState<number[]>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [estimated1RM, setEstimated1RM] = useState<number | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
 
   // Create workout log mutation
@@ -69,7 +69,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             weight: loggedWeights[index],
             timestamp: new Date().toISOString()
           })),
-          extraSetReps: extraSetReps
+          extraSetReps,
+          oneRm: selectedSuggestion?.calculated1RM
         }],
         isComplete: true
       });
@@ -97,14 +98,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   });
 
   // Fetch workout suggestion
-  const { data: suggestion, isLoading, error } = useQuery({
-    queryKey: ['/api/workout-suggestion', exerciseId, estimated1RM],
+  const { data: suggestions = [], isLoading, error } = useQuery({
+    queryKey: ['/api/workout-suggestion', exerciseId],
     queryFn: async () => {
       const url = new URL('/api/workout-suggestion', window.location.origin);
       url.searchParams.append('exerciseId', exerciseId.toString());
-      if (estimated1RM) {
-        url.searchParams.append('estimated1RM', estimated1RM.toString());
-      }
       const response = await apiRequest("GET", url.toString());
       if (!response.ok) {
         const errorData = await response.json();
@@ -116,15 +114,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   });
 
   // Handle workout start
-  const handleStartWorkout = async () => {
-    if (!suggestion) {
-      toast({
-        title: "Error",
-        description: "No workout suggestion available",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleStartWorkout = async (suggestion: any) => {
+    setSelectedSuggestion(suggestion);
     await createLogMutation.mutate();
     setIsWorkoutActive(true);
   };
@@ -134,7 +125,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     setLoggedReps(prev => [...prev, reps]);
     setLoggedWeights(prev => [...prev, weight]);
     setCurrentSet(prev => prev + 1);
-    setRestTimer(90); // Start 90 second rest timer
+    setRestTimer(selectedSuggestion?.parameters?.restBetweenSets ?? 90);
   };
 
   // Rest timer effect
@@ -148,7 +139,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
-  // Not authenticated state
   if (!user) {
     return (
       <Alert>
@@ -159,7 +149,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     );
   }
 
-  // Error state
   if (error) {
     return (
       <Alert variant="destructive">
@@ -170,14 +159,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     );
   }
 
-  // Setup view with STS options or other scheme suggestions
   if (!isWorkoutActive) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Workout Setup</CardTitle>
           <CardDescription>
-            {isLoading ? "Loading suggestion..." : "Review and start your workout"}
+            {isLoading ? "Loading suggestions..." : "Choose your workout target"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -186,72 +174,47 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
               <Loader2 className="h-6 w-6 animate-spin" />
               <span className="ml-2">Loading suggestions...</span>
             </div>
-          ) : Array.isArray(suggestion) ? (
-            // STS Progression: Show multiple options
+          ) : Array.isArray(suggestions) ? (
+            // STS Progression: Show all suggestions as separate buttons
             <div className="space-y-4">
-              {suggestion.map((sug, idx) => (
-                <div key={idx} className="p-4 rounded-md bg-muted hover:bg-muted/80 cursor-pointer"
-                  onClick={() => {
-                    setEstimated1RM(sug.calculated1RM);
-                    handleStartWorkout();
-                  }}>
-                  <p className="text-lg font-medium">
-                    Option {idx + 1}: {sug.sets} sets × {sug.reps} reps @ {sug.weight}kg
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Estimated 1RM: {sug.calculated1RM}kg
-                  </p>
-                </div>
+              {suggestions.map((suggestion, idx) => (
+                <Button
+                  key={idx}
+                  variant="outline"
+                  className="w-full text-left h-auto normal-case"
+                  onClick={() => handleStartWorkout(suggestion)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">
+                      Option {idx + 1}: {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight}kg
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      Estimated 1RM: {suggestion.calculated1RM.toFixed(1)}kg
+                    </span>
+                  </div>
+                </Button>
               ))}
             </div>
-          ) : suggestion ? (
-            // Other progressions: Show single suggestion
-            <div className="p-4 rounded-md bg-muted">
-              <p className="text-lg font-medium">
-                {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight}kg
-              </p>
-              {suggestion.calculated1RM && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Estimated 1RM: {suggestion.calculated1RM}kg
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <Input
-                type="number"
-                placeholder="Enter estimated 1RM (kg)"
-                onChange={(e) => setEstimated1RM(Number(e.target.value))}
-              />
-              <Button
-                onClick={() => {
-                  if (estimated1RM && estimated1RM > 0) {
-                    queryClient.invalidateQueries({ queryKey: ['/api/workout-suggestion', exerciseId, estimated1RM] });
-                  }
-                }}
-                disabled={!estimated1RM || estimated1RM <= 0}
-              >
-                Get Suggestion
-              </Button>
-            </div>
-          )}
+          ) : suggestions ? (
+            // Single suggestion for other progression schemes
+            <Button
+              variant="outline"
+              className="w-full text-left h-auto normal-case"
+              onClick={() => handleStartWorkout(suggestions)}
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-medium">
+                  {suggestions.sets} sets × {suggestions.reps} reps @ {suggestions.weight}kg
+                </span>
+                {suggestions.calculated1RM && (
+                  <span className="text-sm text-muted-foreground">
+                    Estimated 1RM: {suggestions.calculated1RM.toFixed(1)}kg
+                  </span>
+                )}
+              </div>
+            </Button>
+          ) : null}
         </CardContent>
-        <CardFooter>
-          <Button
-            className="w-full"
-            onClick={handleStartWorkout}
-            disabled={!suggestion || isLoading || createLogMutation.isPending}
-          >
-            {createLogMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              "Start Workout"
-            )}
-          </Button>
-        </CardFooter>
       </Card>
     );
   }
@@ -270,9 +233,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
 
       <Card>
         <CardHeader>
-          <CardTitle>Set {currentSet + 1} of {suggestion?.sets}</CardTitle>
+          <CardTitle>Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
           <CardDescription>
-            Target: {suggestion?.weight}kg × {suggestion?.reps} reps
+            Target: {selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -280,13 +243,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             <Input
               type="number"
               placeholder="Weight (kg)"
-              defaultValue={suggestion?.weight}
+              defaultValue={selectedSuggestion?.weight}
             />
             <Input
               type="number"
               placeholder="Reps"
               onChange={(e) => {
-                const weight = suggestion?.weight ?? 0;
+                const weight = selectedSuggestion?.weight ?? 0;
                 const reps = parseInt(e.target.value);
                 if (!isNaN(reps) && reps > 0) {
                   handleLogSet(reps, weight);
@@ -308,9 +271,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
           <Button variant="outline" onClick={onComplete}>
             Cancel
           </Button>
-          {currentSet >= (suggestion?.sets || 0) && (
+          {currentSet >= (selectedSuggestion?.sets || 0) && (
             <div className="space-x-2">
-              {Array.isArray(suggestion) && (
+              {Array.isArray(suggestions) && (
                 <Input
                   type="number"
                   placeholder="Extra set reps (optional)"
@@ -319,7 +282,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                 />
               )}
               <Button 
-                onClick={handleCompleteWorkout}
+                onClick={() => completeMutation.mutate()}
                 disabled={completeMutation.isPending}
               >
                 {completeMutation.isPending ? (
