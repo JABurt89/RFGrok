@@ -37,14 +37,20 @@ export class DatabaseStorage {
   }
 
   async getUserWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
+    console.log("[Storage] Getting workout logs for user:", userId);
     const logs = await db.select()
         .from(workoutLogs)
         .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.isComplete, true)))
         .orderBy(workoutLogs.date, 'desc');
-    return logs.map(log => ({
+
+    console.log("[Storage] Raw logs from database:", logs.length);
+    const parsedLogs = logs.map(log => ({
         ...log,
         sets: typeof log.sets === 'string' ? JSON.parse(decrypt(log.sets)) : log.sets
     }));
+    console.log("[Storage] First parsed log sets:", parsedLogs.length > 0 ? JSON.stringify(parsedLogs[0].sets, null, 2) : "No logs");
+
+    return parsedLogs;
 }
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
@@ -238,10 +244,16 @@ export class DatabaseStorage {
   async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
     console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
     const logs = await this.getUserWorkoutLogs(userId);
-    console.log("[Storage] Found logs:", logs.length);
+    console.log("[Storage] Found logs:", logs.length, "Showing first log:", JSON.stringify(logs[0], null, 2));
 
     // Find the most recent log that has sets for this exercise
-    const relevantLog = logs.find(log => log.sets.some(set => set.exerciseId === exerciseId));
+    const relevantLog = logs.find(log => {
+      console.log("[Storage] Checking log sets:", JSON.stringify(log.sets, null, 2));
+      return log.sets.some(set => {
+        console.log("[Storage] Comparing exerciseId:", set.exerciseId, "with:", exerciseId);
+        return set.exerciseId === exerciseId;
+      });
+    });
     console.log("[Storage] Found relevant log:", relevantLog ? "yes" : "no");
 
     if (relevantLog) {
