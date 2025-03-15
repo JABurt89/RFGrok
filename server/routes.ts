@@ -140,22 +140,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.isAuthenticated()) return res.sendStatus(401);
 
       const exerciseId = parseInt(req.query.exerciseId as string);
-      console.log("[Route] Workout suggestion request for exercise:", exerciseId);
+      const estimated1RM = req.query.estimated1RM ? parseFloat(req.query.estimated1RM as string) : undefined;
+      console.log("[Route] Workout suggestion request for exercise:", exerciseId, "estimated1RM:", estimated1RM);
 
       if (isNaN(exerciseId) || !exerciseId) {
         console.log("[Route] Invalid exercise ID:", req.query.exerciseId);
         return res.status(400).json({ error: "Exercise ID is required" });
       }
 
-      // Get the exercise and workout configuration
       const exercise = await storage.getExercise(exerciseId);
       if (!exercise) {
         console.log("[Route] Exercise not found:", exerciseId);
         return res.status(404).json({ error: "Exercise not found" });
       }
 
-      // Get the next suggestion using progression logic
-      const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id);
+      const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id, estimated1RM);
       console.log("[Route] Returning suggestion:", suggestion);
 
       res.json(suggestion);
