@@ -198,90 +198,105 @@ export class DatabaseStorage {
   async getNextSuggestion(exerciseId: number, userId: number): Promise<ProgressionSuggestion> {
     console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId);
 
-    const exercise = await this.getExercise(exerciseId);
-    if (!exercise) {
-      console.log("[Storage] Exercise not found:", exerciseId);
-      throw new Error("Exercise not found");
+    try {
+        const exercise = await this.getExercise(exerciseId);
+        if (!exercise) {
+            console.log("[Storage] Exercise not found:", exerciseId);
+            throw new Error("Exercise not found");
+        }
+        console.log("[Storage] Found exercise:", exercise);
+
+        const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
+        const defaultSuggestion = {
+            sets: 3,
+            reps: 8,
+            weight: exercise.startingWeight,
+            calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+        };
+
+        if (!workoutDay) {
+            console.log("[Storage] No workout day found for exercise:", exerciseId);
+            return defaultSuggestion;
+        }
+        console.log("[Storage] Found workout day:", workoutDay);
+
+        const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
+        if (!exerciseConfig) {
+            console.log("[Storage] No exercise config found in workout day");
+            return defaultSuggestion;
+        }
+        console.log("[Storage] Found exercise config:", exerciseConfig);
+
+        const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
+        console.log("[Storage] Last log:", lastLog);
+
+        let progression;
+        switch (exerciseConfig.parameters.scheme) {
+            case "STS":
+                progression = new STSProgression(
+                    exerciseConfig.parameters.minSets || 3,
+                    exerciseConfig.parameters.maxSets || 5,
+                    exerciseConfig.parameters.minReps || 5,
+                    exerciseConfig.parameters.maxReps || 8
+                );
+                break;
+            case "Double Progression":
+                progression = new DoubleProgression(
+                    exerciseConfig.parameters.targetSets || 3,
+                    exerciseConfig.parameters.minReps || 8,
+                    exerciseConfig.parameters.maxReps || 12
+                );
+                break;
+            case "RPT Top-Set":
+                progression = new RPTTopSetDependent(
+                    exerciseConfig.parameters.sets || 3,
+                    exerciseConfig.parameters.minReps || 6,
+                    exerciseConfig.parameters.maxReps || 8
+                );
+                break;
+            case "RPT Individual":
+                progression = new RPTIndividualProgression(
+                    exerciseConfig.parameters.sets || 3,
+                    exerciseConfig.parameters.setConfigs
+                );
+                break;
+            default:
+                console.log("[Storage] Using default STS progression");
+                progression = new STSProgression();
+        }
+
+        const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+        let suggestions;
+        if (exerciseConfig.parameters.scheme === "STS") {
+            const last1RM = lastSetData?.oneRm ?? 0;
+            console.log("[Storage] Using last 1RM for STS:", last1RM);
+            suggestions = progression.getNextSuggestion(last1RM, exercise.increment);
+            console.log("[Storage] Generated STS suggestions:", suggestions);
+            if (!suggestions || suggestions.length === 0) {
+                return defaultSuggestion;
+            }
+        } else {
+            const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
+            console.log("[Storage] Using last weight:", lastWeight);
+            suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
+            console.log("[Storage] Generated suggestions:", suggestions);
+        }
+
+        return suggestions[0] || defaultSuggestion;
+    } catch (error) {
+        console.error("[Storage] Error in getNextSuggestion:", error);
+        const exercise = await this.getExercise(exerciseId);
+        if (exercise) {
+            return {
+                sets: 3,
+                reps: 8,
+                weight: exercise.startingWeight,
+                calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
+            };
+        }
+        throw new Error("Exercise not found and cannot generate suggestion");
     }
-    console.log("[Storage] Found exercise:", exercise);
-
-    const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
-    if (!workoutDay) {
-      console.log("[Storage] No workout day found for exercise:", exerciseId);
-      return {
-        sets: 3,
-        reps: 8,
-        weight: exercise.startingWeight,
-        calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
-      };
-    }
-    console.log("[Storage] Found workout day:", workoutDay);
-
-    const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
-    if (!exerciseConfig) {
-      console.log("[Storage] No exercise config found in workout day");
-      throw new Error("Exercise configuration not found");
-    }
-    console.log("[Storage] Found exercise config:", exerciseConfig);
-
-    const lastLog = await this.getLastWorkoutLog(exerciseId, userId);
-    console.log("[Storage] Last log:", lastLog);
-
-    let progression;
-    switch (exerciseConfig.parameters.scheme) {
-      case "STS":
-        progression = new STSProgression(
-          exerciseConfig.parameters.minSets || 3,
-          exerciseConfig.parameters.maxSets || 5,
-          exerciseConfig.parameters.minReps || 5,
-          exerciseConfig.parameters.maxReps || 8
-        );
-        break;
-      case "Double Progression":
-        progression = new DoubleProgression(
-          exerciseConfig.parameters.targetSets || 3,
-          exerciseConfig.parameters.minReps || 8,
-          exerciseConfig.parameters.maxReps || 12
-        );
-        break;
-      case "RPT Top-Set":
-        progression = new RPTTopSetDependent(
-          exerciseConfig.parameters.sets || 3,
-          exerciseConfig.parameters.minReps || 6,
-          exerciseConfig.parameters.maxReps || 8
-        );
-        break;
-      case "RPT Individual":
-        progression = new RPTIndividualProgression(
-          exerciseConfig.parameters.sets || 3,
-          exerciseConfig.parameters.setConfigs
-        );
-        break;
-      default:
-        console.log("[Storage] Using default STS progression");
-        progression = new STSProgression();
-    }
-
-    const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
-    let suggestions;
-    if (exerciseConfig.parameters.scheme === "STS") {
-      const last1RM = lastSetData?.oneRm ?? 0;
-      console.log("[Storage] Using last 1RM for STS:", last1RM);
-      suggestions = progression.getNextSuggestion(last1RM, exercise.increment);
-    } else {
-      const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
-      console.log("[Storage] Using last weight:", lastWeight);
-      suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
-    }
-    console.log("[Storage] Generated suggestions:", suggestions);
-
-    return suggestions[0] || {
-      sets: 3,
-      reps: 8,
-      weight: exercise.startingWeight,
-      calculated1RM: exercise.startingWeight * (1 + 0.025 * 8 * 3)
-    };
-  }
+}
 
 }
 
