@@ -328,7 +328,7 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
   }, [currentExerciseData]);
 
   const handleStartWorkout = useCallback(() => {
-    if (!selectedSuggestion || !selectedSuggestion.setWeights) {
+    if (!selectedSuggestion) {
       toast({
         title: "Select Weights",
         description: "Please confirm the weight selection before starting",
@@ -342,13 +342,13 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         const updatedExercises = prev.exercises.map(exercise => {
           if (exercise.exerciseId !== currentExerciseData?.exerciseId) return exercise;
 
-          // Create sets with weights from suggestion
-          const sets = selectedSuggestion.setWeights!.map((weight, idx) => ({
-            weight,
-            reps: selectedSuggestion.repTargets?.[idx]?.min || selectedSuggestion.reps,
+          // Create sets with the same weight for STS progression
+          const sets = Array(selectedSuggestion.sets).fill({
+            weight: selectedSuggestion.weight,
+            reps: selectedSuggestion.reps,
             timestamp: new Date(),
             isCompleted: false
-          }));
+          });
 
           return {
             ...exercise,
@@ -594,19 +594,16 @@ const WorkoutLogger = ({ workoutDay, onComplete }: WorkoutLoggerProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {suggestion.setWeights?.map((weight, idx) => (
-          <div key={idx} className="flex justify-between items-center">
-            <span>Set {idx + 1}:</span>
-            <span className="font-medium">
-              {weight}{currentExercise?.units} × {suggestion.repTargets?.[idx]?.min || suggestion.reps} reps
-            </span>
+        <div className="p-4 rounded-md bg-muted">
+          <div className="text-lg font-medium">
+            {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight.toFixed(2)}{currentExercise?.units}
           </div>
-        ))}
-        {suggestion.calculated1RM && (
-          <div className="mt-4 text-sm text-muted-foreground">
-            Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
-          </div>
-        )}
+          {suggestion.calculated1RM && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              Estimated 1RM: {suggestion.calculated1RM.toFixed(2)}{currentExercise?.units}
+            </div>
+          )}
+        </div>
       </CardContent>
       <CardFooter>
         <Button

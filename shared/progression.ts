@@ -12,8 +12,6 @@ export interface ProgressionSuggestion {
   reps: number;
   weight: number;
   calculated1RM?: number;
-  setWeights?: number[];  // For RPT schemes
-  repTargets?: { min: number; max: number; }[];  // For RPT Individual
 }
 
 export interface ProgressionScheme {
@@ -67,7 +65,6 @@ export class STSProgression implements ProgressionScheme {
 
     for (let sets = this.minSets; sets <= this.maxSets; sets++) {
       for (let reps = this.minReps; reps <= this.maxReps; reps++) {
-        // Remove set bonus to get base weight needed
         const baseW = last1RM / ((1 + 0.025 * reps) * (1 + 0.025 * (sets - 1)));
         const roundedWeight = Number((Math.round(baseW / increment) * increment).toFixed(2));
         const calculated1RM = this.calculate1RM(Array(sets).fill({ reps, weight: roundedWeight }));
@@ -110,7 +107,6 @@ export class DoubleProgression implements ProgressionScheme {
   }
 
   getNextSuggestion(lastWeight: number, increment: number): ProgressionSuggestion {
-    // If last weight is not provided, start with minimum increment
     if (!lastWeight) {
       return {
         sets: this.targetSets,
@@ -119,7 +115,6 @@ export class DoubleProgression implements ProgressionScheme {
       };
     }
 
-    // Return a single suggestion - either same weight or increase
     return {
       sets: this.targetSets,
       reps: this.minReps,
@@ -148,23 +143,14 @@ export class RPTTopSetDependent implements ProgressionScheme {
 
   getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion {
     const baseWeight = lastWeight || increment;
-    let topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
-    const setWeights = this.calculateSetWeights(topSetWeight);
+    const topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
 
     return {
       sets: this.sets,
       reps: this.minReps,
       weight: topSetWeight,
-      setWeights,
-      repTargets: Array(this.sets).fill({ min: this.minReps, max: this.maxReps })
+      calculated1RM: topSetWeight * (1 + 0.025 * this.minReps)
     };
-  }
-
-  private calculateSetWeights(topSetWeight: number): number[] {
-    return this.dropPercentages.map(dropPercent => {
-      const weightMultiplier = (100 - dropPercent) / 100;
-      return Number((topSetWeight * weightMultiplier).toFixed(2));
-    });
   }
 }
 
@@ -194,21 +180,11 @@ export class RPTIndividualProgression implements ProgressionScheme {
 
   getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion {
     const baseWeight = lastWeight || increment;
-    const validatedFailures = failureFlags?.slice(0, this.sets) || Array(this.sets).fill(false);
-
-    const setWeights = Array(this.sets).fill(0).map((_, idx) => {
-      const weight = validatedFailures[idx] ?
-        Math.max(increment, baseWeight * 0.9) :
-        baseWeight;
-      return Number(weight.toFixed(2));
-    });
-
     return {
       sets: this.sets,
       reps: this.setConfigs[0].min,
-      weight: Math.max(...setWeights),
-      setWeights,
-      repTargets: this.setConfigs
+      weight: baseWeight,
+      calculated1RM: baseWeight * (1 + 0.025 * this.setConfigs[0].min)
     };
   }
 }
