@@ -173,29 +173,37 @@ export class DatabaseStorage {
   }
 
   async getLastWorkoutLog(exerciseId: number): Promise<WorkoutLog | undefined> {
+    console.log("[Storage] Getting last workout log for exercise:", exerciseId);
     const logs = await db.select()
       .from(workoutLogs)
       .where(eq(workoutLogs.isComplete, true))
       .orderBy(workoutLogs.date, 'desc')
       .limit(1);
 
+    console.log("[Storage] Found logs:", logs);
     return logs[0];
   }
 
   async getNextSuggestion(exerciseId: number): Promise<ProgressionSuggestion> {
+    console.log("[Storage] Getting next suggestion for exercise:", exerciseId);
+
     // Get exercise details
     const exercise = await this.getExercise(exerciseId);
     if (!exercise) throw new Error("Exercise not found");
+    console.log("[Storage] Found exercise:", exercise);
 
     // Get workout configuration
     const workoutDay = await this.getExerciseWorkoutConfig(exerciseId);
     if (!workoutDay) throw new Error("Exercise not configured in any workout day");
+    console.log("[Storage] Found workout day:", workoutDay);
 
     const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
     if (!exerciseConfig) throw new Error("Exercise configuration not found");
+    console.log("[Storage] Found exercise config:", exerciseConfig);
 
     // Get last workout log
     const lastLog = await this.getLastWorkoutLog(exerciseId);
+    console.log("[Storage] Last log:", lastLog);
 
     // Create appropriate progression scheme
     let progression;
@@ -219,8 +227,7 @@ export class DatabaseStorage {
         progression = new RPTTopSetDependent(
           exerciseConfig.parameters.sets,
           exerciseConfig.parameters.minReps,
-          exerciseConfig.parameters.maxReps,
-          exerciseConfig.parameters.dropPercentages
+          exerciseConfig.parameters.maxReps
         );
         break;
       case "RPT Individual":
@@ -236,8 +243,13 @@ export class DatabaseStorage {
     // Get next suggestion
     const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
     const lastWeight = lastSetData?.sets[0]?.weight ?? exercise.startingWeight;
+    console.log("[Storage] Using last weight:", lastWeight);
 
-    return progression.getNextSuggestion(lastWeight, exercise.increment);
+    const suggestions = progression.getNextSuggestion(lastWeight, exercise.increment);
+    console.log("[Storage] Generated suggestions:", suggestions);
+
+    // Return first suggestion
+    return suggestions[0];
   }
 }
 
