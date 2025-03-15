@@ -60,16 +60,18 @@ export class STSProgression implements ProgressionScheme {
     return C;
   }
 
-  getNextSuggestion(last1RM: number, increment: number): ProgressionSuggestion[] {
+  getNextSuggestion(last1RM: number, increment: number, startingWeight: number = 20): ProgressionSuggestion[] {
     const suggestions: ProgressionSuggestion[] = [];
+    const effectiveLast1RM = last1RM || startingWeight * (1 + 0.025 * 8 * 3); // Default 1RM if none exists
 
-    // Generate a range of combinations
     for (let sets = this.minSets; sets <= this.maxSets; sets++) {
       for (let reps = this.minReps; reps <= this.maxReps; reps++) {
-        const baseW = last1RM / ((1 + 0.025 * reps) * (1 + 0.025 * (sets - 1)));
-        const roundedWeight = Number((Math.round(baseW / increment) * increment).toFixed(2));
+        const baseW = effectiveLast1RM / ((1 + 0.025 * reps) * (1 + 0.025 * (sets - 1)));
+        const roundedWeight = Math.max(
+          startingWeight,
+          Number((Math.round(baseW / increment) * increment).toFixed(2))
+        );
         const calculated1RM = this.calculate1RM(Array(sets).fill({ reps, weight: roundedWeight }));
-
         if (calculated1RM > last1RM) {
           suggestions.push({
             sets,
@@ -80,11 +82,7 @@ export class STSProgression implements ProgressionScheme {
         }
       }
     }
-
-    // Sort by smallest to largest 1RM increase and take top 5
-    return suggestions
-      .sort((a, b) => a.calculated1RM! - b.calculated1RM!)
-      .slice(0, 5);
+    return suggestions.sort((a, b) => a.calculated1RM! - b.calculated1RM!).slice(0, 5);
   }
 }
 

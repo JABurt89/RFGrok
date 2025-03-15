@@ -270,7 +270,7 @@ export class DatabaseStorage {
         if (exerciseConfig.parameters.scheme === "STS") {
             const last1RM = lastSetData?.oneRm ?? 0;
             console.log("[Storage] Using last 1RM for STS:", last1RM);
-            suggestions = progression.getNextSuggestion(last1RM, exercise.increment);
+            suggestions = progression.getNextSuggestion(last1RM, exercise.increment, exercise.startingWeight);
             console.log("[Storage] Generated STS suggestions:", suggestions);
             if (!suggestions || suggestions.length === 0) {
                 return defaultSuggestion;
