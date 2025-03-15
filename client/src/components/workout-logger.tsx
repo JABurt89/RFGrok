@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, PlayCircle, PauseCircle } from "lucide-react";
+import { Loader2, PauseCircle } from "lucide-react";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -21,9 +21,17 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
   const [restTimer, setRestTimer] = useState<number | null>(null);
 
   // Fetch workout suggestion
-  const { data: suggestion, isLoading } = useQuery({
-    queryKey: [`/api/workout-suggestion?exerciseId=${exerciseId}`],
-    queryFn: () => apiRequest("GET", `/api/workout-suggestion?exerciseId=${exerciseId}`).then(res => res.json()),
+  const { data: suggestion, isLoading, error } = useQuery({
+    queryKey: ['/api/workout-suggestion', exerciseId],
+    queryFn: () => 
+      apiRequest("GET", `/api/workout-suggestion?exerciseId=${exerciseId}`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('Failed to fetch workout suggestion');
+          }
+          return res.json();
+        }),
+    enabled: !!exerciseId, // Only run query if exerciseId is provided
   });
 
   // Handle workout start
@@ -74,6 +82,17 @@ export default function WorkoutLogger({ exerciseId, onComplete }: WorkoutLoggerP
     }
     return () => window.clearInterval(interval);
   }, [restTimer]);
+
+  // Error state
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Error loading workout suggestion. Please try again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   // Active workout view
   if (isWorkoutActive) {
