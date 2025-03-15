@@ -1,7 +1,7 @@
 import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog } from "@shared/schema";
 import { db } from "./db";
 import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
@@ -40,7 +40,7 @@ export class DatabaseStorage {
     console.log("[Storage] Getting workout logs for user:", userId);
     const logs = await db.select()
         .from(workoutLogs)
-        .where(and(eq(workoutLogs.userId, userId), eq(workoutLogs.isComplete, true)))
+        .where(eq(workoutLogs.userId, userId), eq(workoutLogs.isComplete, true))
         .orderBy(workoutLogs.date, 'desc');
 
     console.log("[Storage] Raw logs from database:", logs.length);

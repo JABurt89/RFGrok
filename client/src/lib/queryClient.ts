@@ -1,10 +1,11 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const text = await res.text();
+    const error = text ? JSON.parse(text) : { error: res.statusText };
+    throw new Error(error.error || `${res.status}: ${res.statusText}`);
   }
 }
 
@@ -17,7 +18,10 @@ export async function apiRequest(
     console.log(`[API] ${method} ${url}`, data ? { data } : '');
     const res = await fetch(url, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers: {
+        ...(data ? { "Content-Type": "application/json" } : {}),
+        "Accept": "application/json",
+      },
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include", // Always include credentials
     });
@@ -27,25 +31,20 @@ export async function apiRequest(
     return res;
   } catch (error) {
     console.error(`[API] Error in ${method} ${url}:`, error);
-    toast({
-      title: "Error",
-      description: error instanceof Error ? error.message : "An unexpected error occurred",
-      variant: "destructive",
-    });
-    throw error; // Re-throw to allow error handling in calling code
+    throw error;
   }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
+export const getQueryFn = ({ on401: unauthorizedBehavior }: { on401: UnauthorizedBehavior }) =>
+  async ({ queryKey }: { queryKey: string[] }) => {
     try {
       console.log(`[Query] GET ${queryKey[0]}`);
       const res = await fetch(queryKey[0] as string, {
         credentials: "include", // Always include credentials for queries
+        headers: {
+          "Accept": "application/json",
+        },
       });
 
       console.log(`[Query] Response status:`, res.status);
@@ -57,11 +56,6 @@ export const getQueryFn: <T>(options: {
       return await res.json();
     } catch (error) {
       console.error(`[Query] Error fetching ${queryKey[0]}:`, error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
       throw error;
     }
   };

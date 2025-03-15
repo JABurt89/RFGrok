@@ -42,7 +42,8 @@ export function setupAuth(app: Express) {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: "/",
       httpOnly: true
-    }
+    },
+    name: 'connect.sid' // Explicitly set session cookie name
   };
 
   console.log("[Auth] Session settings:", {
@@ -67,7 +68,7 @@ export function setupAuth(app: Express) {
           const user = await storage.getUserByEmail(email);
           if (!user || !(await comparePasswords(password, user.password))) {
             console.log("[Auth] Login failed for email:", email);
-            return done(null, false);
+            return done(null, false, { message: "Invalid credentials" });
           }
           console.log("[Auth] Login successful for user:", user.id);
           return done(null, user);
@@ -101,11 +102,22 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Request logging middleware
+  app.use((req, res, next) => {
+    console.log("[Auth] Request details:", {
+      method: req.method,
+      path: req.path,
+      isAuthenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      user: req.user?.id
+    });
+    next();
+  });
+
   app.post("/api/login", (req, res, next) => {
     console.log("[Auth] Login request received:", {
-      body: req.body,
-      cookies: req.cookies,
-      session: req.session
+      email: req.body.email,
+      sessionID: req.sessionID
     });
 
     passport.authenticate("local", (err, user, info) => {
@@ -126,8 +138,7 @@ export function setupAuth(app: Express) {
         console.log("[Auth] Login successful, user:", user.id);
         console.log("[Auth] Session after login:", {
           id: req.sessionID,
-          cookie: req.session.cookie,
-          passport: req.session.passport
+          cookie: req.session.cookie
         });
         res.status(200).json(user);
       });
@@ -143,9 +154,10 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ error: "Email already exists" });
       }
 
+      const hashedPassword = await hashPassword(req.body.password);
       const user = await storage.createUser({
         ...req.body,
-        password: await hashPassword(req.body.password),
+        password: hashedPassword,
       });
 
       console.log("[Auth] User registered successfully:", user.id);
@@ -166,8 +178,7 @@ export function setupAuth(app: Express) {
     console.log("[Auth] Logout request for user:", req.user?.id);
     console.log("[Auth] Session before logout:", {
       id: req.sessionID,
-      cookie: req.session.cookie,
-      passport: req.session.passport
+      cookie: req.session.cookie
     });
 
     req.logout((err) => {
@@ -184,8 +195,7 @@ export function setupAuth(app: Express) {
     console.log("[Auth] User check - authenticated:", req.isAuthenticated(), "user:", req.user?.id);
     console.log("[Auth] Current session:", {
       id: req.sessionID,
-      cookie: req.session.cookie,
-      passport: req.session.passport
+      cookie: req.session.cookie
     });
 
     if (!req.isAuthenticated()) return res.sendStatus(401);
