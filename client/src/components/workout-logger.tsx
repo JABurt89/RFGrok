@@ -25,7 +25,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const [loggedWeights, setLoggedWeights] = useState<number[]>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [estimated1RM, setEstimated1RM] = useState<number | null>(null);
-  const [currentWorkoutLogId, setCurrentWorkoutLogId] = useState<number | null>(null);
+  const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
 
   // Create workout log mutation
   const createLogMutation = useMutation({
@@ -46,8 +46,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       }
       return response.json();
     },
-    onSuccess: (data) => {
-      setCurrentWorkoutLogId(data.id);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
     },
     onError: (error: Error) => {
@@ -62,9 +61,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   // Complete workout mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
-      if (!currentWorkoutLogId) throw new Error("No active workout log");
-
-      const response = await apiRequest("PATCH", `/api/workout-logs/${currentWorkoutLogId}`, {
+      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutDayId}`, {
         sets: [{
           exerciseId,
           sets: loggedReps.map((reps, index) => ({
@@ -72,6 +69,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             weight: loggedWeights[index],
             timestamp: new Date().toISOString()
           })),
+          extraSetReps: extraSetReps
         }],
         isComplete: true
       });
@@ -97,11 +95,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       });
     },
   });
-
-  // Handle completing the workout
-  const handleCompleteWorkout = async () => {
-    await completeMutation.mutate();
-  };
 
   // Fetch workout suggestion
   const { data: suggestion, isLoading, error } = useQuery({
@@ -177,7 +170,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     );
   }
 
-  // Setup view
+  // Setup view with STS options or other scheme suggestions
   if (!isWorkoutActive) {
     return (
       <Card>
@@ -193,18 +186,35 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
               <Loader2 className="h-6 w-6 animate-spin" />
               <span className="ml-2">Loading suggestions...</span>
             </div>
-          ) : suggestion ? (
-            <div className="space-y-2">
-              <div className="p-4 rounded-md bg-muted">
-                <p className="text-lg font-medium">
-                  {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight}kg
-                </p>
-                {suggestion.calculated1RM && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Estimated 1RM: {suggestion.calculated1RM}kg
+          ) : Array.isArray(suggestion) ? (
+            // STS Progression: Show multiple options
+            <div className="space-y-4">
+              {suggestion.map((sug, idx) => (
+                <div key={idx} className="p-4 rounded-md bg-muted hover:bg-muted/80 cursor-pointer"
+                  onClick={() => {
+                    setEstimated1RM(sug.calculated1RM);
+                    handleStartWorkout();
+                  }}>
+                  <p className="text-lg font-medium">
+                    Option {idx + 1}: {sug.sets} sets × {sug.reps} reps @ {sug.weight}kg
                   </p>
-                )}
-              </div>
+                  <p className="text-sm text-muted-foreground">
+                    Estimated 1RM: {sug.calculated1RM}kg
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : suggestion ? (
+            // Other progressions: Show single suggestion
+            <div className="p-4 rounded-md bg-muted">
+              <p className="text-lg font-medium">
+                {suggestion.sets} sets × {suggestion.reps} reps @ {suggestion.weight}kg
+              </p>
+              {suggestion.calculated1RM && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Estimated 1RM: {suggestion.calculated1RM}kg
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -299,19 +309,29 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             Cancel
           </Button>
           {currentSet >= (suggestion?.sets || 0) && (
-            <Button 
-              onClick={handleCompleteWorkout}
-              disabled={completeMutation.isPending}
-            >
-              {completeMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Completing...
-                </>
-              ) : (
-                "Complete Workout"
+            <div className="space-x-2">
+              {Array.isArray(suggestion) && (
+                <Input
+                  type="number"
+                  placeholder="Extra set reps (optional)"
+                  className="w-40"
+                  onChange={(e) => setExtraSetReps(parseInt(e.target.value))}
+                />
               )}
-            </Button>
+              <Button 
+                onClick={handleCompleteWorkout}
+                disabled={completeMutation.isPending}
+              >
+                {completeMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Completing...
+                  </>
+                ) : (
+                  "Complete Workout"
+                )}
+              </Button>
+            </div>
           )}
         </CardFooter>
       </Card>
