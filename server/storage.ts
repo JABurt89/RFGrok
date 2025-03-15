@@ -392,7 +392,7 @@ export class DatabaseStorage {
             const increment = exercise.increment || 2.5;
             const { minSets, maxSets, minReps, maxReps } = exerciseConfig.parameters;
 
-            // Generate all possible set/rep combinations
+            // Generate all possible set/rep combinations and their multipliers
             const combinations: Array<{ sets: number; reps: number; multiplier: number }> = [];
             for (let sets = minSets; sets <= maxSets; sets++) {
                 for (let reps = minReps; reps <= maxReps; reps++) {
@@ -401,37 +401,54 @@ export class DatabaseStorage {
                 }
             }
 
-            // Sort by multiplier to find combinations that give similar 1RMs
-            combinations.sort((a, b) => a.multiplier - b.multiplier);
-
-            // Select 5 combinations that give progressively higher 1RMs
-            const selectedCombos = [
-                combinations[0], // Lowest multiplier
-                combinations[Math.floor(combinations.length * 0.25)],
-                combinations[Math.floor(combinations.length * 0.5)],
-                combinations[Math.floor(combinations.length * 0.75)],
-                combinations[combinations.length - 1] // Highest multiplier
-            ];
-
-            // Calculate base weight needed for the target 1RM
+            // Find the base weight and 1RM
+            const baseMultiplier = combinations[0].multiplier;
             const baseWeight = last1RM > 0 ? 
-                last1RM / selectedCombos[0].multiplier : // Use last 1RM if available
+                last1RM / baseMultiplier : 
                 exercise.startingWeight || 20;
+            const base1RM = baseWeight * baseMultiplier;
 
-            // Generate suggestions with small weight increments
-            const suggestions: ProgressionSuggestion[] = selectedCombos.map((combo, i) => {
-                // Add small increments to the weight for each suggestion
-                const weight = baseWeight + (i * increment);
-                const roundedWeight = Math.ceil(weight / increment) * increment;
-                const projected1RM = roundedWeight * combo.multiplier;
+            // Generate 5 suggestions with minimal 1RM increases
+            const suggestions: ProgressionSuggestion[] = [];
+            let currentWeight = baseWeight;
 
-                return {
-                    sets: combo.sets,
-                    reps: combo.reps,
-                    weight: Math.round(roundedWeight * 2) / 2,
-                    calculated1RM: Math.round(projected1RM * 2) / 2
-                };
-            });
+            for (let i = 0; i < 5; i++) {
+                // Find the combination that gives us the smallest increase in 1RM
+                const targetRM = base1RM + (i * increment * 1.26); // Small progressive increase
+
+                // Find the combination that gets us closest to our target 1RM
+                let bestCombo = combinations[0];
+                let smallestDiff = Infinity;
+
+                combinations.forEach(combo => {
+                    const requiredWeight = targetRM / combo.multiplier;
+                    const roundedWeight = Math.ceil(requiredWeight / increment) * increment;
+                    const achieved1RM = roundedWeight * combo.multiplier;
+                    const diff = Math.abs(achieved1RM - targetRM);
+
+                    if (diff < smallestDiff) {
+                        smallestDiff = diff;
+                        bestCombo = combo;
+                    }
+                });
+
+                // Calculate the exact weight needed for this combination
+                const weight = Math.ceil((targetRM / bestCombo.multiplier) / increment) * increment;
+                const achieved1RM = weight * bestCombo.multiplier;
+
+                suggestions.push({
+                    sets: bestCombo.sets,
+                    reps: bestCombo.reps,
+                    weight: Math.round(weight * 2) / 2,
+                    calculated1RM: Math.round(achieved1RM * 2) / 2,
+                    parameters: {
+                        scheme: "STS",
+                        ...exerciseConfig.parameters
+                    }
+                });
+
+                currentWeight = weight;
+            }
 
             console.log("[Storage] Generated STS suggestions:", suggestions);
             return suggestions;
