@@ -4,6 +4,26 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 
 export function registerRoutes(app: Express): Server {
+  // Workout days routes
+  app.get("/api/workout-days", async (req, res) => {
+    try {
+      console.log("[Workout Days] Fetching workout days for user:", req.user?.id);
+      if (!req.isAuthenticated()) {
+        console.log("[Workout Days] Request not authenticated");
+        return res.sendStatus(401);
+      }
+
+      const workoutDays = await storage.getWorkoutDays(req.user.id);
+      console.log("[Workout Days] Found workout days:", workoutDays.length);
+      res.json(workoutDays);
+    } catch (error) {
+      console.error("[Workout Days] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch workout days"
+      });
+    }
+  });
+
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       console.log("[Workout Suggestion] Request headers:", {
