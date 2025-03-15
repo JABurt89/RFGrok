@@ -2,174 +2,47 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { insertExerciseSchema, insertWorkoutDaySchema, insertWorkoutLogSchema } from "@shared/schema";
-import { z } from "zod";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/health/db", async (_req, res) => {
-    try {
-      await storage.getUser(1);
-      res.json({ status: "ok", database: "connected" });
-    } catch (error) {
-      res.status(503).json({
-        status: "error",
-        database: "disconnected",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
-
-  setupAuth(app);
-
-  app.get("/api/exercises", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.setHeader('Content-Type', 'application/json');
-    const exercises = await storage.getExercises(req.user.id);
-    res.json(exercises);
-  });
-
-  app.post("/api/exercises", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      res.setHeader('Content-Type', 'application/json');
-      const parsed = insertExerciseSchema.parse({ ...req.body, userId: req.user.id });
-      const exercise = await storage.createExercise(parsed);
-      res.json(exercise);
-    } catch (error) {
-      res.setHeader('Content-Type', 'application/json');
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Validation error", details: error.errors });
-      } else {
-        res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
-      }
-    }
-  });
-
-  app.patch("/api/exercises/:id", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      res.setHeader('Content-Type', 'application/json');
-      const exercise = await storage.updateExercise(parseInt(req.params.id), req.body);
-      res.json(exercise);
-    } catch (error) {
-      res.setHeader('Content-Type', 'application/json');
-      res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
-    }
-  });
-
-  app.get("/api/workout-days", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.setHeader('Content-Type', 'application/json');
-    const workoutDays = await storage.getWorkoutDays(req.user.id);
-    res.json(workoutDays);
-  });
-
-  app.post("/api/workout-days", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const parsed = insertWorkoutDaySchema.parse({
-        ...req.body,
-        userId: req.user.id
-      });
-      const workoutDay = await storage.createWorkoutDay(parsed);
-      res.setHeader('Content-Type', 'application/json');
-      res.json(workoutDay);
-    } catch (error) {
-      res.setHeader('Content-Type', 'application/json');
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Validation error", details: error.errors });
-      } else {
-        res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
-      }
-    }
-  });
-
-  app.patch("/api/workout-days/:id", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const workoutDay = await storage.updateWorkoutDay(parseInt(req.params.id), req.body);
-      res.setHeader('Content-Type', 'application/json');
-      res.json(workoutDay);
-    } catch (error) {
-      res.setHeader('Content-Type', 'application/json');
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Validation error", details: error.errors });
-      } else {
-        res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
-      }
-    }
-  });
-
-  app.get("/api/workout-logs", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.setHeader('Content-Type', 'application/json');
-    const workoutLogs = await storage.getWorkoutLogs(req.user.id);
-    res.json(workoutLogs);
-  });
-
-  app.post("/api/workout-logs", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const workoutData = {
-        ...req.body,
-        userId: req.user.id,
-        date: new Date(req.body.date),
-        sets: req.body.sets.map((set: any) => ({
-          ...set,
-          sets: set.sets.map((s: any) => ({
-            ...s,
-            timestamp: new Date(s.timestamp)
-          }))
-        }))
-      };
-      const parsed = insertWorkoutLogSchema.parse(workoutData);
-      const workoutLog = await storage.createWorkoutLog(parsed);
-      res.json(workoutLog);
-    } catch (error) {
-      res.setHeader('Content-Type', 'application/json');
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Validation error", details: error.errors });
-      } else {
-        res.status(400).json({ error: error instanceof Error ? error.message : "Unknown error" });
-      }
-    }
-  });
-
-  app.patch("/api/workout-logs/:id", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const id = parseInt(req.params.id);
-      const { isComplete } = req.body;
-      console.log("[PATCH /api/workout-logs] Updating log:", id, "with:", { isComplete });
-      const updatedLog = await storage.updateWorkoutLog(id, { isComplete });
-      res.json(updatedLog);
-    } catch (error) {
-      console.error("[PATCH /api/workout-logs] Error:", error);
-      res.status(500).json({ error: "Failed to update workout log" });
-    }
-  });
-
+export function registerRoutes(app: Express): Server {
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
+      console.log("[Workout Suggestion] Request headers:", {
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization
+      });
+      console.log("[Workout Suggestion] Session:", req.session);
+      console.log("[Workout Suggestion] Auth status:", {
+        isAuthenticated: req.isAuthenticated(),
+        user: req.user
+      });
+
+      if (!req.isAuthenticated()) {
+        console.log("[Workout Suggestion] Request not authenticated");
+        return res.sendStatus(401);
+      }
 
       const exerciseId = parseInt(req.query.exerciseId as string);
       const estimated1RM = req.query.estimated1RM ? parseFloat(req.query.estimated1RM as string) : undefined;
-      console.log("[Route] Workout suggestion request for exercise:", exerciseId, "estimated1RM:", estimated1RM);
+      console.log("[Workout Suggestion] Request parameters:", {
+        exerciseId,
+        estimated1RM,
+        userId: req.user.id
+      });
 
       if (isNaN(exerciseId) || !exerciseId) {
-        console.log("[Route] Invalid exercise ID:", req.query.exerciseId);
+        console.log("[Workout Suggestion] Invalid exercise ID:", req.query.exerciseId);
         return res.status(400).json({ error: "Exercise ID is required" });
       }
 
       const exercise = await storage.getExercise(exerciseId);
       if (!exercise) {
-        console.log("[Route] Exercise not found:", exerciseId);
+        console.log("[Workout Suggestion] Exercise not found:", exerciseId);
         return res.status(404).json({ error: "Exercise not found" });
       }
+      console.log("[Workout Suggestion] Found exercise:", exercise);
 
       const suggestion = await storage.getNextSuggestion(exerciseId, req.user.id, estimated1RM);
-      console.log("[Route] Returning suggestion:", suggestion);
+      console.log("[Workout Suggestion] Generated suggestion:", suggestion);
 
       res.json(suggestion);
     } catch (error) {
@@ -179,6 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Set up authentication routes
+  setupAuth(app);
 
   const httpServer = createServer(app);
   return httpServer;

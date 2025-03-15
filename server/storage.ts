@@ -246,37 +246,35 @@ export class DatabaseStorage {
   async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
     console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
     const logs = await this.getUserWorkoutLogs(userId);
-    console.log("[Storage] Found logs:", logs.length, "Showing first log:", JSON.stringify(logs[0], null, 2));
+    console.log("[Storage] Found logs:", logs.length);
 
     // Find the most recent log that has sets for this exercise
     const relevantLog = logs.find(log => {
-      console.log("[Storage] Checking log sets:", JSON.stringify(log.sets, null, 2));
-      return log.sets.some(set => {
-        console.log("[Storage] Comparing exerciseId:", set.exerciseId, "with:", exerciseId);
-        return set.exerciseId === exerciseId;
-      });
+      console.log("[Storage] Checking log:", log.id, "sets:", log.sets);
+      return log.sets.some(set => set.exerciseId === exerciseId);
     });
-    console.log("[Storage] Found relevant log:", relevantLog ? "yes" : "no");
 
     if (relevantLog) {
-      // Get all sets for this exercise
       const exerciseSets = relevantLog.sets.find(s => s.exerciseId === exerciseId);
       if (exerciseSets && exerciseSets.sets.length > 0) {
-        // Use STS formula to calculate 1RM from the sets
-        const stsProgression = new STSProgression();
-        console.log("[Storage] Calculating 1RM from sets:", exerciseSets.sets);
-
-        const calculated1RM = stsProgression.calculate1RM(
-          exerciseSets.sets.map(s => ({
-            reps: s.reps,
-            weight: s.weight,
+        // Calculate 1RM using the STS formula for each set and take the highest
+        const progression = new STSProgression();
+        const calculated1RM = progression.calculate1RM(
+          exerciseSets.sets.map(set => ({
+            reps: set.reps,
+            weight: set.weight,
             isFailure: false
           }))
         );
 
+        console.log("[Storage] Exercise sets:", exerciseSets.sets);
         console.log("[Storage] Calculated 1RM:", calculated1RM);
+
+        // Store the calculated 1RM
         exerciseSets.oneRm = calculated1RM;
       }
+    } else {
+      console.log("[Storage] No relevant workout logs found for exercise:", exerciseId);
     }
 
     return relevantLog;
