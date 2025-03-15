@@ -7,9 +7,11 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@/types";
 import { queryClient } from "@/lib/queryClient";
-import WorkoutLogger from "@/components/workout-logger";  // Add this import
+import WorkoutLogger from "@/components/workout-logger";
+import { useAuth } from "@/hooks/use-auth";
 
 function WorkoutsPage() {
+  const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
@@ -17,12 +19,12 @@ function WorkoutsPage() {
   // Fetch workouts and exercises
   const { data: workouts = [], isLoading: isLoadingWorkouts } = useQuery<WorkoutDay[]>({
     queryKey: ["/api/workout-days"],
-    refetchOnWindowFocus: false,
-    staleTime: 0 // Always fetch fresh data
+    enabled: !!user
   });
 
   const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
+    enabled: !!user
   });
 
   const handleEdit = (workout: WorkoutDay) => {
@@ -52,6 +54,19 @@ function WorkoutsPage() {
     const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Unknown Exercise";
   };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Please Log In</h2>
+          <Link href="/auth">
+            <Button>Go to Login</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -192,6 +207,7 @@ function WorkoutsPage() {
           </DialogContent>
         </Dialog>
       )}
+
       {/* Active Workout Dialog */}
       <Dialog open={activeWorkout !== null} onOpenChange={(open) => !open && setActiveWorkout(null)}>
         <DialogContent className="max-w-lg">
