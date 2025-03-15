@@ -24,6 +24,26 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Workout logs routes
+  app.get("/api/workout-logs", async (req, res) => {
+    try {
+      console.log("[Workout Logs] Fetching logs for user:", req.user?.id);
+      if (!req.isAuthenticated()) {
+        console.log("[Workout Logs] Request not authenticated");
+        return res.sendStatus(401);
+      }
+
+      const logs = await storage.getUserWorkoutLogs(req.user.id);
+      console.log("[Workout Logs] Found logs:", logs.length);
+      res.json(logs);
+    } catch (error) {
+      console.error("[Workout Logs] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch workout logs"
+      });
+    }
+  });
+
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       console.log("[Workout Suggestion] Request headers:", {
