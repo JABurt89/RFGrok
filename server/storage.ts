@@ -350,98 +350,108 @@ export class DatabaseStorage {
   }
 
   async getNextSuggestion(exerciseId: number, userId: number, estimated1RM?: number): Promise<ProgressionSuggestion | ProgressionSuggestion[]> {
-    console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId, "estimated1RM:", estimated1RM);
+        console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId, "estimated1RM:", estimated1RM);
 
-    try {
-        const exercise = await this.getExercise(exerciseId);
-        if (!exercise) {
-            console.log("[Storage] Exercise not found:", exerciseId);
-            throw new Error("Exercise not found");
-        }
-        console.log("[Storage] Found exercise:", exercise);
+        try {
+            const exercise = await this.getExercise(exerciseId);
+            if (!exercise) {
+                throw new Error("Exercise not found");
+            }
 
-        const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
-        if (!workoutDay) {
-            console.log("[Storage] No workout day found, returning default suggestion");
+            const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
+            if (!workoutDay) {
+                return {
+                    sets: 3,
+                    reps: 8,
+                    weight: exercise.startingWeight || 20,
+                    calculated1RM: (exercise.startingWeight || 20) * 1.26
+                };
+            }
+
+            const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
+            if (!exerciseConfig) {
+                return {
+                    sets: 3,
+                    reps: 8,
+                    weight: exercise.startingWeight || 20,
+                    calculated1RM: (exercise.startingWeight || 20) * 1.26
+                };
+            }
+
+            if (exerciseConfig.parameters.scheme === "STS") {
+                let last1RM = 0;
+
+                if (estimated1RM) {
+                    console.log("[Storage] Using provided estimated 1RM:", estimated1RM);
+                    last1RM = estimated1RM;
+                } else {
+                    const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
+                    const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+                    last1RM = lastSetData?.oneRm ?? 0;
+                    console.log("[Storage] Using calculated 1RM from logs:", last1RM);
+                }
+
+                // Use the consistent parameters for all suggestions
+                const sets = exerciseConfig.parameters.minSets;
+                const reps = exerciseConfig.parameters.maxReps;
+                const increment = exercise.increment || 2.5;
+
+                // Calculate the STS multiplier
+                const stsMultiplier = (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
+
+                // Calculate the starting weight that would achieve the current 1RM
+                let startWeight = last1RM > 0 ? 
+                    (last1RM / stsMultiplier) : // If we have a previous 1RM, use that
+                    (exercise.startingWeight || 20); // Otherwise use starting weight
+
+                // Round to nearest increment
+                startWeight = Math.ceil(startWeight / increment) * increment;
+
+                // Generate 5 suggestions with progressive weights
+                const suggestions: ProgressionSuggestion[] = [];
+
+                for (let i = 0; i < 5; i++) {
+                    const weight = startWeight + (i * increment);
+                    // Calculate the projected 1RM for this weight
+                    const projected1RM = weight * stsMultiplier;
+
+                    suggestions.push({
+                        sets,
+                        reps,
+                        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
+                        calculated1RM: Math.round(projected1RM * 2) / 2,
+                        parameters: {
+                            scheme: "STS",
+                            ...exerciseConfig.parameters
+                        }
+                    });
+                }
+
+                console.log("[Storage] Generated STS suggestions:", suggestions);
+                return suggestions;
+            }
+
+            // For other progression schemes, return a single suggestion
             return {
                 sets: 3,
                 reps: 8,
                 weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+                calculated1RM: (exercise.startingWeight || 20) * 1.26
             };
+
+        } catch (error) {
+            console.error("[Storage] Error in getNextSuggestion:", error);
+            throw new Error("Failed to generate workout suggestion");
         }
-
-        const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
-        if (!exerciseConfig) {
-            console.log("[Storage] No exercise config found in workout day");
-            return {
-                sets: 3,
-                reps: 8,
-                weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-            };
-        }
-
-        if (exerciseConfig.parameters.scheme === "STS") {
-            let last1RM = 0;
-
-            // If user provided an estimated 1RM, use that
-            if (estimated1RM) {
-                console.log("[Storage] Using provided estimated 1RM:", estimated1RM);
-                last1RM = estimated1RM;
-            } else {
-                // Otherwise try to calculate from last workout log
-                const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
-                const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
-                last1RM = lastSetData?.oneRm ?? 0;
-                console.log("[Storage] Using calculated 1RM from logs:", last1RM);
-            }
-
-            // Generate 5 progressive suggestions
-            const suggestions: ProgressionSuggestion[] = [];
-            let baseWeight = last1RM > 0 ? last1RM / 1.25 : (exercise.startingWeight || 20); // Adjust for 1RM calculation
-            const increment = exercise.increment || 2.5;
-
-            // For consistent progression, we'll use fixed sets/reps combinations
-            const setRepCombinations = [
-                { sets: exerciseConfig.parameters.minSets, reps: exerciseConfig.parameters.maxReps }, // More reps, fewer sets
-                { sets: exerciseConfig.parameters.minSets + 1, reps: Math.floor((exerciseConfig.parameters.minReps + exerciseConfig.parameters.maxReps) / 2) },
-                { sets: exerciseConfig.parameters.maxSets - 1, reps: Math.floor((exerciseConfig.parameters.minReps + exerciseConfig.parameters.maxReps) / 2) },
-                { sets: exerciseConfig.parameters.maxSets, reps: exerciseConfig.parameters.minReps + 1 },
-                { sets: exerciseConfig.parameters.maxSets, reps: exerciseConfig.parameters.minReps } // More sets, fewer reps
-            ];
-
-            for (let i = 0; i < 5; i++) {
-                const weight = baseWeight + (i * increment);
-                const { sets, reps } = setRepCombinations[i];
-                const calculated1RM = weight * (1 + 0.025 * reps * sets);
-
-                suggestions.push({
-                    sets,
-                    reps,
-                    weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
-                    calculated1RM: Math.round(calculated1RM * 2) / 2,
-                    parameters: exerciseConfig.parameters
-                });
-            }
-
-            console.log("[Storage] Generated STS suggestions:", suggestions);
-            return suggestions;
-        }
-
-        // For other progression schemes, return a single suggestion
-        return {
-            sets: 3,
-            reps: 8,
-            weight: exercise.startingWeight || 20,
-            calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-        };
-
-    } catch (error) {
-        console.error("[Storage] Error in getNextSuggestion:", error);
-        throw new Error("Failed to generate workout suggestion");
     }
-}
+
+  async deleteWorkoutDay(id: number): Promise<void> {
+    const [deleted] = await db
+      .delete(workoutDays)
+      .where(eq(workoutDays.id, id))
+      .returning();
+    if (!deleted) throw new Error("Workout day not found");
+  }
 }
 
 export const storage = new DatabaseStorage();
