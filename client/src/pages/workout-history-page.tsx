@@ -28,12 +28,12 @@ export default function WorkoutHistoryPage() {
   });
 
   // Fetch exercises for reference
-  const { data: exercises = [] } = useQuery<Exercise[]>({
+  const { data: exercises = [], isLoading: exercisesLoading } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
 
   // Fetch workout days for reference
-  const { data: workoutDays = [] } = useQuery<WorkoutDay[]>({
+  const { data: workoutDays = [], isLoading: workoutDaysLoading } = useQuery<WorkoutDay[]>({
     queryKey: ["/api/workout-days"],
   });
 
@@ -65,16 +65,18 @@ export default function WorkoutHistoryPage() {
   });
 
   const getExerciseName = (exerciseId: number) => {
+    if (!exercises) return "Loading...";
     const exercise = exercises.find(e => e.id === exerciseId);
-    return exercise?.name || "Unknown Exercise";
+    return exercise ? exercise.name : "Unknown Exercise";
   };
 
   const getWorkoutDayName = (workoutDayId: number) => {
+    if (!workoutDays) return "Loading...";
     const workoutDay = workoutDays.find(w => w.id === workoutDayId);
-    return workoutDay?.name || "Unknown Workout";
+    return workoutDay ? workoutDay.name : "Unknown Workout";
   };
 
-  if (logsLoading) {
+  if (logsLoading || exercisesLoading || workoutDaysLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
