@@ -238,26 +238,31 @@ export class DatabaseStorage {
   async getLastWorkoutLog(userId: number, exerciseId: number): Promise<WorkoutLog | undefined> {
     console.log("[Storage] Getting last workout log for user:", userId, "and exercise:", exerciseId);
     const logs = await this.getUserWorkoutLogs(userId);
-    console.log("[Storage] Found logs:", logs);
+    console.log("[Storage] Found logs:", logs.length);
 
     // Find the most recent log that has sets for this exercise
     const relevantLog = logs.find(log => log.sets.some(set => set.exerciseId === exerciseId));
+    console.log("[Storage] Found relevant log:", relevantLog ? "yes" : "no");
 
     if (relevantLog) {
-      // Calculate 1RM from the log using the STS formula
-      const exerciseSets = relevantLog.sets.find(s => s.exerciseId === exerciseId)?.sets || [];
-      if (exerciseSets.length > 0) {
+      // Get all sets for this exercise
+      const exerciseSets = relevantLog.sets.find(s => s.exerciseId === exerciseId);
+      if (exerciseSets && exerciseSets.sets.length > 0) {
+        // Use STS formula to calculate 1RM from the sets
         const stsProgression = new STSProgression();
-        const calculated1RM = stsProgression.calculate1RM(exerciseSets);
-        console.log("[Storage] Calculated 1RM from log:", calculated1RM);
+        console.log("[Storage] Calculating 1RM from sets:", exerciseSets.sets);
 
-        // Add the calculated 1RM to the log
-        if (relevantLog.sets.length > 0) {
-          relevantLog.sets[0].oneRm = calculated1RM;
-        }
+        const calculated1RM = stsProgression.calculate1RM(
+          exerciseSets.sets.map(s => ({
+            reps: s.reps,
+            weight: s.weight,
+            isFailure: false
+          }))
+        );
+
+        console.log("[Storage] Calculated 1RM:", calculated1RM);
+        exerciseSets.oneRm = calculated1RM;
       }
-    } else {
-      console.log("[Storage] No previous logs found for exercise");
     }
 
     return relevantLog;
@@ -275,36 +280,40 @@ export class DatabaseStorage {
         console.log("[Storage] Found exercise:", exercise);
 
         const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
-
-        const defaultSuggestion = {
-            sets: 3,
-            reps: 8,
-            weight: exercise.startingWeight || 20,
-            calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
-        };
-
         if (!workoutDay) {
             console.log("[Storage] No workout day found, returning default suggestion");
-            return defaultSuggestion;
+            return {
+                sets: 3,
+                reps: 8,
+                weight: exercise.startingWeight || 20,
+                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+            };
         }
 
         const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
         if (!exerciseConfig) {
-            console.log("[Storage] No exercise config found in workout day, returning default");
-            return defaultSuggestion;
+            console.log("[Storage] No exercise config found in workout day");
+            return {
+                sets: 3,
+                reps: 8,
+                weight: exercise.startingWeight || 20,
+                calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+            };
         }
 
         if (exerciseConfig.parameters.scheme === "STS") {
             let last1RM = 0;
 
+            // If user provided an estimated 1RM, use that
             if (estimated1RM) {
-                console.log("[Storage] Using estimated 1RM:", estimated1RM);
+                console.log("[Storage] Using provided estimated 1RM:", estimated1RM);
                 last1RM = estimated1RM;
             } else {
+                // Otherwise try to calculate from last workout log
                 const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
                 const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
                 last1RM = lastSetData?.oneRm ?? 0;
-                console.log("[Storage] Using last 1RM for STS:", last1RM);
+                console.log("[Storage] Using calculated 1RM from logs:", last1RM);
             }
 
             const progression = new STSProgression(
@@ -318,14 +327,25 @@ export class DatabaseStorage {
             console.log("[Storage] Generated STS suggestions:", suggestions);
 
             if (!suggestions || suggestions.length === 0) {
-                console.log("[Storage] No suggestions generated; returning default");
-                return defaultSuggestion;
+                console.log("[Storage] No valid suggestions generated, returning default");
+                return {
+                    sets: 3,
+                    reps: 8,
+                    weight: exercise.startingWeight || 20,
+                    calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+                };
             }
 
             return suggestions[0];
         }
 
-        return defaultSuggestion;
+        return {
+            sets: 3,
+            reps: 8,
+            weight: exercise.startingWeight || 20,
+            calculated1RM: (exercise.startingWeight || 20) * (1 + 0.025 * 8 * 3)
+        };
+
     } catch (error) {
         console.error("[Storage] Error in getNextSuggestion:", error);
         try {
