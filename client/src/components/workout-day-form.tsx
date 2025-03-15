@@ -124,7 +124,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
     } : {
       name: "",
       exercises: [{
-        exerciseId: 1, // Changed default to 1 to pass validation.
+        exerciseId: 1,
         parameters: defaultParameters.STS
       }]
     },
@@ -622,7 +622,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
               variant="outline"
               className="w-full"
               onClick={() => append({
-                exerciseId: 1, // Changed default to 1 to pass validation.
+                exerciseId: 1,
                 parameters: defaultParameters.STS
               })}
             >
