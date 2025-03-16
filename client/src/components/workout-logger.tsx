@@ -271,6 +271,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   }, [isWorkoutActive, parameters.scheme, suggestions]);
 
+  // Show rep selection dialog automatically for RPT workouts after rest timer
+  useEffect(() => {
+    if ((parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") &&
+      restTimer === 0 &&
+      !isLastSet &&
+      !showRepsInput) {
+      setShowRepsInput(true);
+    }
+  }, [parameters.scheme, restTimer, isLastSet, showRepsInput]);
+
 
   if (!user) {
     return (
@@ -452,15 +462,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {/* Show rep selection button for RPT workouts */}
-          {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && !showRepsInput && (
-            <Button
-              className="w-full"
-              onClick={() => setShowRepsInput(true)}
-            >
-              Log Reps
-            </Button>
-          )}
 
           {/* Show regular set completion buttons for other workout types */}
           {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
