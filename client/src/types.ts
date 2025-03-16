@@ -17,8 +17,8 @@ export interface User extends BaseUser {
 
 export interface Exercise extends BaseExercise {
   // Add any client-specific exercise properties here
-  equipmentName?: string;
-  units?: string;
+  // Note: equipmentName is already required in BaseExercise
+  units: "kg" | "lb";
 }
 
 export interface WorkoutDay extends BaseWorkoutDay {

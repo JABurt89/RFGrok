@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { workoutReducer } from "./workout-reducer";
 import { initialWorkoutState } from "./workout-state";
+import type { Exercise } from "@/types";
 import type { WorkoutState } from "./workout-state";
 import type { WorkoutAction } from "./workout-actions";
 
@@ -26,7 +27,7 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
   const [state, dispatch] = useReducer(workoutReducer, initialWorkoutState);
 
   // Fetch exercises for reference
-  const { data: exercises = [] } = useQuery({
+  const { data: exercises = [] } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
   });
 
@@ -48,7 +49,7 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
 
   // Get exercise name
   const getExerciseName = () => {
-    const exercise = exercises.find(e => e.id === exerciseId);
+    const exercise = exercises.find((e: Exercise) => e.id === exerciseId);
     return exercise?.name || "Exercise";
   };
 
