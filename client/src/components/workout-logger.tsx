@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -239,6 +239,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
+        name: selectedSuggestion.name || "Exercise", // Include exercise name
+        position: workoutDayId // Include position in workout
       };
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
@@ -247,11 +249,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         weight: selectedSuggestion.weight,
         minReps: setConfig.min,
         maxReps: setConfig.max,
+        name: selectedSuggestion.name || "Exercise", // Include exercise name
+        position: workoutDayId // Include position in workout
       };
     }
     return {
       weight: selectedSuggestion.weight,
       reps: selectedSuggestion.reps,
+      name: selectedSuggestion.name || "Exercise", // Include exercise name
+      position: workoutDayId // Include position in workout
     };
   };
 
@@ -265,7 +271,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         sets: parameters.sets,
         reps: parameters.maxReps,
         weight: suggestions?.[0]?.weight || 20,
-        calculated1RM: suggestions?.[0]?.calculated1RM
+        calculated1RM: suggestions?.[0]?.calculated1RM,
+        exerciseName: suggestions?.[0]?.exerciseName || "Exercise", // Added exerciseName property
+        name: suggestions?.[0]?.name || "Exercise" // Added name property
+
       };
       handleStartWorkout(defaultSuggestion);
     }
@@ -390,7 +399,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       {/* Rep Selection Dialog */}
       <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
         <DialogContent>
-          <DialogTitle>Log Set Completion</DialogTitle>
+          <DialogTitle className="flex flex-col gap-1">
+            <div className="text-sm text-muted-foreground">Exercise {workoutDayId}/3</div>
+            <div className="text-xl">{getCurrentSetTarget()?.name || 'Exercise'}</div>
+            <div className="text-base font-normal">
+              Set {currentSet + 1} • {getCurrentSetTarget()?.weight}kg
+            </div>
+          </DialogTitle>
           <DialogDescription>
             Select the number of repetitions completed for this set.
           </DialogDescription>
