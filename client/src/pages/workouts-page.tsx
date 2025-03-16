@@ -61,8 +61,6 @@ function WorkoutsPage() {
       case "RPT Individual":
         return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
       default:
-        // This satisfies TypeScript's exhaustive check
-        const _exhaustiveCheck: never = parameters;
         return parameters.scheme;
     }
   };
