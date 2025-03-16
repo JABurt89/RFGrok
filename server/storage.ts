@@ -493,6 +493,22 @@ export class DatabaseStorage {
       .returning();
     if (!deleted) throw new Error("Workout day not found");
   }
+
+  async getWorkoutLog(id: number): Promise<WorkoutLog | undefined> {
+    console.log("[Storage] Getting workout log:", id);
+    const [log] = await db.select()
+      .from(workoutLogs)
+      .where(eq(workoutLogs.id, id));
+
+    if (!log) return undefined;
+
+    return {
+      ...log,
+      sets: typeof log.sets === 'string' ?
+        JSON.parse(decrypt(log.sets)) :
+        log.sets
+    } as WorkoutLog;
+  }
 }
 
 export const storage = new DatabaseStorage();
