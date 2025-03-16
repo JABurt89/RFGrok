@@ -138,8 +138,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const handleSetComplete = () => {
     if (!selectedSuggestion) return;
 
-    const weight = editWeight ?? selectedSuggestion.weight;
-    const reps = editReps ?? selectedSuggestion.reps;
+    const target = getCurrentSetTarget();
+    if (!target) return;
+
+    const weight = editWeight ?? target.weight;
+    const reps = editReps ?? (
+      parameters.scheme === "RPT Individual"
+        ? target.maxReps
+        : target.reps
+    );
 
     setLoggedSets(prev => [...prev, {
       weight,
@@ -148,7 +155,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }]);
 
     setCurrentSet(prev => prev + 1);
-    setRestTimer(parameters.restBetweenSets); // Use passed parameters
+    setRestTimer(parameters.restBetweenSets);
     setIsEditing(false);
     setEditWeight(null);
     setEditReps(null);
@@ -157,14 +164,17 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const handleSetFailed = (completedReps: number) => {
     if (!selectedSuggestion) return;
 
+    const target = getCurrentSetTarget();
+    if (!target) return;
+
     setLoggedSets(prev => [...prev, {
-      weight: selectedSuggestion.weight,
+      weight: target.weight,
       reps: completedReps,
       timestamp: new Date().toISOString()
     }]);
 
     setCurrentSet(prev => prev + 1);
-    setRestTimer(parameters.restBetweenSets); // Use passed parameters
+    setRestTimer(parameters.restBetweenSets);
     setShowFailureOptions(false);
   };
 
@@ -195,6 +205,30 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
     return () => window.clearInterval(interval);
   }, [restTimer]);
+
+  const getCurrentSetTarget = () => {
+    if (!selectedSuggestion) return null;
+
+    if (parameters.scheme === "RPT Top-Set") {
+      const dropPercentage = parameters.dropPercentages[currentSet] || 0;
+      const weight = selectedSuggestion.weight * (1 - dropPercentage / 100);
+      return {
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
+        reps: selectedSuggestion.reps,
+      };
+    } else if (parameters.scheme === "RPT Individual") {
+      const setConfig = parameters.setConfigs[currentSet];
+      return {
+        weight: selectedSuggestion.weight,
+        minReps: setConfig?.min || selectedSuggestion.reps,
+        maxReps: setConfig?.max || selectedSuggestion.reps,
+      };
+    }
+    return {
+      weight: selectedSuggestion.weight,
+      reps: selectedSuggestion.reps,
+    };
+  };
 
   if (!user) {
     return (
@@ -291,7 +325,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         <CardHeader>
           <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
           <CardDescription className="text-lg font-semibold mt-2">
-            Target: <span className="text-primary">{selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps</span>
+            {parameters.scheme === "RPT Individual" ? (
+              <span className="text-primary">
+                Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
+              </span>
+            ) : (
+              <span className="text-primary">
+                Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.reps} reps
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
 
