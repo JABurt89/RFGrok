@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RPTTopSetParameters } from "@shared/schema";
@@ -10,16 +10,17 @@ interface RPTTopSetLoggerProps extends BaseWorkoutLoggerProps {
 
 export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
   const base = BaseWorkoutLogger(props);
-  const [showRepsInput, setShowRepsInput] = useState(false);
+  const { state, dispatch } = base;
 
   const getCurrentSetTarget = () => {
-    if (!base.selectedSuggestion) return null;
+    if (!state.selectedSuggestion) return null;
 
     const exerciseName = base.getExerciseName();
-    const position = `${props.workoutDayId} of ${props.totalExercises}`;
+    const exercisePosition = Math.min(props.workoutDayId, props.totalExercises || 3);
+    const position = `${exercisePosition} of ${props.totalExercises}`;
 
-    const dropPercentage = props.parameters.dropPercentages[base.currentSet] || 0;
-    const baseWeight = base.selectedSuggestion.weight;
+    const dropPercentage = props.parameters.dropPercentages[state.currentSet] || 0;
+    const baseWeight = state.selectedSuggestion.weight;
     const weight = baseWeight * (1 - dropPercentage / 100);
 
     return {
@@ -33,40 +34,38 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
   };
 
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-    if (!base.selectedSuggestion) return;
+    if (!state.selectedSuggestion) return;
 
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    base.setLoggedSets(prev => [...prev, {
-      weight: target.weight,
-      reps,
-      timestamp: new Date().toISOString(),
-      isFailure: false,
-      exceededMax
-    }]);
+    dispatch({ 
+      type: 'LOG_REPS',
+      payload: { 
+        reps,
+        exceededMax
+      }
+    });
 
-    if (base.currentSet + 1 >= props.parameters.sets) {
-      base.setCurrentSet(prev => prev + 1);
-      setShowRepsInput(false);
+    if (state.currentSet + 1 >= props.parameters.sets) {
       props.onComplete();
     } else {
-      base.setCurrentSet(prev => prev + 1);
-      base.setRestTimer(props.parameters.restBetweenSets);
-      // Keep dialog visible during rest
-      setShowRepsInput(true);
+      dispatch({ 
+        type: 'UPDATE_REST_TIMER',
+        payload: props.parameters.restBetweenSets
+      });
     }
   };
 
   // Show rep selection dialog automatically
   useEffect(() => {
-    if (base.selectedSuggestion && !showRepsInput) {
-      setShowRepsInput(true);
+    if (state.selectedSuggestion && !state.showRepsInput) {
+      dispatch({ type: 'TOGGLE_REPS_INPUT', payload: true });
     }
-  }, [base.selectedSuggestion, base.currentSet]);
+  }, [state.selectedSuggestion, state.currentSet]);
 
   // If not started, show suggestion selection
-  if (!base.selectedSuggestion) {
+  if (!state.selectedSuggestion) {
     return <base.SuggestionSelection />;
   }
 
@@ -74,13 +73,16 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
     <div className="space-y-4">
       <base.RestTimer />
 
-      <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
+      <Dialog 
+        open={state.showRepsInput} 
+        onOpenChange={(open) => dispatch({ type: 'TOGGLE_REPS_INPUT', payload: open })}
+      >
         <DialogContent>
           <DialogTitle className="flex flex-col gap-1">
             <div className="text-sm text-muted-foreground">Exercise {getCurrentSetTarget()?.position}</div>
             <div className="text-xl">{getCurrentSetTarget()?.name}</div>
             <div className="text-base font-normal">
-              Set {base.currentSet + 1} • {getCurrentSetTarget()?.weight}kg
+              Set {state.currentSet + 1} • {getCurrentSetTarget()?.weight}kg
             </div>
             <div className="text-sm text-muted-foreground">
               Target: {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps

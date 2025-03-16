@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useReducer, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,10 @@ import { Loader2, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { workoutReducer } from "./workout-reducer";
+import { initialWorkoutState } from "./workout-state";
+import type { WorkoutState } from "./workout-state";
+import type { WorkoutAction } from "./workout-actions";
 
 export interface BaseWorkoutLoggerProps {
   exerciseId: number;
@@ -15,32 +19,11 @@ export interface BaseWorkoutLoggerProps {
   totalExercises?: number;
 }
 
-export interface WorkoutSet {
-  reps: number;
-  weight: number;
-  timestamp: string;
-  isFailure?: boolean;
-  exceededMax?: boolean;
-}
-
-export interface WorkoutSuggestion {
-  sets: number;
-  reps: number;
-  weight: number;
-  calculated1RM?: number;
-  name?: string;
-}
-
 export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalExercises = 3 }: BaseWorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
-  const [currentSet, setCurrentSet] = useState(0);
-  const [loggedSets, setLoggedSets] = useState<WorkoutSet[]>([]);
-  const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<WorkoutSuggestion | null>(null);
-  const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
+  const [state, dispatch] = useReducer(workoutReducer, initialWorkoutState);
 
   // Fetch exercises for reference
   const { data: exercises = [] } = useQuery({
@@ -72,21 +55,18 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
   // Rest timer effect
   useEffect(() => {
     let interval: number;
-    if (restTimer !== null && restTimer > 0) {
+    if (state.restTimer !== null && state.restTimer > 0) {
       interval = window.setInterval(() => {
-        setRestTimer(prev => {
-          if (prev === null || prev <= 0) return null;
-          return prev - 1;
-        });
+        dispatch({ type: 'TICK_REST_TIMER' });
       }, 1000);
 
       // Play sound when timer reaches 0
-      if (restTimer === 1) {
+      if (state.restTimer === 1) {
         new Audio('/chime.mp3').play().catch(console.error);
       }
     }
     return () => window.clearInterval(interval);
-  }, [restTimer]);
+  }, [state.restTimer]);
 
   if (!user) {
     return (
@@ -108,14 +88,14 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
 
   // Rest Timer Component
   const RestTimer = () => {
-    if (restTimer === null || restTimer <= 0) return null;
+    if (state.restTimer === null || state.restTimer <= 0) return null;
 
     return (
       <Alert>
         <AlertDescription className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Timer className="h-5 w-5" />
-            <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+            <span>Rest Time: {Math.floor(state.restTimer / 60)}:{(state.restTimer % 60).toString().padStart(2, '0')}</span>
           </div>
         </AlertDescription>
       </Alert>
@@ -142,7 +122,7 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
                   key={idx}
                   variant="outline"
                   className="w-full text-left h-auto normal-case"
-                  onClick={() => setSelectedSuggestion(suggestion)}
+                  onClick={() => dispatch({ type: 'START_WORKOUT', payload: { suggestion } })}
                 >
                   <div className="flex flex-col items-start">
                     <span className="font-medium">
@@ -160,7 +140,7 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
               <Button
                 variant="outline"
                 className="w-full text-left h-auto normal-case"
-                onClick={() => setSelectedSuggestion(suggestions)}
+                onClick={() => dispatch({ type: 'START_WORKOUT', payload: { suggestion: suggestions } })}
               >
                 <div className="flex flex-col items-start">
                   <span className="font-medium">
@@ -181,18 +161,8 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
   };
 
   return {
-    isWorkoutActive,
-    setIsWorkoutActive,
-    currentSet,
-    setCurrentSet,
-    loggedSets,
-    setLoggedSets,
-    restTimer,
-    setRestTimer,
-    workoutLogId,
-    setWorkoutLogId,
-    selectedSuggestion,
-    setSelectedSuggestion,
+    state,
+    dispatch,
     getExerciseName,
     RestTimer,
     SuggestionSelection,
