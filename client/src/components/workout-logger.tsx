@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -383,64 +384,46 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           )}
 
           {/* Rep Selection UI */}
-          {isEditing ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="weight" className="text-sm font-medium">
-                  Weight (kg)
-                </label>
-                <Input
-                  id="weight"
-                  type="number"
-                  value={editWeight ?? ''}
-                  onChange={(e) => setEditWeight(Number(e.target.value))}
-                  placeholder="Enter weight in kg"
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="reps" className="text-sm font-medium">
-                  Number of Reps
-                </label>
-                <Input
-                  id="reps"
-                  type="number"
-                  value={editReps ?? ''}
-                  onChange={(e) => setEditReps(Number(e.target.value))}
-                  placeholder="Enter number of reps"
-                  className="w-full"
-                />
-              </div>
-            </div>
-          ) : showRepsInput ? (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">How many reps completed?</h3>
-              <div className="grid grid-cols-4 gap-2">
-                {/* Rep range buttons */}
-                {Array.from({
-                  length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
-                }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
-                  <Button
-                    key={rep}
-                    variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleRepSelection(rep)}
-                    className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
-                  >
-                    {rep}
-                  </Button>
-                ))}
-                {/* Max Range Exceeded button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
-                  className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
-                >
-                  Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
-                </Button>
-              </div>
-            </div>
+          {showRepsInput ? (
+            <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
+              <DialogContent>
+                <DialogTitle>Log Set Completion</DialogTitle>
+                <DialogDescription>
+                  Select the number of repetitions completed for this set.
+                </DialogDescription>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-4 gap-2">
+                    {Array.from({
+                      length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
+                    }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
+                      <Button
+                        key={rep}
+                        variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          handleRepSelection(rep);
+                          setShowRepsInput(false);
+                        }}
+                        className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
+                      >
+                        {rep}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true);
+                        setShowRepsInput(false);
+                      }}
+                      className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+                    >
+                      Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           ) : null}
         </CardContent>
 
