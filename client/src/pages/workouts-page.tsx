@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
-
-type WorkoutParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
+import { WorkoutDayForm } from "@/components/workout-day-form";
 
 function WorkoutsPage() {
   const { user } = useAuth();
