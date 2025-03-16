@@ -403,7 +403,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-5 gap-2">
-                {Array.from({ length: getCurrentSetTarget()?.reps || 0 }, (_, i) => i + 1).map((rep) => (
+                {Array.from({ 
+                  length: parameters.scheme === "RPT Individual" 
+                    ? getCurrentSetTarget()?.maxReps || 0 
+                    : getCurrentSetTarget()?.reps || 0 
+                }, (_, i) => i + 1).map((rep) => (
                   <Button
                     key={rep}
                     variant="outline"
