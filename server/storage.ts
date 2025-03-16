@@ -1,7 +1,7 @@
 import { User, InsertUser, Exercise, InsertExercise, WorkoutDay, InsertWorkoutDay, WorkoutLog, InsertWorkoutLog } from "@shared/schema";
 import { db } from "./db";
 import { users, exercises, workoutDays, workoutLogs } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
@@ -33,21 +33,22 @@ export class DatabaseStorage {
       sets: typeof log.sets === 'string' ?
         JSON.parse(decrypt(log.sets)) :
         log.sets
-    }));
+    })) as WorkoutLog[];
   }
 
   async getUserWorkoutLogs(userId: number): Promise<WorkoutLog[]> {
     console.log("[Storage] Getting workout logs for user:", userId);
     const logs = await db.select()
-        .from(workoutLogs)
-        .where(eq(workoutLogs.userId, userId), eq(workoutLogs.isComplete, true))
-        .orderBy(workoutLogs.date, 'desc');
+      .from(workoutLogs)
+      .where(eq(workoutLogs.userId, userId))
+      .where(eq(workoutLogs.isComplete, true))
+      .orderBy(desc(workoutLogs.date));
 
     console.log("[Storage] Raw logs from database:", logs.length);
     const parsedLogs = logs.map(log => ({
-        ...log,
-        sets: typeof log.sets === 'string' ? JSON.parse(decrypt(log.sets)) : log.sets
-    }));
+      ...log,
+      sets: typeof log.sets === 'string' ? JSON.parse(decrypt(log.sets)) : log.sets
+    })) as WorkoutLog[];
     console.log("[Storage] First parsed log sets:", parsedLogs.length > 0 ? JSON.stringify(parsedLogs[0].sets, null, 2) : "No logs");
 
     return parsedLogs;
@@ -55,6 +56,9 @@ export class DatabaseStorage {
 
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
     console.log("[Storage] Creating workout log:", insertWorkoutLog);
+
+    // Ensure proper date format
+    const formattedDate = new Date(insertWorkoutLog.date).toISOString();
 
     // Calculate 1RM for each exercise in sets
     const setsWith1RM = insertWorkoutLog.sets.map(setData => {
@@ -77,22 +81,35 @@ export class DatabaseStorage {
           calculated1RM = 0;
       }
       console.log(`[Storage] Calculated 1RM for exercise ${setData.exerciseId}: ${calculated1RM}`);
-      return { ...setData, oneRm: calculated1RM };
+
+      // Ensure all timestamps in sets are in ISO format
+      const formattedSets = setData.sets.map(set => ({
+        ...set,
+        timestamp: new Date(set.timestamp).toISOString()
+      }));
+
+      return { 
+        ...setData, 
+        sets: formattedSets,
+        oneRm: calculated1RM 
+      };
     });
 
     const encryptedSets = encrypt(JSON.stringify(setsWith1RM));
     const [workoutLog] = await db
       .insert(workoutLogs)
       .values({
-        ...insertWorkoutLog,
+        userId: insertWorkoutLog.userId,
+        date: formattedDate,
         sets: encryptedSets,
+        isComplete: insertWorkoutLog.isComplete
       })
       .returning();
 
     return {
       ...workoutLog,
       sets: typeof workoutLog.sets === "string" ? JSON.parse(decrypt(workoutLog.sets)) : workoutLog.sets,
-    };
+    } as WorkoutLog;
   }
 
   async updateWorkoutLog(id: number, updates: Partial<WorkoutLog>): Promise<WorkoutLog> {
@@ -101,7 +118,6 @@ export class DatabaseStorage {
     if (updateData.sets) {
       const [workoutLog] = await db.select().from(workoutLogs).where(eq(workoutLogs.id, id));
       if (!workoutLog) throw new Error("Workout log not found");
-
 
       const setsWith1RM = updateData.sets.map(setData => {
         let calculated1RM: number;
@@ -429,9 +445,9 @@ export class DatabaseStorage {
         console.error("[Storage] Error in getNextSuggestion:", error);
         throw error;
     }
-}
+  }
 
-async deleteWorkoutDay(id: number): Promise<void> {
+  async deleteWorkoutDay(id: number): Promise<void> {
     const [deleted] = await db
       .delete(workoutDays)
       .where(eq(workoutDays.id, id))
