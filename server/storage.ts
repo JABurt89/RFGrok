@@ -57,60 +57,79 @@ export class DatabaseStorage {
   async createWorkoutLog(insertWorkoutLog: InsertWorkoutLog): Promise<WorkoutLog> {
     console.log("[Storage] Creating workout log:", insertWorkoutLog);
 
-    // Ensure proper date format
-    const formattedDate = new Date(insertWorkoutLog.date).toISOString();
+    try {
+        // Ensure proper date format for the workout log
+        const formattedDate = new Date(insertWorkoutLog.date).toISOString();
 
-    // Calculate 1RM for each exercise in sets
-    const setsWith1RM = insertWorkoutLog.sets.map(setData => {
-      let calculated1RM: number;
-      switch (setData.parameters.scheme) {
-        case "STS":
-          const stsProgression = new STSProgression();
-          calculated1RM = stsProgression.calculate1RM(
-            setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
-          );
-          break;
-        case "Double Progression":
-          calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
-          break;
-        case "RPT Top-Set":
-        case "RPT Individual":
-          calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
-          break;
-        default:
-          calculated1RM = 0;
-      }
-      console.log(`[Storage] Calculated 1RM for exercise ${setData.exerciseId}: ${calculated1RM}`);
+        // Calculate 1RM for each exercise in sets and format timestamps
+        const setsWith1RM = insertWorkoutLog.sets.map(setData => {
+            // Calculate 1RM based on progression scheme
+            let calculated1RM: number;
+            switch (setData.parameters.scheme) {
+                case "STS":
+                    const stsProgression = new STSProgression();
+                    calculated1RM = stsProgression.calculate1RM(
+                        setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
+                    );
+                    break;
+                case "Double Progression":
+                    calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+                    break;
+                case "RPT Top-Set":
+                case "RPT Individual":
+                    calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+                    break;
+                default:
+                    calculated1RM = 0;
+            }
+            console.log(`[Storage] Calculated 1RM for exercise ${setData.exerciseId}: ${calculated1RM}`);
 
-      // Ensure all timestamps in sets are in ISO format
-      const formattedSets = setData.sets.map(set => ({
-        ...set,
-        timestamp: new Date(set.timestamp).toISOString()
-      }));
+            // Format timestamps for each set
+            const formattedSets = setData.sets.map(set => {
+                // Use current timestamp if none provided
+                const timestamp = set.timestamp ? new Date(set.timestamp) : new Date();
+                return {
+                    ...set,
+                    timestamp: timestamp.toISOString()
+                };
+            });
 
-      return { 
-        ...setData, 
-        sets: formattedSets,
-        oneRm: calculated1RM 
-      };
-    });
+            return {
+                exerciseId: setData.exerciseId,
+                sets: formattedSets,
+                parameters: setData.parameters,
+                oneRm: calculated1RM
+            };
+        });
 
-    const encryptedSets = encrypt(JSON.stringify(setsWith1RM));
-    const [workoutLog] = await db
-      .insert(workoutLogs)
-      .values({
-        userId: insertWorkoutLog.userId,
-        date: formattedDate,
-        sets: encryptedSets,
-        isComplete: insertWorkoutLog.isComplete
-      })
-      .returning();
+        console.log("[Storage] Formatted sets with 1RM:", setsWith1RM);
 
-    return {
-      ...workoutLog,
-      sets: typeof workoutLog.sets === "string" ? JSON.parse(decrypt(workoutLog.sets)) : workoutLog.sets,
-    } as WorkoutLog;
-  }
+        const encryptedSets = encrypt(JSON.stringify(setsWith1RM));
+        const [workoutLog] = await db
+            .insert(workoutLogs)
+            .values({
+                userId: insertWorkoutLog.userId,
+                date: formattedDate,
+                sets: encryptedSets,
+                isComplete: insertWorkoutLog.isComplete
+            })
+            .returning();
+
+        if (!workoutLog) {
+            throw new Error("Failed to create workout log");
+        }
+
+        return {
+            ...workoutLog,
+            sets: typeof workoutLog.sets === "string" ? 
+                JSON.parse(decrypt(workoutLog.sets)) : 
+                workoutLog.sets
+        } as WorkoutLog;
+    } catch (error) {
+        console.error("[Storage] Error creating workout log:", error);
+        throw error;
+    }
+}
 
   async updateWorkoutLog(id: number, updates: Partial<WorkoutLog>): Promise<WorkoutLog> {
     const updateData = { ...updates };
