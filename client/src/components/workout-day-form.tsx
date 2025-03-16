@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { queryClient } from "@/lib/queryClient";
 
 // Form schema with proper type coercion
 const formSchema = z.object({
