@@ -23,7 +23,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [currentSet, setCurrentSet] = useState(0);
-  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string }>>([]);
+  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
@@ -151,7 +151,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     setLoggedSets(prev => [...prev, {
       weight,
       reps,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isFailure: false
     }]);
 
     setCurrentSet(prev => prev + 1);
@@ -170,20 +171,30 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     setLoggedSets(prev => [...prev, {
       weight: target.weight,
       reps: completedReps,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isFailure: true
     }]);
 
+    // Continue to next set after failure
     setCurrentSet(prev => prev + 1);
     setRestTimer(parameters.restBetweenSets);
     setShowFailureOptions(false);
+
+    // Automatically enable editing for the next set after a failure
+    setIsEditing(true);
+    setEditWeight(target.weight);
+    setEditReps(target.reps);
   };
 
   const handleEditToggle = () => {
     if (!selectedSuggestion) return;
 
+    const target = getCurrentSetTarget();
+    if (!target) return;
+
     if (!isEditing) {
-      setEditWeight(selectedSuggestion.weight);
-      setEditReps(selectedSuggestion.reps);
+      setEditWeight(target.weight);
+      setEditReps(target.reps);
     }
     setIsEditing(!isEditing);
   };
@@ -229,6 +240,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       reps: selectedSuggestion.reps,
     };
   };
+
+  const isLastSet = currentSet >= (selectedSuggestion?.sets || 0);
+  const hasFailedCurrentSet = loggedSets[currentSet - 1]?.isFailure;
 
   if (!user) {
     return (
@@ -345,7 +359,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               <div className="grid gap-2">
                 {loggedSets.map((set, idx) => (
                   <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
-                    <span>Set {idx + 1}: {set.reps} reps @ {set.weight}kg</span>
+                    <span>
+                      Set {idx + 1}: {set.reps} reps @ {set.weight}kg
+                      {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -386,7 +403,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-5 gap-2">
-                {Array.from({ length: selectedSuggestion?.reps - 1 }, (_, i) => i + 1).map((rep) => (
+                {Array.from({ length: getCurrentSetTarget()?.reps || 0 }, (_, i) => i + 1).map((rep) => (
                   <Button
                     key={rep}
                     variant="outline"
@@ -403,7 +420,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {!showFailureOptions && !isEditing && (
+          {!isLastSet && !showFailureOptions && !isEditing && (
             <>
               <Button
                 className="flex-1 sm:flex-none"
@@ -447,11 +464,20 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               Cancel
             </Button>
           )}
+
+          {isLastSet && !showFailureOptions && !isEditing && (
+            <Button
+              className="w-full"
+              onClick={() => onComplete()}
+            >
+              Next Exercise
+            </Button>
+          )}
         </CardFooter>
       </Card>
 
       {/* Extra Set for STS */}
-      {currentSet >= (selectedSuggestion?.sets || 0) && parameters.scheme === "STS" && (
+      {isLastSet && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
             <CardTitle>Extra Set to Failure</CardTitle>
@@ -467,13 +493,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             />
           </CardContent>
           <CardFooter className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => completeMutation.mutate()}>
+            <Button variant="outline" onClick={() => onComplete()}>
               Skip Extra Set
             </Button>
             <Button
               onClick={() => {
                 if (extraSetReps !== null) {
-                  completeMutation.mutate();
+                  onComplete();
                 } else {
                   toast({
                     title: "Error",
@@ -482,37 +508,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                   });
                 }
               }}
-              disabled={extraSetReps === null || completeMutation.isPending}
+              disabled={extraSetReps === null}
             >
-              {completeMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Log Extra Set"
-              )}
+              Log Extra Set
             </Button>
           </CardFooter>
         </Card>
-      )}
-
-      {/* Complete Workout Button */}
-      {currentSet >= (selectedSuggestion?.sets || 0) && parameters.scheme !== "STS" && (
-        <Button
-          className="w-full"
-          onClick={() => completeMutation.mutate()}
-          disabled={completeMutation.isPending}
-        >
-          {completeMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Completing Workout...
-            </>
-          ) : (
-            "Complete Workout"
-          )}
-        </Button>
       )}
     </div>
   );
