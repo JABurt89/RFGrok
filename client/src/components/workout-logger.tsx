@@ -464,7 +464,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         <CardHeader>
           <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
           <CardDescription className="text-lg font-semibold mt-2">
-            {parameters.scheme === "RPT Individual" ? (
+            {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
               <span className="text-primary">
                 Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
               </span>
@@ -497,6 +497,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
+          {/* Show RPT rep logging button */}
+          {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && (
+            <Button
+              className="w-full"
+              onClick={() => setShowRepsInput(true)}
+            >
+              Log Reps
+            </Button>
+          )}
+
           {/* Show regular set completion buttons for other workout types */}
           {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
             <>
@@ -534,8 +544,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </>
           )}
 
-
-          {/* Modified to show Next Exercise button only after extra set is handled for STS */}
+          {/* Next Exercise button */}
           {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
             <Button
               className="w-full"
