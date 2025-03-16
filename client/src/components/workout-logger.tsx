@@ -103,7 +103,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    // For RPT workouts, show rep selection UI
+    // For RPT workouts, always show rep selection UI
     if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
       setShowRepsInput(true);
       return;
@@ -145,7 +145,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     setCurrentSet(prev => prev + 1);
     setRestTimer(parameters.restBetweenSets);
-    setShowRepsInput(false);
+    // Show rep selection UI for next set in RPT workouts
+    setShowRepsInput(parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set");
     setIsEditing(false);
     setEditWeight(null);
     setEditReps(null);
@@ -424,7 +425,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {!isLastSet && !showRepsInput && !isEditing && (
+          {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
             <>
               <Button
                 className="flex-1 sm:flex-none"
