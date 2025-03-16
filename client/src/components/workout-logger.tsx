@@ -233,26 +233,25 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
-  // Get exercise name
+  // Get exercise name and position
   const getExerciseName = () => {
     const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Exercise";
   };
 
-  // Get current set target with correct position formatting
   const getCurrentSetTarget = () => {
     if (!selectedSuggestion) return null;
 
     const exerciseName = getExerciseName();
-    const exercisePosition = Math.min(workoutDayId, totalExercises); // Ensure position doesn't exceed total
-    const position = `${exercisePosition} of ${totalExercises}`; // Format as "X of Y"
+    const exercisePosition = Math.min(workoutDayId, totalExercises);
+    const position = `${exercisePosition} of ${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
       return {
-        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
+        weight: Math.round(weight * 2) / 2,
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
@@ -289,7 +288,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         reps: parameters.maxReps,
         weight: suggestions?.[0]?.weight || 20,
         calculated1RM: suggestions?.[0]?.calculated1RM,
-        name: getExerciseName(), // Use actual exercise name
+        name: getExerciseName(),
       };
       handleStartWorkout(defaultSuggestion);
     }
@@ -339,7 +338,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   }
 
   // Show suggestion selection only for non-RPT workouts
-  if (!isWorkoutActive) {
+  if (!isWorkoutActive && parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") {
     return (
       <Card>
         <CardHeader>
