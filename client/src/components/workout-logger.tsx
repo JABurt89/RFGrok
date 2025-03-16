@@ -8,14 +8,16 @@ import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
   workoutDayId: number;
+  parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   onComplete: () => void;
 }
 
-export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: WorkoutLoggerProps) {
+export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete }: WorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -58,7 +60,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
         sets: [{
           exerciseId,
           sets: [],
-          parameters: selectedSuggestion.parameters,
+          parameters: parameters, // Use the passed parameters instead of suggestion parameters
         }],
         isComplete: false
       });
@@ -84,7 +86,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   // Complete workout mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
-      if (!workoutLogId || !user || !selectedSuggestion?.parameters) {
+      if (!workoutLogId || !user || !selectedSuggestion) {
         throw new Error("Invalid workout state");
       }
 
@@ -94,7 +96,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
           sets: loggedSets,
           extraSetReps,
           oneRm: selectedSuggestion?.calculated1RM,
-          parameters: selectedSuggestion.parameters,
+          parameters: parameters, // Use the passed parameters
         }],
         isComplete: true
       });
@@ -146,7 +148,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     }]);
 
     setCurrentSet(prev => prev + 1);
-    setRestTimer(selectedSuggestion.parameters.restBetweenSets);
+    setRestTimer(parameters.restBetweenSets); // Use passed parameters
     setIsEditing(false);
     setEditWeight(null);
     setEditReps(null);
@@ -162,7 +164,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     }]);
 
     setCurrentSet(prev => prev + 1);
-    setRestTimer(selectedSuggestion.parameters.restBetweenSets);
+    setRestTimer(parameters.restBetweenSets); // Use passed parameters
     setShowFailureOptions(false);
   };
 
@@ -407,7 +409,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       </Card>
 
       {/* Extra Set for STS */}
-      {currentSet >= (selectedSuggestion?.sets || 0) && selectedSuggestion?.parameters?.scheme === "STS" && (
+      {currentSet >= (selectedSuggestion?.sets || 0) && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
             <CardTitle>Extra Set to Failure</CardTitle>
@@ -454,7 +456,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       )}
 
       {/* Complete Workout Button */}
-      {currentSet >= (selectedSuggestion?.sets || 0) && selectedSuggestion?.parameters?.scheme !== "STS" && (
+      {currentSet >= (selectedSuggestion?.sets || 0) && parameters.scheme !== "STS" && (
         <Button
           className="w-full"
           onClick={() => completeMutation.mutate()}

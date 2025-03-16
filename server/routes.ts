@@ -20,7 +20,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/workout-days", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const workoutDays = await storage.getWorkoutDays(req.user.id);
@@ -38,7 +38,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/workout-days", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       console.log("[Workout Days] Creating workout day with data:", req.body);
@@ -59,7 +59,7 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/workout-days/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const workoutDayId = parseInt(req.params.id);
@@ -84,7 +84,7 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/workout-days/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const workoutDayId = parseInt(req.params.id);
@@ -96,7 +96,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       await storage.deleteWorkoutDay(workoutDayId);
-      res.sendStatus(200);
+      res.status(200).json({ message: "Workout day deleted successfully" });
     } catch (error) {
       console.error("[Workout Days] Error deleting:", error);
       res.status(500).json({
@@ -110,8 +110,7 @@ export function registerRoutes(app: Express): Server {
     try {
       console.log("[Exercises] Fetching exercises for user:", req.user?.id);
       if (!req.isAuthenticated()) {
-        console.log("[Exercises] Request not authenticated");
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const exercises = await storage.getExercises(req.user.id);
@@ -130,7 +129,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/workout-logs", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const logs = await storage.getUserWorkoutLogs(req.user.id);
@@ -147,11 +146,11 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/workout-logs", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
       const workoutLog = await storage.createWorkoutLog({
         ...req.body,
-        userId: req.user.id // Ensure user ID is set from session
+        userId: req.user.id
       });
       res.status(201).json(workoutLog);
     } catch (error) {
@@ -166,13 +165,12 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/workout-logs/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Verify the workout log belongs to the authenticated user
       const existingLog = await storage.getWorkoutLog(parseInt(req.params.id));
       if (!existingLog || existingLog.userId !== req.user.id) {
-        return res.sendStatus(403);
+        return res.status(403).json({ error: "Workout log not found or unauthorized" });
       }
 
       const workoutLog = await storage.updateWorkoutLog(parseInt(req.params.id), req.body);
@@ -189,7 +187,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       const exerciseId = parseInt(req.query.exerciseId as string);

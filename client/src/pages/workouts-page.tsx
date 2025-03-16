@@ -243,8 +243,10 @@ function WorkoutsPage() {
                 </span>
               </div>
               <WorkoutLogger
+                key={`${activeWorkout.id}-${currentExerciseIndex}`}
                 exerciseId={activeWorkout.exercises[currentExerciseIndex].exerciseId}
                 workoutDayId={activeWorkout.id}
+                parameters={activeWorkout.exercises[currentExerciseIndex].parameters}
                 onComplete={handleExerciseComplete}
               />
             </div>

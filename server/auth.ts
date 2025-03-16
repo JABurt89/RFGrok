@@ -198,7 +198,9 @@ export function setupAuth(app: Express) {
       cookie: req.session.cookie
     });
 
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
     res.json(req.user);
   });
 
