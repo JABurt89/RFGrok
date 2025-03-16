@@ -258,6 +258,20 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const isLastSet = currentSet >= selectedSuggestion?.sets;
   const hasFailedCurrentSet = loggedSets[currentSet - 1]?.isFailure;
 
+  // Initialize RPT workout
+  useEffect(() => {
+    if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
+      const defaultSuggestion = {
+        sets: parameters.sets,
+        reps: parameters.maxReps,
+        weight: suggestions?.[0]?.weight || 20,
+        calculated1RM: suggestions?.[0]?.calculated1RM
+      };
+      handleStartWorkout(defaultSuggestion);
+    }
+  }, [isWorkoutActive, parameters.scheme, suggestions]);
+
+
   if (!user) {
     return (
       <Alert>
@@ -276,16 +290,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
-  // For RPT workouts, skip the suggestion selection and start directly
+  // Show loading state while RPT workout is being initialized
   if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
-    // Use the first suggestion or create a default one
-    const defaultSuggestion = {
-      sets: parameters.sets,
-      reps: parameters.maxReps,
-      weight: suggestions?.[0]?.weight || 20, // Use first suggestion's weight or default to 20
-      calculated1RM: suggestions?.[0]?.calculated1RM
-    };
-    handleStartWorkout(defaultSuggestion);
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
