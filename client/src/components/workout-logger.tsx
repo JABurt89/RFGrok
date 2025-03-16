@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, PauseCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 interface WorkoutLoggerProps {
@@ -21,13 +21,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [currentSet, setCurrentSet] = useState(0);
-  const [loggedReps, setLoggedReps] = useState<number[]>([]);
-  const [loggedWeights, setLoggedWeights] = useState<number[]>([]);
-  const [loggedTimestamps, setLoggedTimestamps] = useState<string[]>([]);
+  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string }>>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
   const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editWeight, setEditWeight] = useState<number | null>(null);
+  const [editReps, setEditReps] = useState<number | null>(null);
+  const [showFailureOptions, setShowFailureOptions] = useState(false);
 
   // Fetch workout suggestion
   const { data: suggestions, isLoading, error: queryError } = useQuery({
@@ -36,18 +38,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       if (!user) throw new Error("Not authenticated");
       const url = new URL('/api/workout-suggestion', window.location.origin);
       url.searchParams.append('exerciseId', exerciseId.toString());
-
-      try {
-        const response = await apiRequest("GET", url.toString());
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
-          throw new Error(errorData.error || "Failed to fetch workout suggestion");
-        }
-        return response.json();
-      } catch (error) {
-        console.error("Error fetching workout suggestion:", error);
-        throw error;
+      const response = await apiRequest("GET", url.toString());
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+        throw new Error(errorData.error || "Failed to fetch workout suggestion");
       }
+      return response.json();
     },
     enabled: Boolean(exerciseId) && Boolean(user),
   });
@@ -55,31 +51,22 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   // Create workout log mutation
   const createLogMutation = useMutation({
     mutationFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-      if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
-
-      try {
-        const response = await apiRequest("POST", "/api/workout-logs", {
-          userId: user.id,
-          date: new Date().toISOString(), // Send as ISO string
-          sets: [{
-            exerciseId,
-            sets: [], // Initial empty sets array
-            parameters: selectedSuggestion.parameters,
-          }],
-          isComplete: false
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
-          throw new Error(errorData.error || "Failed to create workout log");
-        }
-
-        return response.json();
-      } catch (error) {
-        console.error("Error creating workout log:", error);
-        throw error;
+      if (!user || !selectedSuggestion?.parameters) throw new Error("Invalid workout setup");
+      const response = await apiRequest("POST", "/api/workout-logs", {
+        userId: user.id,
+        date: new Date().toISOString(),
+        sets: [{
+          exerciseId,
+          sets: [],
+          parameters: selectedSuggestion.parameters,
+        }],
+        isComplete: false
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+        throw new Error(errorData.error || "Failed to create workout log");
       }
+      return response.json();
     },
     onSuccess: (data) => {
       setWorkoutLogId(data.id);
@@ -97,38 +84,27 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   // Complete workout mutation
   const completeMutation = useMutation({
     mutationFn: async () => {
-      if (!workoutLogId) throw new Error("No active workout log");
-      if (!user) throw new Error("Not authenticated");
-      if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
-
-      const setsWithTimestamps = loggedReps.map((reps, index) => ({
-        reps,
-        weight: loggedWeights[index],
-        timestamp: loggedTimestamps[index] || new Date().toISOString()
-      }));
-
-      try {
-        const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-          sets: [{
-            exerciseId,
-            sets: setsWithTimestamps,
-            extraSetReps,
-            oneRm: selectedSuggestion?.calculated1RM,
-            parameters: selectedSuggestion.parameters,
-          }],
-          isComplete: true
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
-          throw new Error(errorData.error || "Failed to complete workout");
-        }
-
-        return response.json();
-      } catch (error) {
-        console.error("Error completing workout:", error);
-        throw error;
+      if (!workoutLogId || !user || !selectedSuggestion?.parameters) {
+        throw new Error("Invalid workout state");
       }
+
+      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+        sets: [{
+          exerciseId,
+          sets: loggedSets,
+          extraSetReps,
+          oneRm: selectedSuggestion?.calculated1RM,
+          parameters: selectedSuggestion.parameters,
+        }],
+        isComplete: true
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+        throw new Error(errorData.error || "Failed to complete workout");
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
@@ -147,7 +123,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     },
   });
 
-  // Handle starting a workout
   const handleStartWorkout = async (suggestion: any) => {
     try {
       setSelectedSuggestion(suggestion);
@@ -155,27 +130,66 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       setIsWorkoutActive(true);
     } catch (error) {
       console.error("Error starting workout:", error);
-      // Error is handled by mutation's onError callback
     }
   };
 
-  // Handle logging a set
-  const handleLogSet = (reps: number, weight: number) => {
-    const timestamp = new Date().toISOString();
-    setLoggedReps(prev => [...prev, reps]);
-    setLoggedWeights(prev => [...prev, weight]);
-    setLoggedTimestamps(prev => [...prev, timestamp]);
+  const handleSetComplete = () => {
+    if (!selectedSuggestion) return;
+
+    const weight = editWeight ?? selectedSuggestion.weight;
+    const reps = editReps ?? selectedSuggestion.reps;
+
+    setLoggedSets(prev => [...prev, {
+      weight,
+      reps,
+      timestamp: new Date().toISOString()
+    }]);
+
     setCurrentSet(prev => prev + 1);
-    setRestTimer(selectedSuggestion?.parameters?.restBetweenSets ?? 90);
+    setRestTimer(selectedSuggestion.parameters.restBetweenSets);
+    setIsEditing(false);
+    setEditWeight(null);
+    setEditReps(null);
   };
 
-  // Rest timer effect
+  const handleSetFailed = (completedReps: number) => {
+    if (!selectedSuggestion) return;
+
+    setLoggedSets(prev => [...prev, {
+      weight: selectedSuggestion.weight,
+      reps: completedReps,
+      timestamp: new Date().toISOString()
+    }]);
+
+    setCurrentSet(prev => prev + 1);
+    setRestTimer(selectedSuggestion.parameters.restBetweenSets);
+    setShowFailureOptions(false);
+  };
+
+  const handleEditToggle = () => {
+    if (!selectedSuggestion) return;
+
+    if (!isEditing) {
+      setEditWeight(selectedSuggestion.weight);
+      setEditReps(selectedSuggestion.reps);
+    }
+    setIsEditing(!isEditing);
+  };
+
   useEffect(() => {
     let interval: number;
     if (restTimer !== null && restTimer > 0) {
       interval = window.setInterval(() => {
-        setRestTimer(prev => (prev ?? 0) - 1);
+        setRestTimer(prev => {
+          if (prev === null || prev <= 0) return null;
+          return prev - 1;
+        });
       }, 1000);
+
+      // Play sound when timer reaches 0
+      if (restTimer === 1) {
+        new Audio('/chime.mp3').play().catch(console.error);
+      }
     }
     return () => window.clearInterval(interval);
   }, [restTimer]);
@@ -183,9 +197,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   if (!user) {
     return (
       <Alert>
-        <AlertDescription>
-          Please log in to view workout suggestions.
-        </AlertDescription>
+        <AlertDescription>Please log in to view workout suggestions.</AlertDescription>
       </Alert>
     );
   }
@@ -260,15 +272,19 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
 
   return (
     <div className="space-y-4">
+      {/* Rest Timer */}
       {restTimer !== null && restTimer > 0 && (
         <Alert>
           <AlertDescription className="flex items-center justify-between">
-            <span>Rest Time: {restTimer}s</span>
-            <PauseCircle className="h-5 w-5 animate-pulse" />
+            <div className="flex items-center gap-2">
+              <Timer className="h-5 w-5" />
+              <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+            </div>
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Current Set Card */}
       <Card>
         <CardHeader>
           <CardTitle>Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
@@ -276,66 +292,179 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
             Target: {selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps
           </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="number"
-              placeholder="Weight (kg)"
-              defaultValue={selectedSuggestion?.weight}
-            />
-            <Input
-              type="number"
-              placeholder="Reps"
-              onChange={(e) => {
-                const weight = selectedSuggestion?.weight ?? 0;
-                const reps = parseInt(e.target.value);
-                if (!isNaN(reps) && reps > 0) {
-                  handleLogSet(reps, weight);
-                }
-              }}
-            />
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            {loggedReps.map((reps, index) => (
-              <div key={index} className="mt-2">
-                Set {index + 1}: {reps} reps @ {loggedWeights[index]}kg
+          {/* Previous Sets Summary */}
+          {loggedSets.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <h3 className="text-sm font-medium">Previous Sets:</h3>
+              <div className="grid gap-2">
+                {loggedSets.map((set, idx) => (
+                  <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
+                    <span>Set {idx + 1}: {set.reps} reps @ {set.weight}kg</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
+            </div>
+          )}
 
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={onComplete}>
-            Cancel
-          </Button>
-          {currentSet >= (selectedSuggestion?.sets || 0) && (
-            <div className="space-x-2">
-              {Array.isArray(suggestions) && (
+          {/* Current Set Input */}
+          {isEditing ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Input
                   type="number"
-                  placeholder="Extra set reps (optional)"
-                  className="w-40"
-                  onChange={(e) => setExtraSetReps(parseInt(e.target.value))}
+                  value={editWeight ?? ''}
+                  onChange={(e) => setEditWeight(Number(e.target.value))}
+                  placeholder="Weight (kg)"
+                  className="w-full"
                 />
-              )}
-              <Button
-                onClick={() => completeMutation.mutate()}
-                disabled={completeMutation.isPending}
-              >
-                {completeMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Completing...
-                  </>
-                ) : (
-                  "Complete Workout"
-                )}
-              </Button>
+              </div>
+              <div>
+                <Input
+                  type="number"
+                  value={editReps ?? ''}
+                  onChange={(e) => setEditReps(Number(e.target.value))}
+                  placeholder="Reps"
+                  className="w-full"
+                />
+              </div>
             </div>
+          ) : showFailureOptions ? (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">How many reps completed?</h3>
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: selectedSuggestion?.reps - 1 }, (_, i) => i + 1).map((rep) => (
+                  <Button
+                    key={rep}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSetFailed(rep)}
+                    className="w-full"
+                  >
+                    {rep}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+
+        <CardFooter className="flex flex-wrap gap-2">
+          {!showFailureOptions && !isEditing && (
+            <>
+              <Button
+                className="flex-1 sm:flex-none"
+                onClick={handleSetComplete}
+                disabled={restTimer !== null && restTimer > 0}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Set Complete
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 sm:flex-none"
+                onClick={() => setShowFailureOptions(true)}
+                disabled={restTimer !== null && restTimer > 0}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Set Failed
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 sm:flex-none"
+                onClick={handleEditToggle}
+                disabled={restTimer !== null && restTimer > 0}
+              >
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edit Set
+              </Button>
+            </>
+          )}
+
+          {isEditing && (
+            <>
+              <Button onClick={handleSetComplete} className="flex-1">Save</Button>
+              <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
+            </>
+          )}
+
+          {showFailureOptions && (
+            <Button
+              variant="outline"
+              onClick={() => setShowFailureOptions(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
           )}
         </CardFooter>
       </Card>
+
+      {/* Extra Set for STS */}
+      {currentSet >= (selectedSuggestion?.sets || 0) && selectedSuggestion?.parameters?.scheme === "STS" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Extra Set to Failure</CardTitle>
+            <CardDescription>Optional: Perform one more set to failure</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input
+              type="number"
+              placeholder="Number of reps"
+              value={extraSetReps ?? ''}
+              onChange={(e) => setExtraSetReps(Number(e.target.value))}
+              className="w-full"
+            />
+          </CardContent>
+          <CardFooter className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => completeMutation.mutate()}>
+              Skip Extra Set
+            </Button>
+            <Button
+              onClick={() => {
+                if (extraSetReps !== null) {
+                  completeMutation.mutate();
+                } else {
+                  toast({
+                    title: "Error",
+                    description: "Please enter the number of reps completed",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={extraSetReps === null || completeMutation.isPending}
+            >
+              {completeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Log Extra Set"
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Complete Workout Button */}
+      {currentSet >= (selectedSuggestion?.sets || 0) && selectedSuggestion?.parameters?.scheme !== "STS" && (
+        <Button
+          className="w-full"
+          onClick={() => completeMutation.mutate()}
+          disabled={completeMutation.isPending}
+        >
+          {completeMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Completing Workout...
+            </>
+          ) : (
+            "Complete Workout"
+          )}
+        </Button>
+      )}
     </div>
   );
 }
