@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@/types";
-import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+import { 
+  STSParameters,
+  DoubleProgressionParameters,
+  RPTTopSetParameters,
+  RPTIndividualParameters 
+} from "@shared/schema";
 import { Link } from "wouter";
 import { Plus, DumbbellIcon, Edit, Play, History, Home } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -10,6 +15,9 @@ import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkoutDayForm } from "@/components/workout-day-form";
+
+// Define WorkoutParameters type using the union of all possible parameter types
+type WorkoutParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
 
 function WorkoutsPage() {
   const { user } = useAuth();
@@ -49,7 +57,7 @@ function WorkoutsPage() {
   };
 
   const formatSchemeDetails = (parameters: WorkoutParameters): string => {
-    if (!parameters || !parameters.scheme) return "Unknown scheme";
+    if (!parameters) return "Unknown scheme";
 
     switch (parameters.scheme) {
       case "STS":
@@ -61,8 +69,8 @@ function WorkoutsPage() {
       case "RPT Individual":
         return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
       default:
-        // Ensure TypeScript knows we've handled all cases
-        const _exhaustiveCheck: never = parameters;
+        // This exhaustive check ensures we've handled all possible cases
+        const _exhaustiveCheck: never = parameters.scheme;
         return String(parameters.scheme);
     }
   };
