@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { WorkoutDay, Exercise } from "@/types";
-import { 
-  STSParameters,
-  DoubleProgressionParameters,
-  RPTTopSetParameters,
-  RPTIndividualParameters 
-} from "@shared/schema";
 import { Link } from "wouter";
 import { Plus, DumbbellIcon, Edit, Play, History, Home } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -15,9 +9,15 @@ import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkoutDayForm } from "@/components/workout-day-form";
+import type { 
+  STSParameters as SharedSTSParameters,
+  DoubleProgressionParameters,
+  RPTTopSetParameters,
+  RPTIndividualParameters 
+} from "@shared/schema";
 
 // Define WorkoutParameters type using the union of all possible parameter types
-type WorkoutParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
+type WorkoutParameters = SharedSTSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
 
 function WorkoutsPage() {
   const { user } = useAuth();
