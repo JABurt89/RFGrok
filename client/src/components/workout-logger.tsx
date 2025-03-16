@@ -120,7 +120,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       isFailure: false
     }]);
 
-    if (currentSet + 1 >= parameters.sets) {
+    if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
       onComplete();
     } else {
@@ -150,14 +150,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }]);
 
     // Check if we've completed all sets
-    if (currentSet + 1 >= parameters.sets) {
+    if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
       setShowRepsInput(false);
       onComplete(); // Move to next exercise
     } else {
       setCurrentSet(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
-      // Show rep selection UI for next set in RPT workouts
       if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
         setShowRepsInput(true);
       }
@@ -251,7 +250,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     };
   };
 
-  const isLastSet = currentSet >= parameters.sets;
+  const isLastSet = currentSet >= selectedSuggestion?.sets;
   const hasFailedCurrentSet = loggedSets[currentSet - 1]?.isFailure;
 
   if (!user) {
