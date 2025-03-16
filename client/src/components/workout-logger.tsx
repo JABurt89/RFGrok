@@ -487,7 +487,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </Button>
           )}
 
-          {isLastSet && !showRepsInput && !isEditing && (
+          {isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS" && (
             <Button
               className="w-full"
               onClick={() => onComplete()}
