@@ -23,7 +23,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [currentSet, setCurrentSet] = useState(0);
-  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>>([]);
+  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean; exceededMax?: boolean }>>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
@@ -31,7 +31,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [isEditing, setIsEditing] = useState(false);
   const [editWeight, setEditWeight] = useState<number | null>(null);
   const [editReps, setEditReps] = useState<number | null>(null);
-  const [showFailureOptions, setShowFailureOptions] = useState(false);
+  const [showRepsInput, setShowRepsInput] = useState(false);
 
   // Fetch workout suggestion
   const { data: suggestions, isLoading, error: queryError } = useQuery({
@@ -53,14 +53,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   // Create workout log mutation
   const createLogMutation = useMutation({
     mutationFn: async () => {
-      if (!user || !selectedSuggestion?.parameters) throw new Error("Invalid workout setup");
+      if (!user || !selectedSuggestion) throw new Error("Invalid workout setup");
       const response = await apiRequest("POST", "/api/workout-logs", {
         userId: user.id,
         date: new Date().toISOString(),
         sets: [{
           exerciseId,
           sets: [],
-          parameters: parameters, // Use the passed parameters instead of suggestion parameters
+          parameters: parameters,
         }],
         isComplete: false
       });
@@ -83,48 +83,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     },
   });
 
-  // Complete workout mutation
-  const completeMutation = useMutation({
-    mutationFn: async () => {
-      if (!workoutLogId || !user || !selectedSuggestion) {
-        throw new Error("Invalid workout state");
-      }
-
-      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-        sets: [{
-          exerciseId,
-          sets: loggedSets,
-          extraSetReps,
-          oneRm: selectedSuggestion?.calculated1RM,
-          parameters: parameters, // Use the passed parameters
-        }],
-        isComplete: true
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
-        throw new Error(errorData.error || "Failed to complete workout");
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
-      toast({
-        title: "Success",
-        description: "Workout completed successfully",
-      });
-      onComplete();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleStartWorkout = async (suggestion: any) => {
     try {
       setSelectedSuggestion(suggestion);
@@ -135,28 +93,25 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   };
 
-  const handleSetComplete = () => {
+  const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
     if (!selectedSuggestion) return;
 
     const target = getCurrentSetTarget();
     if (!target) return;
 
     const weight = editWeight ?? target.weight;
-    const reps = editReps ?? (
-      parameters.scheme === "RPT Individual"
-        ? target.maxReps
-        : target.reps
-    );
 
     setLoggedSets(prev => [...prev, {
       weight,
       reps,
       timestamp: new Date().toISOString(),
-      isFailure: false
+      isFailure: false,
+      exceededMax
     }]);
 
     setCurrentSet(prev => prev + 1);
     setRestTimer(parameters.restBetweenSets);
+    setShowRepsInput(false);
     setIsEditing(false);
     setEditWeight(null);
     setEditReps(null);
@@ -178,7 +133,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     // Continue to next set after failure
     setCurrentSet(prev => prev + 1);
     setRestTimer(parameters.restBetweenSets);
-    setShowFailureOptions(false);
+    setShowRepsInput(false);
 
     // Automatically enable editing for the next set after a failure
     setIsEditing(true);
@@ -362,6 +317,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     <span>
                       Set {idx + 1}: {set.reps} reps @ {set.weight}kg
                       {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
+                      {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
                     </span>
                   </div>
                 ))}
@@ -399,36 +355,44 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 />
               </div>
             </div>
-          ) : showFailureOptions ? (
+          ) : (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && showRepsInput ? (
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {Array.from({ 
-                  length: parameters.scheme === "RPT Individual" 
-                    ? getCurrentSetTarget()?.maxReps || 0 
-                    : getCurrentSetTarget()?.reps || 0 
-                }, (_, i) => i + 1).map((rep) => (
+                  length: parameters.scheme === "RPT Individual"
+                    ? getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
+                    : getCurrentSetTarget()?.reps || 0
+                }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
                   <Button
                     key={rep}
                     variant="outline"
                     size="sm"
-                    onClick={() => handleSetFailed(rep)}
+                    onClick={() => handleRepSelection(rep)}
                     className="w-full"
                   >
                     {rep}
                   </Button>
                 ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
+                  className="w-full col-span-4 bg-primary/10"
+                >
+                  Max Range Exceeded
+                </Button>
               </div>
             </div>
           ) : null}
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {!isLastSet && !showFailureOptions && !isEditing && (
+          {!isLastSet && !showRepsInput && !isEditing && (
             <>
               <Button
                 className="flex-1 sm:flex-none"
-                onClick={handleSetComplete}
+                onClick={() => setShowRepsInput(true)}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Set Complete
@@ -436,7 +400,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               <Button
                 variant="destructive"
                 className="flex-1 sm:flex-none"
-                onClick={() => setShowFailureOptions(true)}
+                onClick={() => setShowRepsInput(true)}
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Set Failed
@@ -454,22 +418,22 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
           {isEditing && (
             <>
-              <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
+              <Button onClick={() => setShowRepsInput(true)} className="flex-1">Save Changes</Button>
               <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
             </>
           )}
 
-          {showFailureOptions && (
+          {showRepsInput && (
             <Button
               variant="outline"
-              onClick={() => setShowFailureOptions(false)}
+              onClick={() => setShowRepsInput(false)}
               className="flex-1"
             >
               Cancel
             </Button>
           )}
 
-          {isLastSet && !showFailureOptions && !isEditing && (
+          {isLastSet && !showRepsInput && !isEditing && (
             <Button
               className="w-full"
               onClick={() => onComplete()}
