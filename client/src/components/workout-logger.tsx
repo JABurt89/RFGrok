@@ -88,6 +88,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       setSelectedSuggestion(suggestion);
       await createLogMutation.mutateAsync();
       setIsWorkoutActive(true);
+      // For RPT workouts, immediately show rep selection
+      if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
+        setShowRepsInput(true);
+      }
     } catch (error) {
       console.error("Error starting workout:", error);
     }
@@ -355,7 +359,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </div>
           )}
 
-          {/* Current Set Input */}
+          {/* Rep Selection UI */}
           {isEditing ? (
             <div className="space-y-4">
               <div className="space-y-2">
@@ -385,48 +389,33 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 />
               </div>
             </div>
-          ) : (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && showRepsInput ? (
+          ) : showRepsInput && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") ? (
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-4 gap-2">
-                {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
-                  <>
-                    {Array.from({
-                      length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
-                    }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
-                      <Button
-                        key={rep}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRepSelection(rep)}
-                        className="w-full"
-                      >
-                        {rep}
-                      </Button>
-                    ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
-                      className="w-full col-span-4 bg-primary/10"
-                    >
-                      Max Range Exceeded
-                    </Button>
-                  </>
-                ) : (
-                  // For STS workouts, show failure rep options
-                  Array.from({ length: Math.max(1, selectedSuggestion?.reps -1) }, (_, i) => i + 1).map((rep) => (
-                    <Button
-                      key={rep}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSetFailed(rep)}
-                      className="w-full"
-                    >
-                      {rep}
-                    </Button>
-                  ))
-                )}
+                {/* Rep range buttons */}
+                {Array.from({
+                  length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
+                }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
+                  <Button
+                    key={rep}
+                    variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleRepSelection(rep)}
+                    className={`w-full ${rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}`}
+                  >
+                    {rep}
+                  </Button>
+                ))}
+                {/* Max Range Exceeded button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
+                  className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+                >
+                  Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
+                </Button>
               </div>
             </div>
           ) : null}
