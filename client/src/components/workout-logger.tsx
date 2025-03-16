@@ -30,9 +30,6 @@ export default function WorkoutLogger(props: WorkoutLoggerProps) {
   }
 }
 
-```
-
-```typescript
 // client/src/components/workout/base-workout-logger.tsx
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -46,6 +43,7 @@ import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
 
 
 interface WorkoutLoggerProps {
