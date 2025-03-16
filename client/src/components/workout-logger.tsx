@@ -287,9 +287,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       {/* Current Set Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
-          <CardDescription>
-            Target: {selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps
+          <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
+          <CardDescription className="text-lg font-semibold mt-2">
+            Target: <span className="text-primary">{selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps</span>
           </CardDescription>
         </CardHeader>
 
@@ -310,22 +310,30 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
 
           {/* Current Set Input */}
           {isEditing ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="weight" className="text-sm font-medium">
+                  Weight (kg)
+                </label>
                 <Input
+                  id="weight"
                   type="number"
                   value={editWeight ?? ''}
                   onChange={(e) => setEditWeight(Number(e.target.value))}
-                  placeholder="Weight (kg)"
+                  placeholder="Enter weight in kg"
                   className="w-full"
                 />
               </div>
-              <div>
+              <div className="space-y-2">
+                <label htmlFor="reps" className="text-sm font-medium">
+                  Number of Reps
+                </label>
                 <Input
+                  id="reps"
                   type="number"
                   value={editReps ?? ''}
                   onChange={(e) => setEditReps(Number(e.target.value))}
-                  placeholder="Reps"
+                  placeholder="Enter number of reps"
                   className="w-full"
                 />
               </div>
@@ -356,7 +364,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
               <Button
                 className="flex-1 sm:flex-none"
                 onClick={handleSetComplete}
-                disabled={restTimer !== null && restTimer > 0}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Set Complete
@@ -365,7 +372,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                 variant="destructive"
                 className="flex-1 sm:flex-none"
                 onClick={() => setShowFailureOptions(true)}
-                disabled={restTimer !== null && restTimer > 0}
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Set Failed
@@ -374,7 +380,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
                 variant="outline"
                 className="flex-1 sm:flex-none"
                 onClick={handleEditToggle}
-                disabled={restTimer !== null && restTimer > 0}
               >
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Set
@@ -384,7 +389,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
 
           {isEditing && (
             <>
-              <Button onClick={handleSetComplete} className="flex-1">Save</Button>
+              <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
               <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
             </>
           )}
