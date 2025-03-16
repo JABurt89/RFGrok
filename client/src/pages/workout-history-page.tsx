@@ -11,11 +11,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/Modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Home, Trash2, PencilIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function WorkoutHistoryPage() {
   const { toast } = useToast();
@@ -157,18 +164,16 @@ export default function WorkoutHistoryPage() {
           )}
         </div>
 
-        {/* Delete Confirmation Modal */}
-        <Modal
-          type="dialog"
-          isOpen={isDeleteDialogOpen}
-          onClose={() => setIsDeleteDialogOpen(false)}
-        >
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Delete Workout Log</h2>
-            <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete this workout log? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Workout Log</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this workout log? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex justify-end gap-2 mt-4">
               <Button
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(false)}
@@ -189,9 +194,9 @@ export default function WorkoutHistoryPage() {
                   "Delete"
                 )}
               </Button>
-            </div>
-          </div>
-        </Modal>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
