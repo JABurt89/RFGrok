@@ -8,7 +8,6 @@ import { useExercises } from "@/hooks/useExercises";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog";
@@ -62,7 +61,6 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
-
 type SchemeType = FormData["exercises"][0]["parameters"]["scheme"];
 
 const defaultParameters = {
@@ -153,7 +151,7 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
 
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(`HTTP error! Status: ${response.status}, Body: ${text}`);
+          throw new Error(`HTTP error! Status: ${response.status}, Body: ${text.slice(0, 100)}...`);
         }
 
         return response.json();
@@ -196,8 +194,8 @@ export function WorkoutDayForm({ onComplete, workoutDay }: WorkoutDayFormProps) 
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || error.message || "Failed to delete workout");
+        const text = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status}, Body: ${text.slice(0, 100)}...`);
       }
     },
     onSuccess: () => {

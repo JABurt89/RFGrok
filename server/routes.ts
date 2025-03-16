@@ -34,6 +34,27 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add workout day POST endpoint
+  app.post("/api/workout-days", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.sendStatus(401);
+      }
+
+      console.log("[Workout Days] Creating workout day with data:", req.body);
+      const workoutDay = await storage.createWorkoutDay({
+        ...req.body,
+        userId: req.user.id
+      });
+      res.status(201).json(workoutDay);
+    } catch (error) {
+      console.error("[Workout Days] Error creating:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to create workout day"
+      });
+    }
+  });
+
   // Update workout day
   app.patch("/api/workout-days/:id", async (req, res) => {
     try {

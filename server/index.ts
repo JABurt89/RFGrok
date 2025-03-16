@@ -20,22 +20,8 @@ app.use(express.urlencoded({ extended: false }));
 // Trust first proxy for secure cookies
 app.set("trust proxy", 1);
 
-// Basic request logging
-app.use((req, _res, next) => {
-  console.log(`[Request] ${req.method} ${req.path}`, {
-    headers: {
-      cookie: req.headers.cookie,
-      authorization: req.headers.authorization,
-      'content-type': req.headers['content-type']
-    },
-    session: req.session,
-    user: req.user
-  });
-  next();
-});
-
-// Session configuration
-app.use(session({
+// Session middleware
+const sessionConfig = {
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
@@ -43,13 +29,23 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
-}));
+};
 
-// Initialize passport
+app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Basic request logging
+app.use((req, _res, next) => {
+  console.log(`[Request] ${req.method} ${req.path}`, {
+    body: req.body,
+    query: req.query,
+    user: req.user?.id
+  });
+  next();
+});
 
 // CORS settings for development
 if (process.env.NODE_ENV !== "production") {
@@ -62,15 +58,10 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Basic error handling
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || "Internal Server Error";
-  console.error('Server error:', err);
-
-  if (!res.headersSent) {
-    res.status(status).json({ message });
-  }
+// Global error handler
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Server error:", err);
+  res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
 async function main() {
@@ -88,11 +79,8 @@ async function main() {
       await setupVite(app, httpServer);
     }
 
-    const port = 5000;
-    httpServer.listen({
-      port,
-      host: "0.0.0.0",
-    }, () => {
+    const port = process.env.PORT || 5000;
+    httpServer.listen(port, "0.0.0.0", () => {
       console.log(`Server started on port ${port}`);
     });
   } catch (error) {
