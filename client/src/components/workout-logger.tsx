@@ -23,10 +23,34 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
   const [currentSet, setCurrentSet] = useState(0);
   const [loggedReps, setLoggedReps] = useState<number[]>([]);
   const [loggedWeights, setLoggedWeights] = useState<number[]>([]);
+  const [loggedTimestamps, setLoggedTimestamps] = useState<string[]>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
   const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
+
+  // Fetch workout suggestion
+  const { data: suggestions, isLoading, error: queryError } = useQuery({
+    queryKey: ['/api/workout-suggestion', exerciseId],
+    queryFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      const url = new URL('/api/workout-suggestion', window.location.origin);
+      url.searchParams.append('exerciseId', exerciseId.toString());
+
+      try {
+        const response = await apiRequest("GET", url.toString());
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+          throw new Error(errorData.error || "Failed to fetch workout suggestion");
+        }
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching workout suggestion:", error);
+        throw error;
+      }
+    },
+    enabled: Boolean(exerciseId) && Boolean(user),
+  });
 
   // Create workout log mutation
   const createLogMutation = useMutation({
@@ -34,24 +58,28 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       if (!user) throw new Error("Not authenticated");
       if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
 
-      const response = await apiRequest("POST", "/api/workout-logs", {
-        userId: user.id,
-        date: new Date().toISOString(),
-        sets: [{
-          exerciseId,
-          sets: [],
-          extraSetReps: undefined,
-          parameters: selectedSuggestion.parameters,
-        }],
-        isComplete: false
-      });
+      try {
+        const response = await apiRequest("POST", "/api/workout-logs", {
+          userId: user.id,
+          date: new Date().toISOString(), // Send as ISO string
+          sets: [{
+            exerciseId,
+            sets: [], // Initial empty sets array
+            parameters: selectedSuggestion.parameters,
+          }],
+          isComplete: false
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create workout log");
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+          throw new Error(errorData.error || "Failed to create workout log");
+        }
+
+        return response.json();
+      } catch (error) {
+        console.error("Error creating workout log:", error);
+        throw error;
       }
-
-      return response.json();
     },
     onSuccess: (data) => {
       setWorkoutLogId(data.id);
@@ -73,26 +101,34 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
       if (!user) throw new Error("Not authenticated");
       if (!selectedSuggestion?.parameters) throw new Error("No progression parameters selected");
 
-      const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-        sets: [{
-          exerciseId,
-          sets: loggedReps.map((reps, index) => ({
-            reps,
-            weight: loggedWeights[index],
-            timestamp: new Date().toISOString()
-          })),
-          extraSetReps,
-          oneRm: selectedSuggestion?.calculated1RM,
-          parameters: selectedSuggestion.parameters,
-        }],
-        isComplete: true
-      });
+      const setsWithTimestamps = loggedReps.map((reps, index) => ({
+        reps,
+        weight: loggedWeights[index],
+        timestamp: loggedTimestamps[index] || new Date().toISOString()
+      }));
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to complete workout");
+      try {
+        const response = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+          sets: [{
+            exerciseId,
+            sets: setsWithTimestamps,
+            extraSetReps,
+            oneRm: selectedSuggestion?.calculated1RM,
+            parameters: selectedSuggestion.parameters,
+          }],
+          isComplete: true
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
+          throw new Error(errorData.error || "Failed to complete workout");
+        }
+
+        return response.json();
+      } catch (error) {
+        console.error("Error completing workout:", error);
+        throw error;
       }
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
@@ -111,36 +147,24 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     },
   });
 
-  // Fetch workout suggestion
-  const { data: suggestions = [], isLoading, error } = useQuery({
-    queryKey: ['/api/workout-suggestion', exerciseId],
-    queryFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-
-      const url = new URL('/api/workout-suggestion', window.location.origin);
-      url.searchParams.append('exerciseId', exerciseId.toString());
-      const response = await apiRequest("GET", url.toString());
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to fetch workout suggestion");
-      }
-      return response.json();
-    },
-    enabled: Boolean(exerciseId) && Boolean(user),
-  });
-
-  // Handle workout start
+  // Handle starting a workout
   const handleStartWorkout = async (suggestion: any) => {
-    setSelectedSuggestion(suggestion);
-    await createLogMutation.mutate();
-    setIsWorkoutActive(true);
+    try {
+      setSelectedSuggestion(suggestion);
+      await createLogMutation.mutateAsync();
+      setIsWorkoutActive(true);
+    } catch (error) {
+      console.error("Error starting workout:", error);
+      // Error is handled by mutation's onError callback
+    }
   };
 
   // Handle logging a set
   const handleLogSet = (reps: number, weight: number) => {
+    const timestamp = new Date().toISOString();
     setLoggedReps(prev => [...prev, reps]);
     setLoggedWeights(prev => [...prev, weight]);
+    setLoggedTimestamps(prev => [...prev, timestamp]);
     setCurrentSet(prev => prev + 1);
     setRestTimer(selectedSuggestion?.parameters?.restBetweenSets ?? 90);
   };
@@ -166,11 +190,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     );
   }
 
-  if (error) {
+  if (queryError) {
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          {error instanceof Error ? error.message : 'Error loading workout suggestion'}
+          {queryError instanceof Error ? queryError.message : 'Error loading workout suggestion'}
         </AlertDescription>
       </Alert>
     );
@@ -192,7 +216,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
               <span className="ml-2">Loading suggestions...</span>
             </div>
           ) : Array.isArray(suggestions) ? (
-            // STS Progression: Show all suggestions as separate buttons
             <div className="space-y-4">
               {suggestions.map((suggestion, idx) => (
                 <Button
@@ -213,7 +236,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
               ))}
             </div>
           ) : suggestions ? (
-            // Single suggestion for other progression schemes
             <Button
               variant="outline"
               className="w-full text-left h-auto normal-case"
@@ -236,7 +258,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, onComplete }: 
     );
   }
 
-  // Active workout view
   return (
     <div className="space-y-4">
       {restTimer !== null && restTimer > 0 && (
