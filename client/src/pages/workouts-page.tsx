@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { WorkoutDayForm } from "../components/workout-day-form";
-import { Button } from "../components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { WorkoutDay, Exercise } from "@/types";
+import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Link } from "wouter";
 import { Plus, DumbbellIcon, Edit, Play, History, Home } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { useQuery } from "@tanstack/react-query";
-import { WorkoutDay, Exercise } from "@/types";
+import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 
-type WorkoutParameters = WorkoutDay['exercises'][0]['parameters'];
+type WorkoutParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
 
 function WorkoutsPage() {
   const { user } = useAuth();
@@ -62,6 +62,8 @@ function WorkoutsPage() {
       case "RPT Individual":
         return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
       default:
+        // Ensure TypeScript knows we've handled all cases
+        const _exhaustiveCheck: never = parameters;
         return String(parameters.scheme);
     }
   };
