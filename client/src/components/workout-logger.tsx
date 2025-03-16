@@ -244,7 +244,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     if (!selectedSuggestion) return null;
 
     const exerciseName = getExerciseName();
-    const position = `${workoutDayId} of ${totalExercises}`; // Changed format to "X of Y"
+    const exercisePosition = Math.min(workoutDayId, totalExercises); // Ensure position doesn't exceed total
+    const position = `${exercisePosition} of ${totalExercises}`; // Format as "X of Y"
 
     if (parameters.scheme === "RPT Top-Set") {
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
@@ -460,102 +461,104 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </DialogContent>
       </Dialog>
 
-      {/* Current Set Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
-          <CardDescription className="text-lg font-semibold mt-2">
-            {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
-              <span className="text-primary">
-                Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
-              </span>
-            ) : (
-              <span className="text-primary">
-                Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.reps} reps
-              </span>
-            )}
-          </CardDescription>
-        </CardHeader>
+      {/* Only show the workout status card for non-RPT workouts */}
+      {(parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
+            <CardDescription className="text-lg font-semibold mt-2">
+              {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
+                <span className="text-primary">
+                  Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
+                </span>
+              ) : (
+                <span className="text-primary">
+                  Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.reps} reps
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
 
-        <CardContent>
-          {/* Previous Sets Summary */}
-          {loggedSets.length > 0 && (
-            <div className="space-y-2 mb-4">
-              <h3 className="text-sm font-medium">Previous Sets:</h3>
-              <div className="grid gap-2">
-                {loggedSets.map((set, idx) => (
-                  <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
-                    <span>
-                      Set {idx + 1}: {set.reps} reps @ {set.weight}kg
-                      {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
-                      {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
-                    </span>
-                  </div>
-                ))}
+          <CardContent>
+            {/* Previous Sets Summary */}
+            {loggedSets.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <h3 className="text-sm font-medium">Previous Sets:</h3>
+                <div className="grid gap-2">
+                  {loggedSets.map((set, idx) => (
+                    <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
+                      <span>
+                        Set {idx + 1}: {set.reps} reps @ {set.weight}kg
+                        {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
+                        {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
+          </CardContent>
 
-        <CardFooter className="flex flex-wrap gap-2">
-          {/* Show RPT rep logging button */}
-          {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && (
-            <Button
-              className="w-full"
-              onClick={() => setShowRepsInput(true)}
-            >
-              Log Reps
-            </Button>
-          )}
-
-          {/* Show regular set completion buttons for other workout types */}
-          {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
-            <>
+          <CardFooter className="flex flex-wrap gap-2">
+            {/* Show RPT rep logging button */}
+            {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && (
               <Button
-                className="flex-1 sm:flex-none"
-                onClick={handleSetComplete}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Set Complete
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 sm:flex-none"
+                className="w-full"
                 onClick={() => setShowRepsInput(true)}
               >
-                <XCircle className="h-4 w-4 mr-2" />
-                Set Failed
+                Log Reps
               </Button>
+            )}
+
+            {/* Show regular set completion buttons for other workout types */}
+            {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
+              <>
+                <Button
+                  className="flex-1 sm:flex-none"
+                  onClick={handleSetComplete}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Set Complete
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setShowRepsInput(true)}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Set Failed
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={handleEditToggle}
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit Set
+                </Button>
+              </>
+            )}
+
+            {/* Edit mode buttons */}
+            {isEditing && (
+              <>
+                <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
+                <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
+              </>
+            )}
+
+            {/* Next Exercise button */}
+            {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
               <Button
-                variant="outline"
-                className="flex-1 sm:flex-none"
-                onClick={handleEditToggle}
+                className="w-full"
+                onClick={() => onComplete()}
               >
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit Set
+                Next Exercise
               </Button>
-            </>
-          )}
-
-          {/* Edit mode buttons */}
-          {isEditing && (
-            <>
-              <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
-              <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
-            </>
-          )}
-
-          {/* Next Exercise button */}
-          {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
-            <Button
-              className="w-full"
-              onClick={() => onComplete()}
-            >
-              Next Exercise
-            </Button>
-          ) : null}
-        </CardFooter>
-      </Card>
+            ) : null}
+          </CardFooter>
+        </Card>
+      )}
 
       {/* Extra Set for STS */}
       {isLastSet && parameters.scheme === "STS" && (
