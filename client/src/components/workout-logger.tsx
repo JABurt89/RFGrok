@@ -16,7 +16,7 @@ interface WorkoutLoggerProps {
   workoutDayId: number;
   parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   onComplete: () => void;
-  totalExercises?: number; // Add optional prop for total exercises
+  totalExercises?: number;
 }
 
 export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
@@ -50,6 +50,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       return response.json();
     },
     enabled: Boolean(exerciseId) && Boolean(user),
+  });
+
+  // Add exercise query
+  const { data: exercises = [] } = useQuery({
+    queryKey: ["/api/exercises"],
   });
 
   // Create workout log mutation
@@ -228,8 +233,17 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
+  // Get exercise name
+  const getExerciseName = () => {
+    const exercise = exercises.find(e => e.id === exerciseId);
+    return exercise?.name || "Exercise";
+  };
+
   const getCurrentSetTarget = () => {
     if (!selectedSuggestion) return null;
+
+    const exerciseName = getExerciseName();
+    const position = `${workoutDayId}/${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
@@ -240,8 +254,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
-        name: selectedSuggestion.name || "Exercise", // Include exercise name
-        position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
+        name: exerciseName,
+        position
       };
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
@@ -250,15 +264,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         weight: selectedSuggestion.weight,
         minReps: setConfig.min,
         maxReps: setConfig.max,
-        name: selectedSuggestion.name || "Exercise", // Include exercise name
-        position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
+        name: exerciseName,
+        position
       };
     }
     return {
       weight: selectedSuggestion.weight,
       reps: selectedSuggestion.reps,
-      name: selectedSuggestion.name || "Exercise", // Include exercise name
-      position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
+      name: exerciseName,
+      position
     };
   };
 
@@ -273,12 +287,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         reps: parameters.maxReps,
         weight: suggestions?.[0]?.weight || 20,
         calculated1RM: suggestions?.[0]?.calculated1RM,
-        name: suggestions?.[0]?.name || "Exercise" // Added name property
-
+        name: getExerciseName(), // Use actual exercise name
       };
       handleStartWorkout(defaultSuggestion);
     }
-  }, [isWorkoutActive, parameters.scheme, suggestions]);
+  }, [isWorkoutActive, parameters.scheme, suggestions, exercises]);
 
   // Show rep selection dialog automatically for RPT workouts
   useEffect(() => {
@@ -400,10 +413,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
         <DialogContent>
           <DialogTitle className="flex flex-col gap-1">
-            <div className="text-sm text-muted-foreground">Exercise {workoutDayId}/{totalExercises}</div>
-            <div className="text-xl">{getCurrentSetTarget()?.name || 'Exercise'}</div>
+            <div className="text-sm text-muted-foreground">Exercise {getCurrentSetTarget()?.position}</div>
+            <div className="text-xl">{getCurrentSetTarget()?.name}</div>
             <div className="text-base font-normal">
               Set {currentSet + 1} • {getCurrentSetTarget()?.weight}kg
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Target: {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
             </div>
           </DialogTitle>
           <DialogDescription>
