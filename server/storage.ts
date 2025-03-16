@@ -304,21 +304,23 @@ export class DatabaseStorage {
       if (exerciseSets && exerciseSets.sets.length > 0) {
         // Calculate 1RM using the progression scheme's formula
         let calculated1RM: number;
-        switch (exerciseSets.parameters.scheme) {
-          case "STS":
-            const progression = new STSProgression();
-            calculated1RM = progression.calculate1RM(
-              exerciseSets.sets.map(set => ({
-                reps: set.reps,
-                weight: set.weight,
-                isFailure: false
-              }))
-            );
-            break;
-          default:
-            calculated1RM = exerciseSets.sets[0].weight * (1 + 0.025 * exerciseSets.sets[0].reps);
+        if (exerciseSets.parameters && exerciseSets.parameters.scheme) {
+          switch (exerciseSets.parameters.scheme) {
+            case "STS":
+              const progression = new STSProgression();
+              calculated1RM = progression.calculate1RM(
+                exerciseSets.sets.map(set => ({
+                  reps: set.reps,
+                  weight: set.weight,
+                  isFailure: false
+                }))
+              );
+              break;
+            default:
+              calculated1RM = exerciseSets.sets[0].weight * (1 + 0.025 * exerciseSets.sets[0].reps);
+          }
+          exerciseSets.oneRm = calculated1RM;
         }
-        exerciseSets.oneRm = calculated1RM;
       }
     }
 
@@ -338,7 +340,8 @@ export class DatabaseStorage {
                 sets: 3,
                 reps: 8,
                 weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * 1.26
+                calculated1RM: (exercise.startingWeight || 20) * 1.26,
+                parameters: { scheme: "STS" }
             };
         }
 
@@ -348,7 +351,8 @@ export class DatabaseStorage {
                 sets: 3,
                 reps: 8,
                 weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * 1.26
+                calculated1RM: (exercise.startingWeight || 20) * 1.26,
+                parameters: { scheme: "STS" }
             };
         }
 
@@ -365,69 +369,51 @@ export class DatabaseStorage {
                 console.log("[Storage] Using calculated 1RM from logs:", last1RM);
             }
 
+            const startingWeight = exercise.startingWeight || 20;
             const increment = exercise.increment || 2.5;
             const { minSets, maxSets, minReps, maxReps } = exerciseConfig.parameters;
 
-            // Generate all possible set/rep combinations and their multipliers
-            const combinations: Array<{ sets: number; reps: number; multiplier: number }> = [];
+            // Generate possible weights starting from startingWeight
+            const maxWeight = startingWeight + 100 * increment; // Reasonable upper limit
+            const possibleWeights = [];
+            let weight = startingWeight;
+            while (weight <= maxWeight) {
+                possibleWeights.push(weight);
+                weight += increment;
+            }
+
+            const suggestions: ProgressionSuggestion[] = [];
+
+            // Generate all combinations and filter for progressive 1RMs
             for (let sets = minSets; sets <= maxSets; sets++) {
                 for (let reps = minReps; reps <= maxReps; reps++) {
-                    const multiplier = (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
-                    combinations.push({ sets, reps, multiplier });
+                    for (const weight of possibleWeights) {
+                        const calculated1RM = weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
+                        if (calculated1RM > last1RM) {
+                            suggestions.push({
+                                sets,
+                                reps,
+                                weight,
+                                calculated1RM,
+                                parameters: { ...exerciseConfig.parameters }
+                            });
+                        }
+                    }
                 }
             }
 
-            // Find the base weight and 1RM
-            const baseMultiplier = combinations[0].multiplier;
-            const baseWeight = last1RM > 0 ? 
-                last1RM / baseMultiplier : 
-                exercise.startingWeight || 20;
-            const base1RM = baseWeight * baseMultiplier;
+            // Sort by calculated1RM and take the first 5
+            const sortedSuggestions = suggestions
+                .sort((a, b) => a.calculated1RM! - b.calculated1RM!)
+                .slice(0, 5);
 
-            // Generate 5 suggestions with minimal 1RM increases
-            const suggestions: ProgressionSuggestion[] = [];
-            let currentWeight = baseWeight;
-
-            for (let i = 0; i < 5; i++) {
-                // Find the combination that gives us the smallest increase in 1RM
-                const targetRM = base1RM + (i * increment * 1.26); // Small progressive increase
-
-                // Find the combination that gets us closest to our target 1RM
-                let bestCombo = combinations[0];
-                let smallestDiff = Infinity;
-                let bestWeight = baseWeight;
-                let bestAchieved1RM = base1RM;
-
-                combinations.forEach(combo => {
-                    const requiredWeight = targetRM / combo.multiplier;
-                    const roundedWeight = Math.ceil(requiredWeight / increment) * increment;
-                    const achieved1RM = roundedWeight * combo.multiplier;
-                    const diff = Math.abs(achieved1RM - targetRM);
-
-                    if (diff < smallestDiff) {
-                        smallestDiff = diff;
-                        bestCombo = combo;
-                        bestWeight = roundedWeight;
-                        bestAchieved1RM = achieved1RM;
-                    }
-                });
-
-                suggestions.push({
-                    sets: bestCombo.sets,
-                    reps: bestCombo.reps,
-                    weight: bestWeight, // Keep full precision for weight for calculations
-                    calculated1RM: bestAchieved1RM, // Keep full precision for 1RM
-                    parameters: {
-                        scheme: "STS",
-                        ...exerciseConfig.parameters
-                    }
-                });
-
-                currentWeight = bestWeight;
+            if (sortedSuggestions.length === 0) {
+                console.log("[Storage] No progressive suggestions found for STS");
+                throw new Error("NO_PROGRESSIVE_SUGGESTIONS");
             }
 
-            console.log("[Storage] Generated STS suggestions:", suggestions);
-            return suggestions;
+            console.log("[Storage] Generated STS suggestions:", sortedSuggestions);
+            return sortedSuggestions;
         }
 
         // For other progression schemes, return a single suggestion
@@ -435,12 +421,13 @@ export class DatabaseStorage {
             sets: 3,
             reps: 8,
             weight: exercise.startingWeight || 20,
-            calculated1RM: (exercise.startingWeight || 20) * 1.26
+            calculated1RM: (exercise.startingWeight || 20) * 1.26,
+            parameters: { scheme: exerciseConfig.parameters.scheme }
         };
 
     } catch (error) {
         console.error("[Storage] Error in getNextSuggestion:", error);
-        throw new Error("Failed to generate workout suggestion");
+        throw error;
     }
 }
 
