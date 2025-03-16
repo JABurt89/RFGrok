@@ -405,6 +405,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               <Timer className="h-5 w-5" />
               <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
             </div>
+            {/* Add Log Reps button during rest for RPT workouts */}
+            {(parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRepsInput(true)}
+              >
+                Log Reps
+              </Button>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -464,7 +474,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         <CardHeader>
           <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
           <CardDescription className="text-lg font-semibold mt-2">
-            {parameters.scheme === "RPT Individual" ? (
+            {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
               <span className="text-primary">
                 Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
               </span>
@@ -497,33 +507,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {/* Show regular set completion buttons for other workout types */}
-          {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
-            <>
-              <Button
-                className="flex-1 sm:flex-none"
-                onClick={handleSetComplete}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Set Complete
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 sm:flex-none"
-                onClick={() => setShowRepsInput(true)}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Set Failed
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 sm:flex-none"
-                onClick={handleEditToggle}
-              >
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit Set
-              </Button>
-            </>
+          {/* Show Log Reps button for RPT workouts when not resting */}
+          {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") &&
+           restTimer === null && !showRepsInput && (
+            <Button
+              className="w-full"
+              onClick={() => setShowRepsInput(true)}
+            >
+              Log Reps
+            </Button>
           )}
 
           {/* Edit mode buttons */}
@@ -535,15 +527,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           )}
 
 
-          {/* Modified to show Next Exercise button only after extra set is handled for STS */}
-          {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
+          {/* Next Exercise button */}
+          {isLastSet && !showRepsInput && (
             <Button
               className="w-full"
               onClick={() => onComplete()}
             >
               Next Exercise
             </Button>
-          ) : null}
+          )}
         </CardFooter>
       </Card>
 
