@@ -173,8 +173,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       timestamp: new Date().toISOString()
     }]);
 
-    // Complete the workout immediately when a set fails
-    completeMutation.mutate();
+    setCurrentSet(prev => prev + 1);
+    setRestTimer(parameters.restBetweenSets);
     setShowFailureOptions(false);
   };
 
@@ -403,7 +403,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
-          {!showFailureOptions && !isEditing && currentSet < (selectedSuggestion?.sets || 0) && (
+          {!showFailureOptions && !isEditing && (
             <>
               <Button
                 className="flex-1 sm:flex-none"
