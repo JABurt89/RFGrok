@@ -1,15 +1,4 @@
-import { useState, useEffect } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RPTTopSetLogger } from "./workout/rpt-top-set-logger";
 
 interface WorkoutLoggerProps {
@@ -27,15 +16,16 @@ export default function WorkoutLogger(props: WorkoutLoggerProps) {
       return <RPTTopSetLogger {...props} parameters={props.parameters} />;
     // Add other loggers as they're implemented
     default:
-      // Temporarily keep the old implementation for other schemes
-      const OldWorkoutLogger = require("./workout-logger-old").default;
-      return <OldWorkoutLogger {...props} />;
+      const DefaultLogger = require("./workout/default-logger").default;
+      return <DefaultLogger {...props} />;
   }
 }
 
-// workout-logger-old.tsx (This file needs to be created)
-//This is a placeholder file to temporarily hold the original logic.  It should eventually be removed or refactored.
-//This is the content of the original file.
+```
+
+To complete the solution, create a new file named `client/src/components/workout/default-logger.tsx` with the following content:
+
+```typescript
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -58,7 +48,7 @@ interface WorkoutLoggerProps {
   totalExercises?: number;
 }
 
-export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
+export default function DefaultLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
