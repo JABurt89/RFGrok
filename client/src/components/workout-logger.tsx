@@ -161,6 +161,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     } else {
       setCurrentSet(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
+      // For RPT workouts, show rep selection UI for next set
       if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
         setShowRepsInput(true);
       }
@@ -347,6 +348,47 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Alert>
       )}
 
+      {/* Rep Selection Dialog */}
+      <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
+        <DialogContent>
+          <DialogTitle>Log Set Completion</DialogTitle>
+          <DialogDescription>
+            Select the number of repetitions completed for this set.
+          </DialogDescription>
+          <div className="space-y-2">
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({
+                length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
+              }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
+                <Button
+                  key={rep}
+                  variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    handleRepSelection(rep);
+                    setShowRepsInput(false);
+                  }}
+                  className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
+                >
+                  {rep}
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true);
+                  setShowRepsInput(false);
+                }}
+                className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+              >
+                Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Current Set Card */}
       <Card>
         <CardHeader>
@@ -364,7 +406,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent>
           {/* Previous Sets Summary */}
           {loggedSets.length > 0 && (
             <div className="space-y-2 mb-4">
@@ -382,52 +424,20 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               </div>
             </div>
           )}
-
-          {/* Rep Selection UI */}
-          {showRepsInput ? (
-            <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
-              <DialogContent>
-                <DialogTitle>Log Set Completion</DialogTitle>
-                <DialogDescription>
-                  Select the number of repetitions completed for this set.
-                </DialogDescription>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-4 gap-2">
-                    {Array.from({
-                      length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
-                    }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
-                      <Button
-                        key={rep}
-                        variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          handleRepSelection(rep);
-                          setShowRepsInput(false);
-                        }}
-                        className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
-                      >
-                        {rep}
-                      </Button>
-                    ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true);
-                        setShowRepsInput(false);
-                      }}
-                      className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
-                    >
-                      Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          ) : null}
         </CardContent>
 
         <CardFooter className="flex flex-wrap gap-2">
+          {/* Show rep selection button for RPT workouts */}
+          {!isLastSet && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") && !showRepsInput && (
+            <Button
+              className="w-full"
+              onClick={() => setShowRepsInput(true)}
+            >
+              Log Reps
+            </Button>
+          )}
+
+          {/* Show regular set completion buttons for other workout types */}
           {!isLastSet && !showRepsInput && !isEditing && (parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
             <>
               <Button
@@ -456,6 +466,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </>
           )}
 
+          {/* Edit mode buttons */}
           {isEditing && (
             <>
               <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
@@ -463,15 +474,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </>
           )}
 
-          {showRepsInput && (
-            <Button
-              variant="outline"
-              onClick={() => setShowRepsInput(false)}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          )}
 
           {/* Modified to show Next Exercise button only after extra set is handled for STS */}
           {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
