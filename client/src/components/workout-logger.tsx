@@ -239,11 +239,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return exercise?.name || "Exercise";
   };
 
+  // Get current set target with correct position formatting
   const getCurrentSetTarget = () => {
     if (!selectedSuggestion) return null;
 
     const exerciseName = getExerciseName();
-    const position = `${workoutDayId}/${totalExercises}`;
+    const position = `${workoutDayId} of ${totalExercises}`; // Changed format to "X of Y"
 
     if (parameters.scheme === "RPT Top-Set") {
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
