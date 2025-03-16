@@ -214,14 +214,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       const weight = selectedSuggestion.weight * (1 - dropPercentage / 100);
       return {
         weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
-        reps: selectedSuggestion.reps,
+        reps: parameters.maxReps,
+        minReps: parameters.minReps,
+        maxReps: parameters.maxReps,
       };
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
       return {
         weight: selectedSuggestion.weight,
-        minReps: setConfig?.min || selectedSuggestion.reps,
-        maxReps: setConfig?.max || selectedSuggestion.reps,
+        minReps: setConfig?.min || parameters.minReps,
+        maxReps: setConfig?.max || parameters.maxReps,
       };
     }
     return {
@@ -389,7 +391,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 />
               </div>
             </div>
-          ) : showRepsInput && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") ? (
+          ) : showRepsInput ? (
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-4 gap-2">
@@ -402,7 +404,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleRepSelection(rep)}
-                    className={`w-full ${rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}`}
+                    className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
                   >
                     {rep}
                   </Button>
