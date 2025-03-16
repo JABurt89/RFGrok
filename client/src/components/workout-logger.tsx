@@ -93,6 +93,36 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   };
 
+  const handleSetComplete = () => {
+    if (!selectedSuggestion) return;
+
+    const target = getCurrentSetTarget();
+    if (!target) return;
+
+    // For RPT workouts, show rep selection UI
+    if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
+      setShowRepsInput(true);
+      return;
+    }
+
+    // For other schemes like STS, directly log the set
+    const weight = editWeight ?? target.weight;
+    const reps = editReps ?? target.reps;
+
+    setLoggedSets(prev => [...prev, {
+      weight,
+      reps,
+      timestamp: new Date().toISOString(),
+      isFailure: false
+    }]);
+
+    setCurrentSet(prev => prev + 1);
+    setRestTimer(parameters.restBetweenSets);
+    setIsEditing(false);
+    setEditWeight(null);
+    setEditReps(null);
+  };
+
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
     if (!selectedSuggestion) return;
 
@@ -359,7 +389,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-4 gap-2">
-                {Array.from({ 
+                {Array.from({
                   length: parameters.scheme === "RPT Individual"
                     ? getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
                     : getCurrentSetTarget()?.reps || 0
@@ -392,7 +422,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <>
               <Button
                 className="flex-1 sm:flex-none"
-                onClick={() => setShowRepsInput(true)}
+                onClick={handleSetComplete}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Set Complete
@@ -418,7 +448,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
           {isEditing && (
             <>
-              <Button onClick={() => setShowRepsInput(true)} className="flex-1">Save Changes</Button>
+              <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
               <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
             </>
           )}
