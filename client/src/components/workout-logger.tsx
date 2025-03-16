@@ -389,29 +389,44 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <div className="space-y-2">
               <h3 className="text-sm font-medium">How many reps completed?</h3>
               <div className="grid grid-cols-4 gap-2">
-                {Array.from({
-                  length: parameters.scheme === "RPT Individual"
-                    ? getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
-                    : getCurrentSetTarget()?.reps || 0
-                }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
-                  <Button
-                    key={rep}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRepSelection(rep)}
-                    className="w-full"
-                  >
-                    {rep}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
-                  className="w-full col-span-4 bg-primary/10"
-                >
-                  Max Range Exceeded
-                </Button>
+                {parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set" ? (
+                  <>
+                    {Array.from({
+                      length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
+                    }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
+                      <Button
+                        key={rep}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRepSelection(rep)}
+                        className="w-full"
+                      >
+                        {rep}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
+                      className="w-full col-span-4 bg-primary/10"
+                    >
+                      Max Range Exceeded
+                    </Button>
+                  </>
+                ) : (
+                  // For STS workouts, show failure rep options
+                  Array.from({ length: Math.max(1, selectedSuggestion?.reps -1) }, (_, i) => i + 1).map((rep) => (
+                    <Button
+                      key={rep}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetFailed(rep)}
+                      className="w-full"
+                    >
+                      {rep}
+                    </Button>
+                  ))
+                )}
               </div>
             </div>
           ) : null}
