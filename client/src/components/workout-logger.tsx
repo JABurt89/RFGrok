@@ -16,9 +16,10 @@ interface WorkoutLoggerProps {
   workoutDayId: number;
   parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   onComplete: () => void;
+  totalExercises?: number; // Add optional prop for total exercises
 }
 
-export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete }: WorkoutLoggerProps) {
+export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -240,7 +241,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
         name: selectedSuggestion.name || "Exercise", // Include exercise name
-        position: workoutDayId // Include position in workout
+        position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
       };
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
@@ -250,14 +251,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         minReps: setConfig.min,
         maxReps: setConfig.max,
         name: selectedSuggestion.name || "Exercise", // Include exercise name
-        position: workoutDayId // Include position in workout
+        position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
       };
     }
     return {
       weight: selectedSuggestion.weight,
       reps: selectedSuggestion.reps,
       name: selectedSuggestion.name || "Exercise", // Include exercise name
-      position: workoutDayId // Include position in workout
+      position: `${workoutDayId}/${totalExercises}` // Corrected position formatting
     };
   };
 
@@ -272,7 +273,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         reps: parameters.maxReps,
         weight: suggestions?.[0]?.weight || 20,
         calculated1RM: suggestions?.[0]?.calculated1RM,
-        exerciseName: suggestions?.[0]?.exerciseName || "Exercise", // Added exerciseName property
         name: suggestions?.[0]?.name || "Exercise" // Added name property
 
       };
@@ -400,7 +400,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
         <DialogContent>
           <DialogTitle className="flex flex-col gap-1">
-            <div className="text-sm text-muted-foreground">Exercise {workoutDayId}/3</div>
+            <div className="text-sm text-muted-foreground">Exercise {workoutDayId}/{totalExercises}</div>
             <div className="text-xl">{getCurrentSetTarget()?.name || 'Exercise'}</div>
             <div className="text-base font-normal">
               Set {currentSet + 1} • {getCurrentSetTarget()?.weight}kg
