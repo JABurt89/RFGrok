@@ -1,4 +1,10 @@
-import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+import { 
+  STSParameters, 
+  DoubleProgressionParameters, 
+  RPTTopSetParameters, 
+  RPTIndividualParameters 
+} from "@shared/schema";
+import { BaseWorkoutLogger } from "./workout/base-workout-logger";
 import { RPTTopSetLogger } from "./workout/rpt-top-set-logger";
 
 interface WorkoutLoggerProps {
@@ -14,18 +20,20 @@ export default function WorkoutLogger(props: WorkoutLoggerProps) {
   switch (props.parameters.scheme) {
     case "RPT Top-Set":
       return <RPTTopSetLogger {...props} parameters={props.parameters} />;
-    // Add other loggers as they're implemented
+    case "STS":
+    case "Double Progression":
+    case "RPT Individual":
+      return <BaseWorkoutLogger {...props} />;
     default:
-      const DefaultLogger = require("./workout/default-logger").default;
-      return <DefaultLogger {...props} />;
+      const exhaustiveCheck: never = props.parameters.scheme;
+      return exhaustiveCheck;
   }
 }
 
 ```
 
-To complete the solution, create a new file named `client/src/components/workout/default-logger.tsx` with the following content:
-
 ```typescript
+// client/src/components/workout/base-workout-logger.tsx
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -48,7 +56,7 @@ interface WorkoutLoggerProps {
   totalExercises?: number;
 }
 
-export default function DefaultLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
+export default function BaseWorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();

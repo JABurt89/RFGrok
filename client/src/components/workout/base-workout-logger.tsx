@@ -1,5 +1,5 @@
-import { useReducer, useEffect } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useReducer } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -49,25 +49,9 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
 
   // Get exercise name
   const getExerciseName = () => {
-    const exercise = exercises.find((e: Exercise) => e.id === exerciseId);
+    const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Exercise";
   };
-
-  // Rest timer effect
-  useEffect(() => {
-    let interval: number;
-    if (state.restTimer !== null && state.restTimer > 0) {
-      interval = window.setInterval(() => {
-        dispatch({ type: 'TICK_REST_TIMER' });
-      }, 1000);
-
-      // Play sound when timer reaches 0
-      if (state.restTimer === 1) {
-        new Audio('/chime.mp3').play().catch(console.error);
-      }
-    }
-    return () => window.clearInterval(interval);
-  }, [state.restTimer]);
 
   if (!user) {
     return (
@@ -86,22 +70,6 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
       </div>
     );
   }
-
-  // Rest Timer Component
-  const RestTimer = () => {
-    if (state.restTimer === null || state.restTimer <= 0) return null;
-
-    return (
-      <Alert>
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Timer className="h-5 w-5" />
-            <span>Rest Time: {Math.floor(state.restTimer / 60)}:{(state.restTimer % 60).toString().padStart(2, '0')}</span>
-          </div>
-        </AlertDescription>
-      </Alert>
-    );
-  };
 
   // Suggestion selection UI
   const SuggestionSelection = () => {
@@ -165,7 +133,6 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
     state,
     dispatch,
     getExerciseName,
-    RestTimer,
     SuggestionSelection,
     queryClient,
     toast,
