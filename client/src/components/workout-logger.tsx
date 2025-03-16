@@ -276,6 +276,25 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
+  // For RPT workouts, skip the suggestion selection and start directly
+  if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
+    // Use the first suggestion or create a default one
+    const defaultSuggestion = {
+      sets: parameters.sets,
+      reps: parameters.maxReps,
+      weight: suggestions?.[0]?.weight || 20, // Use first suggestion's weight or default to 20
+      calculated1RM: suggestions?.[0]?.calculated1RM
+    };
+    handleStartWorkout(defaultSuggestion);
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="ml-2">Starting workout...</span>
+      </div>
+    );
+  }
+
+  // Show suggestion selection only for non-RPT workouts
   if (!isWorkoutActive) {
     return (
       <Card>
