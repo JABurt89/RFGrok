@@ -15,6 +15,7 @@ function WorkoutsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
   // Fetch workouts and exercises
   const { data: workouts = [], isLoading: isLoadingWorkouts } = useQuery<WorkoutDay[]>({
@@ -33,6 +34,20 @@ function WorkoutsPage() {
 
   const handleStartWorkout = (workout: WorkoutDay) => {
     setActiveWorkout(workout);
+    setCurrentExerciseIndex(0); // Reset exercise index when starting new workout
+  };
+
+  const handleExerciseComplete = () => {
+    if (!activeWorkout) return;
+
+    // Move to next exercise if available
+    if (currentExerciseIndex < activeWorkout.exercises.length - 1) {
+      setCurrentExerciseIndex(prev => prev + 1);
+    } else {
+      // All exercises completed
+      setActiveWorkout(null);
+      setCurrentExerciseIndex(0);
+    }
   };
 
   const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
@@ -210,14 +225,29 @@ function WorkoutsPage() {
       )}
 
       {/* Active Workout Dialog */}
-      <Dialog open={activeWorkout !== null} onOpenChange={(open) => !open && setActiveWorkout(null)}>
+      <Dialog open={activeWorkout !== null} onOpenChange={(open) => {
+        if (!open) {
+          setActiveWorkout(null);
+          setCurrentExerciseIndex(0);
+        }
+      }}>
         <DialogContent className="max-w-lg">
           {activeWorkout && (
-            <WorkoutLogger
-              exerciseId={activeWorkout.exercises[0].exerciseId}
-              workoutDayId={activeWorkout.id}
-              onComplete={() => setActiveWorkout(null)}
-            />
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">
+                  Exercise {currentExerciseIndex + 1} of {activeWorkout.exercises.length}
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {getExerciseName(activeWorkout.exercises[currentExerciseIndex].exerciseId)}
+                </span>
+              </div>
+              <WorkoutLogger
+                exerciseId={activeWorkout.exercises[currentExerciseIndex].exerciseId}
+                workoutDayId={activeWorkout.id}
+                onComplete={handleExerciseComplete}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
