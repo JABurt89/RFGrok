@@ -266,11 +266,13 @@ export class DatabaseStorage {
   }
 
   async deleteWorkoutLog(id: number): Promise<void> {
+    console.log("[Storage] Deleting workout log:", id);
     const [deleted] = await db
       .delete(workoutLogs)
       .where(eq(workoutLogs.id, id))
       .returning();
     if (!deleted) throw new Error("Workout log not found");
+    console.log("[Storage] Successfully deleted workout log:", id);
   }
 
   async deleteUser(id: number): Promise<void> {

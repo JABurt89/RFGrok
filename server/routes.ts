@@ -183,6 +183,28 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Delete workout log
+  app.delete("/api/workout-logs/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const existingLog = await storage.getWorkoutLog(parseInt(req.params.id));
+      if (!existingLog || existingLog.userId !== req.user.id) {
+        return res.status(403).json({ error: "Workout log not found or unauthorized" });
+      }
+
+      await storage.deleteWorkoutLog(parseInt(req.params.id));
+      res.status(200).json({ message: "Workout log deleted successfully" });
+    } catch (error) {
+      console.error("[Workout Logs] Error deleting log:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to delete workout log"
+      });
+    }
+  });
+
   // Workout suggestion
   app.get("/api/workout-suggestion", async (req, res) => {
     try {
