@@ -1,11 +1,8 @@
-```typescript
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { apiRequest } from "@/lib/queryClient";
 import { RPTTopSetParameters } from "@shared/schema";
-import { BaseWorkoutLogger, BaseWorkoutLoggerProps, WorkoutSet } from "./base-workout-logger";
+import { BaseWorkoutLogger, BaseWorkoutLoggerProps } from "./base-workout-logger";
 
 interface RPTTopSetLoggerProps extends BaseWorkoutLoggerProps {
   parameters: RPTTopSetParameters;
@@ -14,35 +11,17 @@ interface RPTTopSetLoggerProps extends BaseWorkoutLoggerProps {
 export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
   const base = BaseWorkoutLogger(props);
   const [showRepsInput, setShowRepsInput] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
-
-  // Fetch workout suggestion
-  const { data: suggestions, isLoading } = useQuery({
-    queryKey: ['/api/workout-suggestion', props.exerciseId],
-    queryFn: async () => {
-      const url = new URL('/api/workout-suggestion', window.location.origin);
-      url.searchParams.append('exerciseId', props.exerciseId.toString());
-      const response = await apiRequest("GET", url.toString());
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch workout suggestion");
-      }
-      return response.json();
-    },
-    enabled: Boolean(props.exerciseId) && Boolean(base.user),
-  });
 
   const getCurrentSetTarget = () => {
-    if (!selectedSuggestion) return null;
+    if (!base.selectedSuggestion) return null;
 
     const exerciseName = base.getExerciseName();
-    const exercisePosition = Math.min(props.workoutDayId, props.totalExercises || 3);
-    const position = `${exercisePosition} of ${props.totalExercises}`;
+    const position = `${props.workoutDayId} of ${props.totalExercises}`;
 
     const dropPercentage = props.parameters.dropPercentages[base.currentSet] || 0;
-    const baseWeight = selectedSuggestion.weight;
+    const baseWeight = base.selectedSuggestion.weight;
     const weight = baseWeight * (1 - dropPercentage / 100);
-    
+
     return {
       weight: Math.round(weight * 2) / 2,
       reps: props.parameters.maxReps,
@@ -54,7 +33,7 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
   };
 
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-    if (!selectedSuggestion) return;
+    if (!base.selectedSuggestion) return;
 
     const target = getCurrentSetTarget();
     if (!target) return;
@@ -74,39 +53,21 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
     } else {
       base.setCurrentSet(prev => prev + 1);
       base.setRestTimer(props.parameters.restBetweenSets);
-      setShowRepsInput(false);
+      // Keep dialog visible during rest
+      setShowRepsInput(true);
     }
   };
 
-  // Initialize workout
-  useEffect(() => {
-    if (!base.isWorkoutActive && suggestions) {
-      const defaultSuggestion = {
-        sets: props.parameters.sets,
-        reps: props.parameters.maxReps,
-        weight: suggestions[0]?.weight || 20,
-        calculated1RM: suggestions[0]?.calculated1RM,
-        name: base.getExerciseName(),
-      };
-      setSelectedSuggestion(defaultSuggestion);
-      base.setIsWorkoutActive(true);
-    }
-  }, [base.isWorkoutActive, suggestions]);
-
   // Show rep selection dialog automatically
   useEffect(() => {
-    // Show dialog when workout starts
-    if (base.isWorkoutActive && base.currentSet === 0 && !showRepsInput) {
+    if (base.selectedSuggestion && !showRepsInput) {
       setShowRepsInput(true);
     }
-    // Show dialog after rest timer ends
-    if (base.restTimer === 0 && !base.currentSet >= props.parameters.sets && !showRepsInput) {
-      setShowRepsInput(true);
-    }
-  }, [base.isWorkoutActive, base.currentSet, base.restTimer, showRepsInput]);
+  }, [base.selectedSuggestion, base.currentSet]);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
+  // If not started, show suggestion selection
+  if (!base.selectedSuggestion) {
+    return <base.SuggestionSelection />;
   }
 
   return (
@@ -137,10 +98,7 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
                   key={rep}
                   variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
                   size="sm"
-                  onClick={() => {
-                    handleRepSelection(rep);
-                    setShowRepsInput(false);
-                  }}
+                  onClick={() => handleRepSelection(rep)}
                   className={rep === getCurrentSetTarget()?.maxReps ? "bg-primary text-primary-foreground" : ""}
                 >
                   {rep}
@@ -149,10 +107,7 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true);
-                  setShowRepsInput(false);
-                }}
+                onClick={() => handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true)}
                 className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
               >
                 Max Range Exceeded ({getCurrentSetTarget()?.maxReps! + 1}+ reps)
@@ -164,4 +119,3 @@ export function RPTTopSetLogger(props: RPTTopSetLoggerProps) {
     </div>
   );
 }
-```
