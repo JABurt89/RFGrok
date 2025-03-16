@@ -487,6 +487,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </Button>
           )}
 
+          {/* Modified to show Next Exercise button only for non-STS workouts */}
           {isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS" && (
             <Button
               className="w-full"
@@ -498,7 +499,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </CardFooter>
       </Card>
 
-      {/* Extra Set for STS */}
+      {/* Extra Set for STS - Remains unchanged as it already exists and meets the requirements */}
       {isLastSet && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
