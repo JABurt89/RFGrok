@@ -1,0 +1,92 @@
+Thought for
+63s
+Expand for details
+Problem Description
+When navigating to the "Workouts" page in your application, a crash occurs, and the console logs the following error:
+
+text
+
+Collapse
+
+Wrap
+
+Copy
+11:12:29 PM [vite] Pre-transform error: Duplicate declaration "STSParameters"
+  42 | import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
+  43 | import { useAuth } from "@/hooks/use-auth";
+> 44 | import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+     |          ^^^^^^^^^^^^^
+  45 | import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+  46 |
+  47 |
+This is a pre-transform error reported by Vite, indicating that during the build process, it encountered a duplicate declaration of the identifier STSParameters. This typically means that within the same file or scope, STSParameters is declared more than once, which is not allowed in TypeScript.
+
+Analysis
+The error points to line 44 in a file (likely client/src/pages/workouts-page.tsx, since the crash occurs on the "Workouts" page), where multiple types, including STSParameters, are imported from "@shared/schema". The file shared/schema.ts defines STSParameters as:
+
+typescript
+
+Collapse
+
+Wrap
+
+Copy
+export type STSParameters = z.infer<typeof stsParameters>;
+where stsParameters is a Zod schema defined earlier in the same file. There’s no duplicate definition of STSParameters within schema.ts itself, so the issue likely arises in the file importing it.
+
+In TypeScript, importing a type should not cause a duplicate declaration error unless there’s a naming conflict with another declaration (e.g., a variable, constant, or another type) in the same scope. The error being a "pre-transform error" suggests it occurs during Vite’s transformation phase, possibly due to how esbuild (used by Vite for fast TypeScript processing) interprets the code.
+
+Given the project structure and the error, the most likely cause is a naming conflict in workouts-page.tsx (or a component it uses) between the imported type STSParameters and a local declaration (e.g., a variable, constant, or type) with the same name.
+
+Steps to Resolve the Issue
+Since the full content of workouts-page.tsx isn’t provided, I’ll outline actionable steps based on the most probable cause—a naming conflict—and how to address it.
+
+Step 1: Locate the Problematic File
+File: The error likely occurs in client/src/pages/workouts-page.tsx, as it corresponds to the "Workouts" page where the crash happens.
+Action: Open workouts-page.tsx in your code editor.
+Step 2: Check for Duplicate Declarations
+Task: Search for any local declarations named STSParameters within workouts-page.tsx.
+Examples of Conflicts:
+A variable: const STSParameters = ...;
+A type: type STSParameters = ...;
+A function or constant: let STSParameters = ...;
+Why: In TypeScript, types and variables share the same namespace within a scope. If STSParameters is both imported as a type and declared locally (e.g., as a variable), this causes a duplicate declaration error.
+Step 3: Resolve the Naming Conflict
+If a duplicate declaration is found, you have two options:
+
+Option A: Rename the Local Declaration
+Action: Change the name of the local variable, constant, or type to avoid the conflict.
+Example:
+typescript
+
+Collapse
+
+Wrap
+
+Copy
+// Before
+import { STSParameters } from "@shared/schema";
+const STSParameters = someValue; // Conflict!
+
+// After
+import { STSParameters } from "@shared/schema";
+const stsParams = someValue; // No conflict
+Update: Replace all references to the old name (e.g., STSParameters) with the new name (e.g., stsParams) in the file.
+Option B: Alias the Imported Type
+Action: Import STSParameters with an alias to differentiate it from the local declaration.
+Example:
+typescript
+
+Collapse
+
+Wrap
+
+Copy
+// Before
+import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+const STSParameters = someValue; // Conflict!
+
+// After
+import { STSParameters as STSParams, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+const STSParameters = someValue; // No conflict
+Update: Replace all uses of STSParameters (referring to the type) with STSParams in the file, while keeping the local declaration as STSParameters.

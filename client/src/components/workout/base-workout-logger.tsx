@@ -12,15 +12,22 @@ import { initialWorkoutState } from "./workout-state";
 import type { Exercise } from "@/types";
 import type { WorkoutState } from "./workout-state";
 import type { WorkoutAction } from "./workout-actions";
+import type { 
+  STSParameters, 
+  DoubleProgressionParameters, 
+  RPTTopSetParameters, 
+  RPTIndividualParameters 
+} from "@shared/schema";
 
 export interface BaseWorkoutLoggerProps {
   exerciseId: number;
   workoutDayId: number;
+  parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   onComplete: () => void;
   totalExercises?: number;
 }
 
-export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalExercises = 3 }: BaseWorkoutLoggerProps) {
+export function BaseWorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: BaseWorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -31,12 +38,17 @@ export function BaseWorkoutLogger({ exerciseId, workoutDayId, onComplete, totalE
     queryKey: ["/api/exercises"],
   });
 
-  // Fetch workout suggestion
+  // Fetch workout suggestion  -  This section might need adjustment depending on how 'parameters' are used to fetch suggestions.
   const { data: suggestions, isLoading: suggestionsLoading } = useQuery({
-    queryKey: ['/api/workout-suggestion', exerciseId],
+    queryKey: ['/api/workout-suggestion', exerciseId, parameters], // Added parameters to the query key
     queryFn: async () => {
       const url = new URL('/api/workout-suggestion', window.location.origin);
       url.searchParams.append('exerciseId', exerciseId.toString());
+      // Add parameters to the URLSearchParams
+      const paramKeys = Object.keys(parameters);
+      paramKeys.forEach(key => url.searchParams.append(key, parameters[key as keyof typeof parameters].toString()));
+
+
       const response = await apiRequest("GET", url.toString());
       if (!response.ok) {
         const errorData = await response.json();

@@ -45,7 +45,6 @@ import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTInd
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 
-
 interface WorkoutLoggerProps {
   exerciseId: number;
   workoutDayId: number;
