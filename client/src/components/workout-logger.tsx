@@ -122,7 +122,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
-      onComplete();
+      // Don't call onComplete() here for STS - wait for extra set
+      if (parameters.scheme !== "STS") {
+        onComplete();
+      }
     } else {
       setCurrentSet(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
@@ -487,19 +490,19 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </Button>
           )}
 
-          {/* Modified to show Next Exercise button only for non-STS workouts */}
-          {isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS" && (
+          {/* Modified to show Next Exercise button only after extra set is handled for STS */}
+          {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
             <Button
               className="w-full"
               onClick={() => onComplete()}
             >
               Next Exercise
             </Button>
-          )}
+          ) : null}
         </CardFooter>
       </Card>
 
-      {/* Extra Set for STS - Remains unchanged as it already exists and meets the requirements */}
+      {/* Extra Set for STS */}
       {isLastSet && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
@@ -522,6 +525,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <Button
               onClick={() => {
                 if (extraSetReps !== null) {
+                  // Add the extra set to logged sets
+                  setLoggedSets(prev => [...prev, {
+                    weight: getCurrentSetTarget()?.weight || 0,
+                    reps: extraSetReps,
+                    timestamp: new Date().toISOString(),
+                    isFailure: false
+                  }]);
                   onComplete();
                 } else {
                   toast({
