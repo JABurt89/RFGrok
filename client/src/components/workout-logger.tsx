@@ -167,10 +167,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     } else {
       setCurrentSet(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
-      // For RPT workouts, show rep selection UI for next set
-      if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
-        setShowRepsInput(true);
-      }
+      setShowRepsInput(false); // Hide dialog during rest
     }
 
     setIsEditing(false);
