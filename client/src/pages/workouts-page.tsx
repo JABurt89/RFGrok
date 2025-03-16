@@ -34,23 +34,23 @@ function WorkoutsPage() {
 
   const handleStartWorkout = (workout: WorkoutDay) => {
     setActiveWorkout(workout);
-    setCurrentExerciseIndex(0); // Reset exercise index when starting new workout
+    setCurrentExerciseIndex(0);
   };
 
   const handleExerciseComplete = () => {
     if (!activeWorkout) return;
 
-    // Move to next exercise if available
     if (currentExerciseIndex < activeWorkout.exercises.length - 1) {
       setCurrentExerciseIndex(prev => prev + 1);
     } else {
-      // All exercises completed
       setActiveWorkout(null);
       setCurrentExerciseIndex(0);
     }
   };
 
   const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
+    if (!parameters || !parameters.scheme) return "Unknown scheme";
+
     switch (parameters.scheme) {
       case "STS":
         return `${parameters.scheme} (${parameters.minSets}-${parameters.maxSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
@@ -61,7 +61,7 @@ function WorkoutsPage() {
       case "RPT Individual":
         return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
       default:
-        return parameters.scheme;
+        return String(parameters.scheme);
     }
   };
 
