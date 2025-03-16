@@ -10,6 +10,8 @@ import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 
+type WorkoutParameters = WorkoutDay['exercises'][0]['parameters'];
+
 function WorkoutsPage() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -17,7 +19,6 @@ function WorkoutsPage() {
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
-  // Fetch workouts and exercises
   const { data: workouts = [], isLoading: isLoadingWorkouts } = useQuery<WorkoutDay[]>({
     queryKey: ["/api/workout-days"],
     enabled: !!user
@@ -48,7 +49,7 @@ function WorkoutsPage() {
     }
   };
 
-  const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
+  const formatSchemeDetails = (parameters: WorkoutParameters): string => {
     if (!parameters || !parameters.scheme) return "Unknown scheme";
 
     switch (parameters.scheme) {
@@ -65,7 +66,7 @@ function WorkoutsPage() {
     }
   };
 
-  const getExerciseName = (exerciseId: number) => {
+  const getExerciseName = (exerciseId: number): string => {
     const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Unknown Exercise";
   };
