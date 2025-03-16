@@ -10,14 +10,14 @@ import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkoutDayForm } from "@/components/workout-day-form";
 import type { 
-  STSParameters as SharedSTSParameters,
+  STSParameters,
   DoubleProgressionParameters,
   RPTTopSetParameters,
   RPTIndividualParameters 
-} from "@shared/schema";
+} from "@shared/progression-types";
 
 // Define WorkoutParameters type using the union of all possible parameter types
-type WorkoutParameters = SharedSTSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
+type WorkoutParameters = STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
 
 function WorkoutsPage() {
   const { user } = useAuth();

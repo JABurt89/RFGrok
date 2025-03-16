@@ -17,7 +17,7 @@ import type {
   DoubleProgressionParameters, 
   RPTTopSetParameters, 
   RPTIndividualParameters 
-} from "@shared/schema";
+} from "@shared/progression-types";
 
 export interface BaseWorkoutLoggerProps {
   exerciseId: number;
