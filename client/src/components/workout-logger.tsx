@@ -28,7 +28,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean; exceededMax?: boolean }>>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
-  const [extraSetReps, setExtraSetReps] = useState<number | null>(null);
+  const [extraSetReps, setExtraSetReps] = useState<number | undefined>(undefined);
   const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editWeight, setEditWeight] = useState<number | null>(null);
@@ -528,7 +528,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             )}
 
             {/* Next Exercise button */}
-            {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== null) ? (
+            {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== undefined) ? (
               <Button
                 className="w-full"
                 onClick={() => onComplete()}
@@ -557,7 +557,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             />
           </CardContent>
           <CardFooter className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => onComplete()}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExtraSetReps(undefined);
+                onComplete();
+              }}
+            >
               Skip Extra Set
             </Button>
             <Button
