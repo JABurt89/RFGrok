@@ -9,7 +9,7 @@ import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkoutDayForm } from "@/components/workout-day-form";
-import { 
+import type { 
   STSParameters as ImportedSTSParameters,
   DoubleProgressionParameters,
   RPTTopSetParameters,
