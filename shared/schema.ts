@@ -1,16 +1,6 @@
 import { pgTable, text, serial, integer, boolean, real, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import {
-  STSParameters,
-  DoubleProgressionParameters,
-  RPTTopSetParameters,
-  RPTIndividualParameters,
-  stsParameters,
-  doubleProgressionParameters,
-  rptTopSetParameters,
-  rptIndividualParameters
-} from "./progression-types";
 
 // Available progression schemes
 export const progressionSchemes = ["STS", "Double Progression", "RPT Top-Set", "RPT Individual"] as const;
@@ -35,15 +25,47 @@ export const predefinedEquipment = {
   },
 } as const;
 
-// Workout Exercise Schema with corrected discriminated union
-const workoutExerciseSchema = z.object({
-  exerciseId: z.number(),
-  parameters: z.discriminatedUnion("scheme", [
-    stsParameters,
-    doubleProgressionParameters,
-    rptTopSetParameters,
-    rptIndividualParameters,
-  ]),
+// Common parameters for all progression schemes
+const commonParameters = {
+  restBetweenSets: z.number().min(0),
+  restBetweenExercises: z.number().min(0),
+};
+
+// Progression Parameters Schemas
+const stsParameters = z.object({
+  scheme: z.literal("STS"),
+  minSets: z.number().min(1),
+  maxSets: z.number().min(1),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  ...commonParameters,
+}).strict();
+
+const doubleProgressionParameters = z.object({
+  scheme: z.literal("Double Progression"),
+  targetSets: z.number().min(1),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  ...commonParameters,
+}).strict();
+
+const rptTopSetParameters = z.object({
+  scheme: z.literal("RPT Top-Set"),
+  sets: z.number().min(2, "At least 2 sets required"),
+  minReps: z.number().min(1),
+  maxReps: z.number().min(1),
+  dropPercentages: z.array(z.number().min(0).max(100)),
+  ...commonParameters,
+}).strict();
+
+const rptIndividualParameters = z.object({
+  scheme: z.literal("RPT Individual"),
+  sets: z.number().min(1, "At least 1 set required"),
+  setConfigs: z.array(z.object({
+    min: z.number().min(1),
+    max: z.number().min(1),
+  })),
+  ...commonParameters,
 }).strict();
 
 // Default progression parameters
@@ -87,6 +109,17 @@ export const defaultProgressionParameters = {
   },
 } as const;
 
+// Workout Exercise Schema with corrected discriminated union
+const workoutExerciseSchema = z.object({
+  exerciseId: z.number(),
+  parameters: z.discriminatedUnion("scheme", [
+    stsParameters,
+    doubleProgressionParameters,
+    rptTopSetParameters,
+    rptIndividualParameters,
+  ]),
+}).strict();
+
 // Database tables
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -125,14 +158,15 @@ export const workoutLogs = pgTable("workout_logs", {
     sets: Array<{
       reps: number;
       weight: number;
-      timestamp: string;
+      timestamp: string; // ISO 8601 timestamp for rest time tracking
     }>;
-    extraSetReps?: number;
-    oneRm?: number;
+    extraSetReps?: number; // For STS progression tracking
+    oneRm?: number; // Calculated 1RM for the exercise
     parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
   }>(),
   isComplete: boolean("is_complete").default(false).notNull(),
 });
+
 
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -185,6 +219,7 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs)
     }))
   });
 
+
 // TypeScript types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -215,3 +250,7 @@ export type WorkoutLog = {
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
+export type STSParameters = z.infer<typeof stsParameters>;
+export type DoubleProgressionParameters = z.infer<typeof doubleProgressionParameters>;
+export type RPTTopSetParameters = z.infer<typeof rptTopSetParameters>;
+export type RPTIndividualParameters = z.infer<typeof rptIndividualParameters>;

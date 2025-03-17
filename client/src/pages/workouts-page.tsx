@@ -1,151 +1,75 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { WorkoutDay, Exercise } from "@/types";
+import { WorkoutDayForm } from "../components/workout-day-form";
+import { Button } from "../components/ui/button";
 import { Link } from "wouter";
 import { Plus, DumbbellIcon, Edit, Play, History, Home } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { WorkoutDay, Exercise } from "@/types";
 import { queryClient } from "@/lib/queryClient";
 import WorkoutLogger from "@/components/workout-logger";
 import { useAuth } from "@/hooks/use-auth";
-import { WorkoutDayForm } from "@/components/workout-day-form";
-import type { 
-  STSParameters,
-  DoubleProgressionParameters,
-  RPTTopSetParameters,
-  RPTIndividualParameters 
-} from "@shared/progression-types";
 
-// Helper Types
-type WorkoutParameters = 
-  | STSParameters 
-  | DoubleProgressionParameters 
-  | RPTTopSetParameters 
-  | RPTIndividualParameters;
-
-// Custom hook for data fetching
-function useWorkoutData() {
-  const { user } = useAuth();
-
-  const workoutsQuery = useQuery<WorkoutDay[]>({
-    queryKey: ["/api/workout-days"],
-    enabled: !!user,
-  });
-
-  const exercisesQuery = useQuery<Exercise[]>({
-    queryKey: ["/api/exercises"],
-    enabled: !!user,
-  });
-
-  return {
-    workouts: workoutsQuery.data ?? [],
-    exercises: exercisesQuery.data ?? [],
-    isLoading: workoutsQuery.isLoading,
-    error: workoutsQuery.error || exercisesQuery.error,
-    user
-  };
-}
-
-// Helper to format workout scheme details
-function formatSchemeDetails(parameters?: WorkoutParameters): string {
-  if (!parameters) return "No scheme details";
-
-  const schemes: Record<string, (p: any) => string> = {
-    "STS": (p) => `${p.scheme} (${p.minSets}-${p.maxSets} sets × ${p.minReps}-${p.maxReps} reps)`,
-    "Double Progression": (p) => `${p.scheme} (${p.targetSets} sets × ${p.minReps}-${p.maxReps} reps)`,
-    "RPT Top-Set": (p) => `${p.scheme} (${p.sets} sets, ${p.minReps}-${p.maxReps} reps)`,
-    "RPT Individual": (p) => `${p.scheme} (${p.sets} sets, custom rep ranges)`
-  };
-
-  return schemes[parameters.scheme]?.(parameters) ?? "Unknown scheme";
-}
-
-// Workout Card Component
-function WorkoutCard({ 
-  workout,
-  exercises,
-  onEdit,
-  onStart 
-}: {
-  workout: WorkoutDay;
-  exercises: Exercise[];
-  onEdit: (workout: WorkoutDay) => void;
-  onStart: (workout: WorkoutDay) => void;
-}) {
-  const getExerciseName = (exerciseId: number) => 
-    exercises.find(e => e.id === exerciseId)?.name ?? "Unknown Exercise";
-
-  return (
-    <div className="border rounded-lg p-4 bg-card shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between border-b pb-4 mb-4">
-        <div>
-          <h3 className="text-xl font-semibold">{workout.name}</h3>
-          <p className="text-sm text-muted-foreground">
-            {workout.exercises.length} exercise{workout.exercises.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onEdit(workout)}
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => onStart(workout)}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Start
-          </Button>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {workout.exercises.map((exercise, idx) => {
-          const exerciseName = getExerciseName(exercise.exerciseId);
-          const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
-
-          return (
-            <div key={idx} className="p-3 rounded-md bg-muted/50">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium">{exerciseName}</h4>
-                {exerciseDetails?.equipmentName && (
-                  <span className="text-sm text-muted-foreground">
-                    {exerciseDetails.equipmentName}
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                <p>{formatSchemeDetails(exercise.parameters)}</p>
-                {exercise.parameters && (
-                  <p className="mt-1">
-                    Rest: {exercise.parameters.restBetweenSets}s between sets,{" "}
-                    {exercise.parameters.restBetweenExercises}s after exercise
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// Main Component
 function WorkoutsPage() {
-  const { workouts, exercises, isLoading, error, user } = useWorkoutData();
-  const [activeWorkout, setActiveWorkout] = useState<{
-    workout: WorkoutDay;
-    exerciseIndex: number;
-  } | null>(null);
-  const [editingWorkout, setEditingWorkout] = useState<WorkoutDay | null>(null);
+  const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
-  // Early return for unauthenticated users
+  // Fetch workouts and exercises
+  const { data: workouts = [], isLoading: isLoadingWorkouts } = useQuery<WorkoutDay[]>({
+    queryKey: ["/api/workout-days"],
+    enabled: !!user
+  });
+
+  const { data: exercises = [] } = useQuery<Exercise[]>({
+    queryKey: ["/api/exercises"],
+    enabled: !!user
+  });
+
+  const handleEdit = (workout: WorkoutDay) => {
+    setSelectedWorkoutDay(workout);
+  };
+
+  const handleStartWorkout = (workout: WorkoutDay) => {
+    setActiveWorkout(workout);
+    setCurrentExerciseIndex(0); // Reset exercise index when starting new workout
+  };
+
+  const handleExerciseComplete = () => {
+    if (!activeWorkout) return;
+
+    // Move to next exercise if available
+    if (currentExerciseIndex < activeWorkout.exercises.length - 1) {
+      setCurrentExerciseIndex(prev => prev + 1);
+    } else {
+      // All exercises completed
+      setActiveWorkout(null);
+      setCurrentExerciseIndex(0);
+    }
+  };
+
+  const formatSchemeDetails = (parameters: WorkoutDay["exercises"][0]["parameters"]) => {
+    switch (parameters.scheme) {
+      case "STS":
+        return `${parameters.scheme} (${parameters.minSets}-${parameters.maxSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "Double Progression":
+        return `${parameters.scheme} (${parameters.targetSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "RPT Top-Set":
+        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "RPT Individual":
+        return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
+      default:
+        return parameters.scheme;
+    }
+  };
+
+  const getExerciseName = (exerciseId: number) => {
+    const exercise = exercises.find(e => e.id === exerciseId);
+    return exercise?.name || "Unknown Exercise";
+  };
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -159,34 +83,9 @@ function WorkoutsPage() {
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Error Loading Data</h2>
-          <p className="text-red-500">{error.message}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleWorkoutComplete = () => {
-    if (!activeWorkout) return;
-
-    if (activeWorkout.exerciseIndex < activeWorkout.workout.exercises.length - 1) {
-      setActiveWorkout({
-        ...activeWorkout,
-        exerciseIndex: activeWorkout.exerciseIndex + 1
-      });
-    } else {
-      setActiveWorkout(null);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
+      {/* Navigation Bar */}
       <nav className="border-b p-4">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -195,14 +94,14 @@ function WorkoutsPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link href="/workout-history">
-              <Button variant="ghost">
-                <History className="h-4 w-4 mr-2" />
+              <Button variant="ghost" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
                 History
               </Button>
             </Link>
             <Link href="/">
-              <Button variant="ghost">
-                <Home className="h-4 w-4 mr-2" />
+              <Button variant="ghost" className="flex items-center gap-2">
+                <Home className="h-4 w-4" />
                 Home
               </Button>
             </Link>
@@ -210,39 +109,88 @@ function WorkoutsPage() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Workouts</h2>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Workout
+          <Button
+            className="flex items-center gap-2"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Add Workout Day
           </Button>
         </div>
 
-        {/* Workout List */}
         <div className="space-y-4">
-          {isLoading ? (
+          {isLoadingWorkouts ? (
             <div className="text-center p-8">
-              <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
+              <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
               <p className="mt-4 text-muted-foreground">Loading workouts...</p>
             </div>
           ) : workouts.length === 0 ? (
             <div className="text-center p-8 border rounded-lg bg-muted/50">
               <p className="text-muted-foreground">
-                No workouts yet. Click "Add Workout" to create your first workout.
+                No workouts yet. Click "Add Workout Day" to create your first workout.
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-4">
               {workouts.map((workout) => (
-                <WorkoutCard
-                  key={workout.id}
-                  workout={workout}
-                  exercises={exercises}
-                  onEdit={setEditingWorkout}
-                  onStart={(workout) => setActiveWorkout({ workout, exerciseIndex: 0 })}
-                />
+                <div key={workout.id} className="border rounded-lg p-4 bg-card">
+                  <div className="flex items-center justify-between border-b pb-4 mb-4">
+                    <div>
+                      <h3 className="text-xl font-semibold">{workout.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(workout)}
+                        className="flex items-center gap-2"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleStartWorkout(workout)}
+                        className="flex items-center gap-2"
+                      >
+                        <Play className="h-4 w-4" />
+                        Begin Workout
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    {workout.exercises.map((exercise, idx) => {
+                      const exerciseName = getExerciseName(exercise.exerciseId);
+                      const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
+
+                      return (
+                        <div key={idx} className="p-4 rounded-md bg-muted/50">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium text-lg">{exerciseName}</h4>
+                            {exerciseDetails && (
+                              <span className="text-sm text-muted-foreground">
+                                {exerciseDetails.equipmentName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                            <p>{formatSchemeDetails(exercise.parameters)}</p>
+                            <p>
+                              Rest periods: {exercise.parameters.restBetweenSets}s between sets,{" "}
+                              {exercise.parameters.restBetweenExercises}s between exercises
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -262,42 +210,44 @@ function WorkoutsPage() {
       </Dialog>
 
       {/* Edit Workout Modal */}
-      <Dialog open={!!editingWorkout} onOpenChange={() => setEditingWorkout(null)}>
-        <DialogContent className="max-w-[600px] h-[90vh] p-0">
-          {editingWorkout && (
+      {selectedWorkoutDay && (
+        <Dialog open={true} onOpenChange={() => setSelectedWorkoutDay(null)}>
+          <DialogContent className="max-w-[600px] h-[90vh] p-0">
             <WorkoutDayForm
-              workoutDay={editingWorkout}
+              workoutDay={selectedWorkoutDay}
               onComplete={() => {
-                setEditingWorkout(null);
+                setSelectedWorkoutDay(null);
                 queryClient.invalidateQueries({ queryKey: ["/api/workout-days"] });
               }}
             />
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* Active Workout Modal */}
-      <Dialog 
-        open={!!activeWorkout} 
-        onOpenChange={(open) => !open && setActiveWorkout(null)}
-      >
+      {/* Active Workout Dialog */}
+      <Dialog open={activeWorkout !== null} onOpenChange={(open) => {
+        if (!open) {
+          setActiveWorkout(null);
+          setCurrentExerciseIndex(0);
+        }
+      }}>
         <DialogContent className="max-w-lg">
           {activeWorkout && (
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
-                  Exercise {activeWorkout.exerciseIndex + 1} of {activeWorkout.workout.exercises.length}
+                  Exercise {currentExerciseIndex + 1} of {activeWorkout.exercises.length}
                 </h2>
                 <span className="text-sm text-muted-foreground">
-                  {exercises.find(e => e.id === activeWorkout.workout.exercises[activeWorkout.exerciseIndex].exerciseId)?.name}
+                  {getExerciseName(activeWorkout.exercises[currentExerciseIndex].exerciseId)}
                 </span>
               </div>
               <WorkoutLogger
-                key={`${activeWorkout.workout.id}-${activeWorkout.exerciseIndex}`}
-                exerciseId={activeWorkout.workout.exercises[activeWorkout.exerciseIndex].exerciseId}
-                workoutDayId={activeWorkout.workout.id}
-                parameters={activeWorkout.workout.exercises[activeWorkout.exerciseIndex].parameters}
-                onComplete={handleWorkoutComplete}
+                key={`${activeWorkout.id}-${currentExerciseIndex}`}
+                exerciseId={activeWorkout.exercises[currentExerciseIndex].exerciseId}
+                workoutDayId={activeWorkout.id}
+                parameters={activeWorkout.exercises[currentExerciseIndex].parameters}
+                onComplete={handleExerciseComplete}
               />
             </div>
           )}

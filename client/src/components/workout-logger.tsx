@@ -1,36 +1,3 @@
-import { 
-  STSParameters, 
-  DoubleProgressionParameters, 
-  RPTTopSetParameters, 
-  RPTIndividualParameters 
-} from "@shared/progression-types";
-import { BaseWorkoutLogger } from "./workout/base-workout-logger";
-import { RPTTopSetLogger } from "./workout/rpt-top-set-logger";
-
-interface WorkoutLoggerProps {
-  exerciseId: number;
-  workoutDayId: number;
-  parameters: STSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
-  onComplete: () => void;
-  totalExercises?: number;
-}
-
-export default function WorkoutLogger(props: WorkoutLoggerProps) {
-  // Select the appropriate logger based on the progression scheme
-  switch (props.parameters.scheme) {
-    case "RPT Top-Set":
-      return <RPTTopSetLogger {...props} parameters={props.parameters} />;
-    case "STS":
-    case "Double Progression":
-    case "RPT Individual":
-      return <BaseWorkoutLogger {...props} />;
-    default:
-      const exhaustiveCheck: never = props.parameters.scheme;
-      return exhaustiveCheck;
-  }
-}
-
-// client/src/components/workout/base-workout-logger.tsx
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -41,9 +8,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import type { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/progression-types";
+import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -53,7 +19,7 @@ interface WorkoutLoggerProps {
   totalExercises?: number;
 }
 
-export default function BaseWorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
+export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
