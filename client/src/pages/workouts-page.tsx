@@ -16,25 +16,127 @@ import {
   RPTIndividualParameters 
 } from "@shared/progression-types";
 
-// Define WorkoutParameters type using the union of all possible parameter types
+// Define WorkoutParameters type as a union of all progression parameter types
 type WorkoutParameters = ImportedSTSParameters | DoubleProgressionParameters | RPTTopSetParameters | RPTIndividualParameters;
 
-function WorkoutsPage() {
+// Custom hook to manage data fetching and state
+function useWorkoutsData() {
   const { user } = useAuth();
+  const { data: workouts = [], isLoading: isLoadingWorkouts, error: workoutsError } = useQuery<WorkoutDay[]>({
+    queryKey: ["/api/workout-days"],
+    enabled: !!user,
+  });
+
+  const { data: exercises = [], error: exercisesError } = useQuery<Exercise[]>({
+    queryKey: ["/api/exercises"],
+    enabled: !!user,
+  });
+
+  return {
+    workouts,
+    exercises,
+    isLoadingWorkouts,
+    workoutsError,
+    exercisesError,
+    user,
+  };
+}
+
+// Component to render individual workout cards
+function WorkoutCard({ workout, exercises, onEdit, onStart }: {
+  workout: WorkoutDay;
+  exercises: Exercise[];
+  onEdit: (workout: WorkoutDay) => void;
+  onStart: (workout: WorkoutDay) => void;
+}) {
+  const formatSchemeDetails = (parameters: WorkoutParameters | undefined): string => {
+    if (!parameters) return "Unknown scheme";
+
+    switch (parameters.scheme) {
+      case "STS":
+        return `${parameters.scheme} (${parameters.minSets}-${parameters.maxSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "Double Progression":
+        return `${parameters.scheme} (${parameters.targetSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "RPT Top-Set":
+        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.minReps}-${parameters.maxReps} reps)`;
+      case "RPT Individual":
+        return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
+      default:
+        return "Unknown scheme"; // Fallback for unhandled schemes
+    }
+  };
+
+  const getExerciseName = (exerciseId: number): string => {
+    const exercise = exercises.find(e => e.id === exerciseId);
+    return exercise?.name || "Unknown Exercise";
+  };
+
+  return (
+    <div className="border rounded-lg p-4 bg-card">
+      <div className="flex items-center justify-between border-b pb-4 mb-4">
+        <div>
+          <h3 className="text-xl font-semibold">{workout.name}</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            {workout.exercises.length} exercise{workout.exercises.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onEdit(workout)}
+            className="flex items-center gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onStart(workout)}
+            className="flex items-center gap-2"
+          >
+            <Play className="h-4 w-4" />
+            Begin Workout
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-4">
+        {workout.exercises.map((exercise, idx) => {
+          const exerciseName = getExerciseName(exercise.exerciseId);
+          const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
+
+          return (
+            <div key={idx} className="p-4 rounded-md bg-muted/50">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-lg">{exerciseName}</h4>
+                {exerciseDetails && (
+                  <span className="text-sm text-muted-foreground">
+                    {exerciseDetails.equipmentName}
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                <p>{formatSchemeDetails(exercise.parameters)}</p>
+                <p>
+                  Rest periods: {exercise.parameters?.restBetweenSets ?? 0}s between sets,{" "}
+                  {exercise.parameters?.restBetweenExercises ?? 0}s between exercises
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Main WorkoutsPage component
+function WorkoutsPage() {
+  const { workouts, exercises, isLoadingWorkouts, workoutsError, exercisesError, user } = useWorkoutsData();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDay | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutDay | null>(null);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-
-  const { data: workouts = [], isLoading: isLoadingWorkouts } = useQuery<WorkoutDay[]>({
-    queryKey: ["/api/workout-days"],
-    enabled: !!user
-  });
-
-  const { data: exercises = [] } = useQuery<Exercise[]>({
-    queryKey: ["/api/exercises"],
-    enabled: !!user
-  });
 
   const handleEdit = (workout: WorkoutDay) => {
     setSelectedWorkoutDay(workout);
@@ -56,30 +158,7 @@ function WorkoutsPage() {
     }
   };
 
-  const formatSchemeDetails = (parameters: WorkoutParameters): string => {
-    if (!parameters) return "Unknown scheme";
-
-    switch (parameters.scheme) {
-      case "STS":
-        return `${parameters.scheme} (${parameters.minSets}-${parameters.maxSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
-      case "Double Progression":
-        return `${parameters.scheme} (${parameters.targetSets} sets × ${parameters.minReps}-${parameters.maxReps} reps)`;
-      case "RPT Top-Set":
-        return `${parameters.scheme} (${parameters.sets} sets, ${parameters.minReps}-${parameters.maxReps} reps)`;
-      case "RPT Individual":
-        return `${parameters.scheme} (${parameters.sets} sets, custom rep ranges)`;
-      default:
-        // This exhaustive check ensures we've handled all possible cases
-        const _exhaustiveCheck: never = parameters.scheme;
-        return String(parameters.scheme);
-    }
-  };
-
-  const getExerciseName = (exerciseId: number): string => {
-    const exercise = exercises.find(e => e.id === exerciseId);
-    return exercise?.name || "Unknown Exercise";
-  };
-
+  // Handle unauthenticated state
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -88,6 +167,18 @@ function WorkoutsPage() {
           <Link href="/auth">
             <Button>Go to Login</Button>
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle data fetching errors
+  if (workoutsError || exercisesError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Error Loading Data</h2>
+          <p>{workoutsError?.message || exercisesError?.message}</p>
         </div>
       </div>
     );
@@ -119,6 +210,7 @@ function WorkoutsPage() {
         </div>
       </nav>
 
+      {/* Main Content */}
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Workouts</h2>
@@ -146,61 +238,13 @@ function WorkoutsPage() {
           ) : (
             <div className="space-y-4">
               {workouts.map((workout) => (
-                <div key={workout.id} className="border rounded-lg p-4 bg-card">
-                  <div className="flex items-center justify-between border-b pb-4 mb-4">
-                    <div>
-                      <h3 className="text-xl font-semibold">{workout.name}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(workout)}
-                        className="flex items-center gap-2"
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleStartWorkout(workout)}
-                        className="flex items-center gap-2"
-                      >
-                        <Play className="h-4 w-4" />
-                        Begin Workout
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    {workout.exercises.map((exercise, idx) => {
-                      const exerciseName = getExerciseName(exercise.exerciseId);
-                      const exerciseDetails = exercises.find(e => e.id === exercise.exerciseId);
-
-                      return (
-                        <div key={idx} className="p-4 rounded-md bg-muted/50">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-lg">{exerciseName}</h4>
-                            {exerciseDetails && (
-                              <span className="text-sm text-muted-foreground">
-                                {exerciseDetails.equipmentName}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                            <p>{formatSchemeDetails(exercise.parameters)}</p>
-                            <p>
-                              Rest periods: {exercise.parameters.restBetweenSets}s between sets,{" "}
-                              {exercise.parameters.restBetweenExercises}s between exercises
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                <WorkoutCard
+                  key={workout.id}
+                  workout={workout}
+                  exercises={exercises}
+                  onEdit={handleEdit}
+                  onStart={handleStartWorkout}
+                />
               ))}
             </div>
           )}
@@ -249,7 +293,7 @@ function WorkoutsPage() {
                   Exercise {currentExerciseIndex + 1} of {activeWorkout.exercises.length}
                 </h2>
                 <span className="text-sm text-muted-foreground">
-                  {getExerciseName(activeWorkout.exercises[currentExerciseIndex].exerciseId)}
+                  {exercises.find(e => e.id === activeWorkout.exercises[currentExerciseIndex].exerciseId)?.name || "Unknown Exercise"}
                 </span>
               </div>
               <WorkoutLogger
