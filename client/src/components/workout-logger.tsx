@@ -568,8 +568,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </Button>
             <Button
               onClick={() => {
-                if (extraSetReps !== null) {
-                  // Add the extra set to logged sets
+                if (typeof extraSetReps === 'number') {
                   setLoggedSets(prev => [...prev, {
                     weight: getCurrentSetTarget()?.weight || 0,
                     reps: extraSetReps,
@@ -585,7 +584,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                   });
                 }
               }}
-              disabled={extraSetReps === null}
             >
               Log Extra Set
             </Button>
