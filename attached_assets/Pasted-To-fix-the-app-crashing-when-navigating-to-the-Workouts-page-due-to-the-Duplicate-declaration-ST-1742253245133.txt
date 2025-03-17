@@ -1,0 +1,52 @@
+To fix the app crashing when navigating to the "Workouts" page due to the "Duplicate declaration 'STSParameters'" error at line 44, follow these precise technical instructions:
+
+1. **Locate the File:**
+   - Open the file containing the import statement at line 44:
+     ```typescript
+     import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/progression-types";
+     ```
+
+2. **Search for Duplicate Declaration:**
+   - In this file, search for any declaration of `STSParameters` **before line 44**. This could be:
+     - A type definition: `type STSParameters = ...;`
+     - An interface: `interface STSParameters { ... }`
+     - A variable: `const STSParameters = ...;`
+     - Or any other declaration using the name `STSParameters`.
+
+3. **Remove or Rename the Duplicate:**
+   - **If a declaration is found before line 44:**
+     - **Remove it** if it’s not needed:
+       ```typescript
+       // Example: Remove this if it exists
+       type STSParameters = { example: string };
+       ```
+     - **Rename it** if it’s necessary for the file’s logic:
+       ```typescript
+       // Example: Change from
+       type STSParameters = { example: string };
+       // To
+       type LocalSTSParameters = { example: string };
+       ```
+       - Update all references to this renamed declaration in the file accordingly.
+
+4. **Verify Single Import:**
+   - Ensure `STSParameters` is only imported once in the file. Check for additional import statements like:
+     ```typescript
+     import { STSParameters } from "another-module";
+     ```
+   - If found, remove or consolidate them to use only the import from `"@shared/progression-types"`.
+
+5. **Save and Rebuild:**
+   - Save the file.
+   - Rebuild the project using your build command (e.g., `npm run dev` or `yarn dev`) to confirm the error is resolved.
+
+6. **Fallback Check (if error persists):**
+   - If no duplicate declaration is found before line 44 and the error remains:
+     - Temporarily modify the import to use an alias:
+       ```typescript
+       import { STSParameters as ImportedSTSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/progression-types";
+       ```
+     - Update all references to `STSParameters` in the file to `ImportedSTSParameters`.
+     - Save and rebuild to test if this resolves the issue.
+
+This will eliminate the duplicate declaration conflict and allow navigation to the "Workouts" page without crashing.
