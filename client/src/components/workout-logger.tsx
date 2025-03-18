@@ -427,6 +427,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           weight: set.weight,
           timestamp: set.timestamp
         })),
+        extraSetReps: undefined, // Explicitly set to undefined when skipping
         oneRm,
         parameters
       };

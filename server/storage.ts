@@ -80,7 +80,8 @@ export class DatabaseStorage {
           case "STS":
             const stsProgression = new STSProgression();
             calculated1RM = stsProgression.calculate1RM(
-              setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
+              setData.sets.map(s => ({ reps: s.reps, weight: s.weight })),
+              setData.extraSetReps // Pass extraSetReps if available
             );
             break;
           case "Double Progression":
@@ -94,31 +95,15 @@ export class DatabaseStorage {
             calculated1RM = 0;
         }
 
-        // Format timestamps for each set
-        const formattedSets = setData.sets.map(set => {
-          let setTimestamp: Date;
-          try {
-            setTimestamp = set.timestamp ? new Date(set.timestamp) : new Date();
-            if (isNaN(setTimestamp.getTime())) {
-              console.warn("[Storage] Invalid timestamp in set, using current time");
-              setTimestamp = new Date();
-            }
-          } catch (e) {
-            console.warn("[Storage] Error parsing timestamp, using current time:", e);
-            setTimestamp = new Date();
-          }
-
-          return {
-            ...set,
-            timestamp: setTimestamp.toISOString()
-          };
-        });
-
         return {
           exerciseId: setData.exerciseId,
-          sets: formattedSets,
+          sets: setData.sets.map(set => ({
+            ...set,
+            timestamp: set.timestamp.toISOString()
+          })),
           parameters: setData.parameters,
-          oneRm: calculated1RM
+          oneRm: calculated1RM,
+          extraSetReps: setData.extraSetReps
         };
       });
 
@@ -164,7 +149,8 @@ export class DatabaseStorage {
           case "STS":
             const stsProgression = new STSProgression();
             calculated1RM = stsProgression.calculate1RM(
-              setData.sets.map(s => ({ reps: s.reps, weight: s.weight }))
+              setData.sets.map(s => ({ reps: s.reps, weight: s.weight })),
+              setData.extraSetReps // Pass extraSetReps if available
             );
             break;
           case "Double Progression":
@@ -177,7 +163,11 @@ export class DatabaseStorage {
           default:
             calculated1RM = 0;
         }
-        return { ...setData, oneRm: calculated1RM };
+        return {
+          ...setData,
+          oneRm: calculated1RM,
+          extraSetReps: setData.extraSetReps
+        };
       });
 
       updateData.sets = encrypt(JSON.stringify(setsWith1RM));
@@ -234,7 +224,7 @@ export class DatabaseStorage {
   }
 
   async getWorkoutDays(userId: number | undefined): Promise<WorkoutDay[]> {
-    if (userId === undefined){
+    if (userId === undefined) {
       return db.select().from(workoutDays);
     }
     return db.select().from(workoutDays).where(eq(workoutDays.userId, userId));
@@ -296,53 +286,53 @@ export class DatabaseStorage {
 
     // Create default workout day if none exists
     if (!workoutDays || workoutDays.length === 0) {
-        console.log("[Storage] No workout days found, creating default configuration");
-        const defaultWorkoutDay = await this.createWorkoutDay({
-            userId,
-            name: "Default Workout",
-            exercises: [{
-                exerciseId,
-                parameters: {
-                    scheme: "STS",
-                    minSets: 3,
-                    maxSets: 5,
-                    minReps: 5,
-                    maxReps: 8,
-                    restBetweenSets: 90,
-                    restBetweenExercises: 180
-                }
-            }]
-        });
-        console.log("[Storage] Created default workout day:", defaultWorkoutDay);
-        return defaultWorkoutDay;
+      console.log("[Storage] No workout days found, creating default configuration");
+      const defaultWorkoutDay = await this.createWorkoutDay({
+        userId,
+        name: "Default Workout",
+        exercises: [{
+          exerciseId,
+          parameters: {
+            scheme: "STS",
+            minSets: 3,
+            maxSets: 5,
+            minReps: 5,
+            maxReps: 8,
+            restBetweenSets: 90,
+            restBetweenExercises: 180
+          }
+        }]
+      });
+      console.log("[Storage] Created default workout day:", defaultWorkoutDay);
+      return defaultWorkoutDay;
     }
 
     const workoutDay = workoutDays.find(day =>
-        day.exercises.some(ex => ex.exerciseId === exerciseId)
+      day.exercises.some(ex => ex.exerciseId === exerciseId)
     );
     console.log("[Storage] Found workout day config:", workoutDay);
 
     // Add exercise to first workout day if not found in any
     if (!workoutDay && workoutDays.length > 0) {
-        console.log("[Storage] Exercise not found in any workout day, adding to first workout day");
-        const updatedWorkoutDay = {
-            ...workoutDays[0],
-            exercises: [...workoutDays[0].exercises, {
-                exerciseId,
-                parameters: {
-                    scheme: "STS",
-                    minSets: 3,
-                    maxSets: 5,
-                    minReps: 5,
-                    maxReps: 8,
-                    restBetweenSets: 90,
-                    restBetweenExercises: 180
-                }
-            }]
-        };
-        const updated = await this.updateWorkoutDay(updatedWorkoutDay.id, updatedWorkoutDay);
-        console.log("[Storage] Updated workout day with exercise:", updated);
-        return updated;
+      console.log("[Storage] Exercise not found in any workout day, adding to first workout day");
+      const updatedWorkoutDay = {
+        ...workoutDays[0],
+        exercises: [...workoutDays[0].exercises, {
+          exerciseId,
+          parameters: {
+            scheme: "STS",
+            minSets: 3,
+            maxSets: 5,
+            minReps: 5,
+            maxReps: 8,
+            restBetweenSets: 90,
+            restBetweenExercises: 180
+          }
+        }]
+      };
+      const updated = await this.updateWorkoutDay(updatedWorkoutDay.id, updatedWorkoutDay);
+      console.log("[Storage] Updated workout day with exercise:", updated);
+      return updated;
     }
 
     return workoutDay;
@@ -388,103 +378,103 @@ export class DatabaseStorage {
     console.log("[Storage] Getting next suggestion for exercise:", exerciseId, "and user:", userId, "estimated1RM:", estimated1RM);
 
     try {
-        const exercise = await this.getExercise(exerciseId);
-        if (!exercise) throw new Error("Exercise not found");
+      const exercise = await this.getExercise(exerciseId);
+      if (!exercise) throw new Error("Exercise not found");
 
-        const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
-        if (!workoutDay) {
-            return {
-                sets: 3,
-                reps: 8,
-                weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * 1.26,
-                parameters: { scheme: "STS" }
-            };
-        }
-
-        const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
-        if (!exerciseConfig) {
-            return {
-                sets: 3,
-                reps: 8,
-                weight: exercise.startingWeight || 20,
-                calculated1RM: (exercise.startingWeight || 20) * 1.26,
-                parameters: { scheme: "STS" }
-            };
-        }
-
-        if (exerciseConfig.parameters.scheme === "STS") {
-            let last1RM = 0;
-
-            if (estimated1RM) {
-                console.log("[Storage] Using provided estimated 1RM:", estimated1RM);
-                last1RM = estimated1RM;
-            } else {
-                const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
-                const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
-                last1RM = lastSetData?.oneRm ?? 0;
-                console.log("[Storage] Using calculated 1RM from logs:", last1RM);
-            }
-
-            const startingWeight = exercise.startingWeight || 20;
-            const increment = exercise.increment || 2.5;
-            const { minSets, maxSets, minReps, maxReps } = exerciseConfig.parameters;
-
-            // Generate possible weights starting from startingWeight
-            const maxWeight = startingWeight + 100 * increment; // Reasonable upper limit
-            const possibleWeights = [];
-            let weight = startingWeight;
-            while (weight <= maxWeight) {
-                possibleWeights.push(weight);
-                weight += increment;
-            }
-
-            const suggestions: ProgressionSuggestion[] = [];
-
-            // Generate all combinations and filter for progressive 1RMs
-            for (let sets = minSets; sets <= maxSets; sets++) {
-                for (let reps = minReps; reps <= maxReps; reps++) {
-                    for (const weight of possibleWeights) {
-                        const calculated1RM = weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
-                        if (calculated1RM > last1RM) {
-                            suggestions.push({
-                                sets,
-                                reps,
-                                weight,
-                                calculated1RM,
-                                parameters: { ...exerciseConfig.parameters }
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Sort by calculated1RM and take the first 5
-            const sortedSuggestions = suggestions
-                .sort((a, b) => a.calculated1RM! - b.calculated1RM!)
-                .slice(0, 5);
-
-            if (sortedSuggestions.length === 0) {
-                console.log("[Storage] No progressive suggestions found for STS");
-                throw new Error("NO_PROGRESSIVE_SUGGESTIONS");
-            }
-
-            console.log("[Storage] Generated STS suggestions:", sortedSuggestions);
-            return sortedSuggestions;
-        }
-
-        // For other progression schemes, return a single suggestion
+      const workoutDay = await this.getExerciseWorkoutConfig(exerciseId, userId);
+      if (!workoutDay) {
         return {
-            sets: 3,
-            reps: 8,
-            weight: exercise.startingWeight || 20,
-            calculated1RM: (exercise.startingWeight || 20) * 1.26,
-            parameters: { scheme: exerciseConfig.parameters.scheme }
+          sets: 3,
+          reps: 8,
+          weight: exercise.startingWeight || 20,
+          calculated1RM: (exercise.startingWeight || 20) * 1.26,
+          parameters: { scheme: "STS" }
         };
+      }
+
+      const exerciseConfig = workoutDay.exercises.find(ex => ex.exerciseId === exerciseId);
+      if (!exerciseConfig) {
+        return {
+          sets: 3,
+          reps: 8,
+          weight: exercise.startingWeight || 20,
+          calculated1RM: (exercise.startingWeight || 20) * 1.26,
+          parameters: { scheme: "STS" }
+        };
+      }
+
+      if (exerciseConfig.parameters.scheme === "STS") {
+        let last1RM = 0;
+
+        if (estimated1RM) {
+          console.log("[Storage] Using provided estimated 1RM:", estimated1RM);
+          last1RM = estimated1RM;
+        } else {
+          const lastLog = await this.getLastWorkoutLog(userId, exerciseId);
+          const lastSetData = lastLog?.sets.find(s => s.exerciseId === exerciseId);
+          last1RM = lastSetData?.oneRm ?? 0;
+          console.log("[Storage] Using calculated 1RM from logs:", last1RM);
+        }
+
+        const startingWeight = exercise.startingWeight || 20;
+        const increment = exercise.increment || 2.5;
+        const { minSets, maxSets, minReps, maxReps } = exerciseConfig.parameters;
+
+        // Generate possible weights starting from startingWeight
+        const maxWeight = startingWeight + 100 * increment; // Reasonable upper limit
+        const possibleWeights = [];
+        let weight = startingWeight;
+        while (weight <= maxWeight) {
+          possibleWeights.push(weight);
+          weight += increment;
+        }
+
+        const suggestions: ProgressionSuggestion[] = [];
+
+        // Generate all combinations and filter for progressive 1RMs
+        for (let sets = minSets; sets <= maxSets; sets++) {
+          for (let reps = minReps; reps <= maxReps; reps++) {
+            for (const weight of possibleWeights) {
+              const calculated1RM = weight * (1 + 0.025 * reps) * (1 + 0.025 * (sets - 1));
+              if (calculated1RM > last1RM) {
+                suggestions.push({
+                  sets,
+                  reps,
+                  weight,
+                  calculated1RM,
+                  parameters: { ...exerciseConfig.parameters }
+                });
+              }
+            }
+          }
+        }
+
+        // Sort by calculated1RM and take the first 5
+        const sortedSuggestions = suggestions
+          .sort((a, b) => a.calculated1RM! - b.calculated1RM!)
+          .slice(0, 5);
+
+        if (sortedSuggestions.length === 0) {
+          console.log("[Storage] No progressive suggestions found for STS");
+          throw new Error("NO_PROGRESSIVE_SUGGESTIONS");
+        }
+
+        console.log("[Storage] Generated STS suggestions:", sortedSuggestions);
+        return sortedSuggestions;
+      }
+
+      // For other progression schemes, return a single suggestion
+      return {
+        sets: 3,
+        reps: 8,
+        weight: exercise.startingWeight || 20,
+        calculated1RM: (exercise.startingWeight || 20) * 1.26,
+        parameters: { scheme: exerciseConfig.parameters.scheme }
+      };
 
     } catch (error) {
-        console.error("[Storage] Error in getNextSuggestion:", error);
-        throw error;
+      console.error("[Storage] Error in getNextSuggestion:", error);
+      throw error;
     }
   }
 
