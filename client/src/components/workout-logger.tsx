@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { STSProgression, ExerciseSet } from "@shared/progression";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -401,12 +402,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       console.log("Exercise ID:", exerciseId);
       console.log("Parameters:", parameters);
 
-      const stsProgression = new STSProgression(
-        parameters.scheme === "STS" ? parameters.minSets : 3,
-        parameters.scheme === "STS" ? parameters.maxSets : 5,
-        parameters.scheme === "STS" ? parameters.minReps : 5,
-        parameters.scheme === "STS" ? parameters.maxReps : 8
-      );
+      const stsProgression = new STSProgression();
 
       // Calculate 1RM only if we have logged sets
       const oneRm = loggedSets.length > 0 ? stsProgression.calculate1RM(
@@ -414,7 +410,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           reps: set.reps,
           weight: set.weight,
           isFailure: set.isFailure || false
-        }))
+        })),
+        0  // Explicitly pass 0 for extraSetReps when skipping
       ) : undefined;
 
       console.log("Calculated 1RM:", oneRm);
@@ -427,15 +424,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           weight: set.weight,
           timestamp: set.timestamp
         })),
-        extraSetReps: undefined, // Explicitly set to undefined when skipping
+        extraSetReps: 0,  // Explicitly set to 0 when skipping
         oneRm,
         parameters
       };
 
       console.log("Final workout set data:", workoutSetData);
 
-      // Complete the workout without logging an extra set
-      setExtraSetReps(undefined);
+      // Complete the workout and move to next exercise
       onComplete();
     } catch (error) {
       console.error("Error in skipping extra set:", error);
@@ -464,16 +460,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       {/* Rep Selection Dialog */}
       <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
         <DialogContent>
-          <DialogTitle className="flex flex-col gap-1">
-            <div className="text-sm text-muted-foreground">Exercise {getCurrentSetTarget()?.position}</div>
-            <div className="text-xl">{getCurrentSetTarget()?.name}</div>
-            <div className="text-base font-normal">
-              Set {currentSet + 1} • {getCurrentSetTarget()?.weight}kg
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Target: {getCurrentSetTarget()?.minReps}-{getCurrentSetTarget()?.maxReps} reps
-            </div>
-          </DialogTitle>
+          <VisuallyHidden>
+            <DialogTitle>Rep Selection</DialogTitle>
+          </VisuallyHidden>
+          <div className="text-xl font-semibold">
+            {getCurrentSetTarget()?.name}
+          </div>
           <DialogDescription>
             Select the number of repetitions completed for this set.
           </DialogDescription>
