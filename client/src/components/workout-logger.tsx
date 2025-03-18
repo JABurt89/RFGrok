@@ -162,30 +162,44 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    const weight = editWeight ?? target.weight;
+    try {
+      // Get the correct weight based on the current set
+      const weight = editWeight ?? target.weight;
 
-    setLoggedSets(prev => [...prev, {
-      weight,
-      reps,
-      timestamp: new Date().toISOString(),
-      isFailure: false,
-      exceededMax
-    }]);
+      setLoggedSets(prev => [...prev, {
+        weight,
+        reps,
+        timestamp: new Date().toISOString(),
+        isFailure: false,
+        exceededMax
+      }]);
 
-    // Check if we've completed all sets
-    if (currentSet + 1 >= selectedSuggestion.sets) {
-      setCurrentSet(prev => prev + 1);
-      setShowRepsInput(false);
-      onComplete(); // Move to next exercise
-    } else {
-      setCurrentSet(prev => prev + 1);
-      setRestTimer(parameters.restBetweenSets);
-      setShowRepsInput(false); // Hide dialog during rest
+      // Check if we've completed all sets
+      if (currentSet + 1 >= selectedSuggestion.sets) {
+        setCurrentSet(prev => prev + 1);
+        setShowRepsInput(false);
+
+        // For STS, don't complete yet - wait for extra set
+        if (parameters.scheme !== "STS") {
+          onComplete();
+        }
+      } else {
+        setCurrentSet(prev => prev + 1);
+        setRestTimer(parameters.restBetweenSets);
+        setShowRepsInput(false); // Hide dialog during rest
+      }
+
+      setIsEditing(false);
+      setEditWeight(null);
+      setEditReps(null);
+    } catch (error) {
+      console.error("Error in handleRepSelection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log the set. Please try again.",
+        variant: "destructive"
+      });
     }
-
-    setIsEditing(false);
-    setEditWeight(null);
-    setEditReps(null);
   };
 
   const handleSetFailed = (completedReps: number) => {
@@ -257,16 +271,19 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const position = `${exercisePosition} of ${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
+      // Calculate weight drop for current set
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
+
       return {
-        weight: Math.round(weight * 2) / 2,
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
         name: exerciseName,
-        position
+        position,
+        isDropSet: currentSet > 0
       };
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
@@ -477,15 +494,23 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           </VisuallyHidden>
           <div className="text-xl font-semibold">
             {getCurrentSetTarget()?.name}
+            {getCurrentSetTarget()?.isDropSet && (
+              <span className="text-muted-foreground text-sm ml-2">
+                (Drop Set: {parameters.dropPercentages[currentSet]}% less)
+              </span>
+            )}
           </div>
           <DialogDescription>
+            Target Weight: {getCurrentSetTarget()?.weight}kg
+            <br />
             Select the number of repetitions completed for this set.
           </DialogDescription>
           <div className="space-y-2">
             <div className="grid grid-cols-4 gap-2">
-              {Array.from({
-                length: getCurrentSetTarget()?.maxReps! - getCurrentSetTarget()?.minReps! + 1
-              }, (_, i) => getCurrentSetTarget()?.minReps! + i).map((rep) => (
+              {Array.from(
+                { length: (getCurrentSetTarget()?.maxReps || 0) - (getCurrentSetTarget()?.minReps || 0) + 1 },
+                (_, i) => (getCurrentSetTarget()?.minReps || 0) + i
+              ).map((rep) => (
                 <Button
                   key={rep}
                   variant={rep === getCurrentSetTarget()?.maxReps ? "default" : "outline"}
@@ -503,8 +528,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  handleRepSelection(getCurrentSetTarget()?.maxReps! + 1, true);
-                  setShowRepsInput(false);
+                  const target = getCurrentSetTarget();
+                  if (target) {
+                    handleRepSelection(target.maxReps + 1, true);
+                    setShowRepsInput(false);
+                  }
                 }}
                 className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
               >
