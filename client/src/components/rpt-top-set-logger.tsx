@@ -28,7 +28,6 @@ export function RPTTopSetLogger({
   totalExercises
 }: RPTTopSetLoggerProps) {
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
-  const [showRepsInput, setShowRepsInput] = useState(true);
   const [restTimer, setRestTimer] = useState<number | null>(null);
 
   // Calculate weights for all sets based on top set weight and drop percentages
@@ -59,14 +58,6 @@ export function RPTTopSetLogger({
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
-  // Show rep selection dialog after rest timer
-  useEffect(() => {
-    if (restTimer === 0) {
-      setRestTimer(null);
-      setShowRepsInput(true);
-    }
-  }, [restTimer]);
-
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
     onLogSet({
       reps,
@@ -78,7 +69,6 @@ export function RPTTopSetLogger({
       onComplete();
     } else {
       setCurrentSetIndex(prev => prev + 1);
-      setShowRepsInput(false);
       setRestTimer(parameters.restBetweenSets);
     }
   };
@@ -105,7 +95,7 @@ export function RPTTopSetLogger({
         </Alert>
       )}
 
-      <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
+      <Dialog open={true}>
         <DialogContent>
           <DialogTitle className="text-xl font-semibold">
             {exerciseName}
@@ -130,10 +120,7 @@ export function RPTTopSetLogger({
                   key={rep}
                   variant={rep === parameters.maxReps ? "default" : "outline"}
                   size="sm"
-                  onClick={() => {
-                    handleRepSelection(rep);
-                    setShowRepsInput(false);
-                  }}
+                  onClick={() => handleRepSelection(rep)}
                   className={rep === parameters.maxReps ? "bg-primary text-primary-foreground" : ""}
                 >
                   {rep}
@@ -142,10 +129,7 @@ export function RPTTopSetLogger({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  handleRepSelection(parameters.maxReps + 1, true);
-                  setShowRepsInput(false);
-                }}
+                onClick={() => handleRepSelection(parameters.maxReps + 1, true)}
                 className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
               >
                 Max Range Exceeded ({parameters.maxReps + 1}+ reps)
