@@ -276,6 +276,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
 
+      // Ensure we're returning all necessary properties
       return {
         weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         reps: parameters.maxReps,
@@ -288,6 +289,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     } else if (parameters.scheme === "RPT Individual") {
       const setConfig = parameters.setConfigs[currentSet];
       if (!setConfig) return null;
+
       return {
         weight: selectedSuggestion.weight,
         minReps: setConfig.min,
@@ -296,6 +298,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         position
       };
     }
+
     return {
       weight: selectedSuggestion.weight,
       reps: selectedSuggestion.reps,
@@ -331,6 +334,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       // Show dialog after rest timer ends
       if (restTimer === 0 && !isLastSet && !showRepsInput) {
         setShowRepsInput(true);
+        setRestTimer(null); // Reset timer after showing input
       }
     }
   }, [parameters.scheme, isWorkoutActive, currentSet, restTimer, isLastSet, showRepsInput]);
