@@ -191,6 +191,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
+  useEffect(() => {
+    if (restTimer === 0 && parameters.scheme === "RPT Top-Set") {
+      setRestTimer(null);
+      setShowRepsInput(true);
+    }
+  }, [restTimer, parameters.scheme]);
+
   const getExerciseName = () => {
     const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Exercise";
@@ -252,14 +259,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       handleStartWorkout(defaultSuggestion);
     }
   }, [isWorkoutActive, parameters.scheme, suggestions, exercises]);
-
-  useEffect(() => {
-    if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
-      if (isWorkoutActive && !showRepsInput && restTimer === null) {
-        setShowRepsInput(true);
-      }
-    }
-  }, [parameters.scheme, isWorkoutActive, restTimer, showRepsInput]);
 
   if (!user) {
     return (
