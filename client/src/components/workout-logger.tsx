@@ -38,6 +38,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [showRepsInput, setShowRepsInput] = useState(false);
 
   const prepareWorkoutLog = (sets: Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>) => {
+    if (!sets || sets.length === 0) {
+      throw new Error("Please log at least one set before completing the workout.");
+    }
     return sets.map(set => ({
       ...set,
       timestamp: set.timestamp || new Date().toISOString()
@@ -407,11 +410,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     try {
       console.log("Starting skip extra set handler");
 
-      // Prepare workout data with validated timestamps
-      const validatedSets = prepareWorkoutLog(loggedSets);
-
-      // Check if we have at least one set logged
-      if (validatedSets.length === 0) {
+      // Check if we have any sets logged
+      if (!loggedSets || loggedSets.length === 0) {
         toast({
           title: "Error",
           description: "Please log at least one set before completing the workout.",
@@ -423,7 +423,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       // Create the workout set data with extraSetReps explicitly set to 0
       const workoutSetData = {
         exerciseId,
-        sets: validatedSets,
+        sets: prepareWorkoutLog(loggedSets),
         extraSetReps: 0,  // Explicitly set to 0 when skipping
         parameters
       };
@@ -614,25 +614,25 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <Button
               onClick={() => {
                 try {
+                  if (!loggedSets || loggedSets.length === 0) {
+                    toast({
+                      title: "Error",
+                      description: "Please log at least one set before completing the workout.",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
                   if (typeof extraSetReps === 'number') {
                     const stsProgression = new STSProgression();
 
-                    // Calculate 1RM with extra set
-                    const oneRm = stsProgression.calculate1RM(
-                      loggedSets.map(set => ({
-                        reps: set.reps,
-                        weight: set.weight,
-                        isFailure: set.isFailure || false
-                      })),
-                      extraSetReps // Use actual extraSetReps when not skipping
-                    );
+                    const workoutSetData = {
+                      exerciseId,
+                      sets: prepareWorkoutLog(loggedSets),
+                      extraSetReps: extraSetReps, // Use actual extraSetReps when not skipping
+                      parameters
+                    };
 
-                    setLoggedSets(prev => [...prev, {
-                      weight: getCurrentSetTarget()?.weight || 0,
-                      reps: extraSetReps,
-                      timestamp: new Date().toISOString(),
-                      isFailure: false
-                    }]);
+                    console.log("Final workout set data:", JSON.stringify(workoutSetData, null, 2));
 
                     onComplete();
                   } else {
