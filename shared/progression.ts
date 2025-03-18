@@ -44,11 +44,9 @@ export class STSProgression implements ProgressionScheme {
     const W = lastSet.weight;
     const R = lastSet.reps;
     const S = sets.length;
-
-    // Formula: 1RM = W × (1 + 0.025 × R) × (1 + 0.025 × (S – 1))
     const C = Math.round(W * (1 + 0.025 * R) * (1 + 0.025 * (S - 1)) * 100) / 100;
 
-    if (typeof extraSetReps === 'number') {
+    if (typeof extraSetReps === 'number' && extraSetReps > 0) {
       // For extra partial set:
       // F_full = W × (1 + 0.025 × R) × (1 + 0.025 × S)
       const F_full = Math.round(W * (1 + 0.025 * R) * (1 + 0.025 * S) * 100) / 100;

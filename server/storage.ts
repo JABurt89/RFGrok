@@ -74,25 +74,26 @@ export class DatabaseStorage {
 
       // Calculate 1RM for each exercise in sets and format timestamps
       const setsWith1RM = insertWorkoutLog.sets.map(setData => {
-        // Calculate 1RM based on progression scheme
-        let calculated1RM: number;
-        switch (setData.parameters.scheme) {
-          case "STS":
-            const stsProgression = new STSProgression();
-            calculated1RM = stsProgression.calculate1RM(
-              setData.sets.map(s => ({ reps: s.reps, weight: s.weight })),
-              setData.extraSetReps // Pass extraSetReps if available
-            );
-            break;
-          case "Double Progression":
-            calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
-            break;
-          case "RPT Top-Set":
-          case "RPT Individual":
-            calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
-            break;
-          default:
-            calculated1RM = 0;
+        let calculated1RM = 0;
+        if (setData.sets.length > 0) {
+          switch (setData.parameters.scheme) {
+            case "STS":
+              const stsProgression = new STSProgression();
+              calculated1RM = stsProgression.calculate1RM(
+                setData.sets.map(s => ({ reps: s.reps, weight: s.weight })),
+                setData.extraSetReps
+              );
+              break;
+            case "Double Progression":
+              calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+              break;
+            case "RPT Top-Set":
+            case "RPT Individual":
+              calculated1RM = setData.sets[0]?.weight * (1 + 0.025 * setData.sets[0]?.reps) || 0;
+              break;
+            default:
+              calculated1RM = 0;
+          }
         }
 
         return {
