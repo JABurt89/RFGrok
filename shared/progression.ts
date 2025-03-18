@@ -155,9 +155,9 @@ export class RPTIndividualProgression implements ProgressionScheme {
   constructor(
     sets: number = 3,
     setConfigs: Array<{ min: number; max: number; }> = [
-      { min: 5, max: 7 },
       { min: 6, max: 8 },
-      { min: 7, max: 9 }
+      { min: 8, max: 10 },
+      { min: 10, max: 12 }
     ]
   ) {
     this.sets = sets;
@@ -172,14 +172,17 @@ export class RPTIndividualProgression implements ProgressionScheme {
     return configs;
   }
 
-  getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
+  getNextSuggestion(lastWeight: number, increment: number, previousSetReps?: number[]): ProgressionSuggestion[] {
     const baseWeight = lastWeight || increment;
     const suggestions: ProgressionSuggestion[] = [];
 
-    // Progress each set individually based on its previous performance
+    // Progress each set individually based on whether it hit max reps
     for (let i = 0; i < this.sets; i++) {
       const setConfig = this.setConfigs[i];
-      const shouldProgress = !failureFlags?.[i];
+      const previousReps = previousSetReps?.[i] || 0;
+
+      // Increment weight only if the set hit or exceeded max reps
+      const shouldProgress = previousReps >= setConfig.max;
       const weight = shouldProgress ? baseWeight + increment : baseWeight;
 
       suggestions.push({
