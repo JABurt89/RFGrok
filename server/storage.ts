@@ -81,7 +81,7 @@ export class DatabaseStorage {
               const stsProgression = new STSProgression();
               calculated1RM = stsProgression.calculate1RM(
                 setData.sets.map(s => ({ reps: s.reps, weight: s.weight })),
-                setData.extraSetReps
+                setData.extraSetReps // Pass extraSetReps if available
               );
               break;
             case "Double Progression":
