@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RPTTopSetLogger } from "./rpt-top-set-logger";
+import { STSLogger } from "./sts-logger";
+import { DoubleProgressionLogger } from "./double-progression-logger";
+import { RPTIndividualLogger } from "./rpt-individual-logger";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { STSProgression } from "@shared/progression";
+
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -22,18 +24,16 @@ interface WorkoutLoggerProps {
 }
 
 export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
-  const { toast } = useToast();
   const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
-  const [currentSet, setCurrentSet] = useState(0);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
   const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean; exceededMax?: boolean }>>([]);
   const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
-  const [extraSetReps, setExtraSetReps] = useState<number | undefined>(undefined);
-  const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editWeight, setEditWeight] = useState<number | null>(null);
   const [editReps, setEditReps] = useState<number | null>(null);
+  const [extraSetReps, setExtraSetReps] = useState<number | undefined>(undefined);
 
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
@@ -82,16 +82,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   };
 
-  const handleLogSet = (set: { reps: number; weight: number; timestamp: string }) => {
+  const handleLogSet = (set: { reps: number; weight: number; timestamp: string; isFailure?: boolean; exceededMax?: boolean }) => {
     setLoggedSets(prev => [...prev, set]);
-  };
-
-  const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-      //This function is no longer needed as rep selection is handled in RPTTopSetLogger
-  };
-
-  const handleSetComplete = () => {
-    //This function is no longer needed as set completion is handled in RPTTopSetLogger and other progressions
   };
 
   useEffect(() => {
@@ -117,17 +109,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return exercise?.name || "Exercise";
   };
 
-  const getCurrentSetTarget = () => {
-      //This function is no longer needed as target is handled in RPTTopSetLogger and other progressions
+  const handleSetFailed = (setIndex: number) => {
+    const updatedSets = [...loggedSets];
+    updatedSets[setIndex] = {...updatedSets[setIndex], isFailure: true};
+    setLoggedSets(updatedSets);
   };
-
-  const isLastSet = currentSet >= (parameters.scheme === "RPT Top-Set" ? parameters.sets : selectedSuggestion?.sets);
-
-
-  useEffect(() => {
-    //This effect is no longer needed as workout initialization is handled in RPTTopSetLogger
-  }, [isWorkoutActive, parameters.scheme, suggestions]);
-
 
   if (!user) {
     return (
@@ -147,36 +133,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
-  if (parameters.scheme === "RPT Top-Set") {
-    if (!isWorkoutActive) {
-      if (isLoading) {
-        return (
-          <div className="flex items-center justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading suggestions...</span>
-          </div>
-        );
-      }
-
-      handleStartWorkout(suggestions);
-      return null;
-    }
-
-    return (
-      <RPTTopSetLogger
-        exerciseId={exerciseId}
-        workoutDayId={workoutDayId}
-        parameters={parameters}
-        suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
-        onComplete={onComplete}
-        onLogSet={handleLogSet}
-        exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
-        totalExercises={totalExercises}
-      />
-    );
-  }
-
-  if (!isWorkoutActive && parameters.scheme !== "RPT Top-Set") {
+  if (!isWorkoutActive) {
     return (
       <Card>
         <CardHeader>
@@ -234,213 +191,66 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {restTimer !== null && restTimer > 0 && (
+  // Render appropriate logger component based on progression scheme
+  switch (parameters.scheme) {
+    case "RPT Top-Set":
+      return (
+        <RPTTopSetLogger
+          exerciseId={exerciseId}
+          workoutDayId={workoutDayId}
+          parameters={parameters}
+          suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
+          onComplete={onComplete}
+          onLogSet={handleLogSet}
+          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          totalExercises={totalExercises}
+        />
+      );
+    case "STS":
+      return (
+        <STSLogger
+          exerciseId={exerciseId}
+          workoutDayId={workoutDayId}
+          parameters={parameters}
+          suggestion={selectedSuggestion}
+          onComplete={onComplete}
+          onLogSet={handleLogSet}
+          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          workoutLogId={workoutLogId!}
+        />
+      );
+    case "Double Progression":
+      return (
+        <DoubleProgressionLogger
+          exerciseId={exerciseId}
+          workoutDayId={workoutDayId}
+          parameters={parameters}
+          suggestion={selectedSuggestion}
+          onComplete={onComplete}
+          onLogSet={handleLogSet}
+          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+        />
+      );
+    case "RPT Individual":
+      return (
+        <RPTIndividualLogger
+          exerciseId={exerciseId}
+          workoutDayId={workoutDayId}
+          parameters={parameters}
+          suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
+          onComplete={onComplete}
+          onLogSet={handleLogSet}
+          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          totalExercises={totalExercises}
+        />
+      );
+    default:
+      return (
         <Alert>
-          <AlertDescription className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Timer className="h-5 w-5" />
-              <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
-            </div>
+          <AlertDescription>
+            This progression scheme is not yet implemented: {parameters.scheme}
           </AlertDescription>
         </Alert>
-      )}
-
-      {parameters.scheme !== "RPT Top-Set" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
-            <CardDescription className="text-lg font-semibold mt-2">
-              <span className="text-primary">
-                Target: {selectedSuggestion?.weight}kg × {selectedSuggestion?.reps} reps
-              </span>
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            {loggedSets.length > 0 && (
-              <div className="space-y-2 mb-4">
-                <h3 className="text-sm font-medium">Previous Sets:</h3>
-                <div className="grid gap-2">
-                  {loggedSets.map((set, idx) => (
-                    <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
-                      <span>
-                        Set {idx + 1}: {set.reps} reps @ {set.weight}kg
-                        {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
-                        {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-
-          <CardFooter className="flex flex-wrap gap-2">
-            {!isLastSet && !isEditing && (
-              <>
-                <Button
-                  className="flex-1 sm:flex-none"
-                  onClick={handleSetComplete}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Set Complete
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => handleSetFailed(0)} //Added to handle set failure
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Set Failed
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit Set
-                </Button>
-              </>
-            )}
-
-            {isEditing && (
-              <>
-                <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
-                <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancel</Button>
-              </>
-            )}
-
-            {(isLastSet && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== undefined) ? (
-              <Button
-                className="w-full"
-                onClick={() => onComplete()}
-              >
-                Next Exercise
-              </Button>
-            ) : null}
-          </CardFooter>
-        </Card>
-      )}
-
-      {isLastSet && parameters.scheme === "STS" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Extra Set to Failure</CardTitle>
-            <CardDescription>Optional: Perform one more set to failure</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Input
-              type="number"
-              placeholder="Number of reps"
-              value={extraSetReps ?? ''}
-              onChange={(e) => setExtraSetReps(Number(e.target.value))}
-              className="w-full"
-            />
-          </CardContent>
-          <CardFooter className="flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  if (!loggedSets || loggedSets.length === 0) {
-                    toast({
-                      title: "Error",
-                      description: "Please log at least one set before completing the workout.",
-                      variant: "destructive"
-                    });
-                    return;
-                  }
-
-                  const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-                    sets: [{
-                      exerciseId,
-                      sets: loggedSets.map(set => ({
-                        reps: set.reps,
-                        weight: set.weight,
-                        timestamp: set.timestamp || new Date().toISOString()
-                      })),
-                      parameters,
-                      extraSetReps: 0
-                    }],
-                    isComplete: true
-                  });
-
-                  if (!updateResponse.ok) {
-                    const error = await updateResponse.json();
-                    throw new Error(error.message || "Failed to update workout log");
-                  }
-
-                  setExtraSetReps(0);
-                  onComplete();
-                } catch (error) {
-                  console.error("Error in skipping extra set:", error);
-                  toast({
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Failed to skip extra set",
-                    variant: "destructive"
-                  });
-                }
-              }}
-            >
-              Skip Extra Set
-            </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  if (!loggedSets || loggedSets.length === 0) {
-                    toast({
-                      title: "Error",
-                      description: "Please log at least one set before completing the workout.",
-                      variant: "destructive"
-                    });
-                    return;
-                  }
-                  if (typeof extraSetReps === 'number') {
-                    const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-                      sets: [{
-                        exerciseId,
-                        sets: loggedSets.map(set => ({
-                          reps: set.reps,
-                          weight: set.weight,
-                          timestamp: set.timestamp || new Date().toISOString()
-                        })),
-                        parameters,
-                        extraSetReps: extraSetReps
-                      }],
-                      isComplete: true
-                    });
-
-                    if (!updateResponse.ok) {
-                      const error = await updateResponse.json();
-                      throw new Error(error.message || "Failed to update workout log");
-                    }
-
-                    onComplete();
-                  } else {
-                    toast({
-                      title: "Error",
-                      description: "Please enter the number of reps completed",
-                      variant: "destructive"
-                    });
-                  }
-                } catch (error) {
-                  console.error("Error logging extra set:", error);
-                  toast({
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Failed to log extra set",
-                    variant: "destructive"
-                  });
-                }
-              }}
-            >
-              Log Extra Set
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-    </div>
-  );
+      );
+  }
 }
