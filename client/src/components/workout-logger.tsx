@@ -420,20 +420,30 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         return;
       }
 
-      // Create the workout set data with extraSetReps explicitly set to 0
-      const workoutSetData = {
-        exerciseId,
-        sets: prepareWorkoutLog(loggedSets),
-        extraSetReps: 0,  // Explicitly set to 0 when skipping
-        parameters
-      };
+      // First update the workout log
+      const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+        sets: [{
+          exerciseId,
+          sets: loggedSets.map(set => ({
+            reps: set.reps,
+            weight: set.weight,
+            timestamp: set.timestamp || new Date().toISOString()
+          })),
+          parameters,
+          extraSetReps: 0  // Explicitly set to 0 when skipping
+        }],
+        isComplete: true
+      });
 
-      console.log("Final workout set data:", JSON.stringify(workoutSetData, null, 2));
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json();
+        throw new Error(error.message || "Failed to update workout log");
+      }
 
-      // Update the state to reflect the skipped extra set
+      // Update local state
       setExtraSetReps(0);
 
-      // Complete the workout and move to next exercise
+      // Only complete after successful update
       onComplete();
     } catch (error) {
       console.error("Error in skipping extra set:", error);
