@@ -31,7 +31,7 @@ const commonParameters = {
   restBetweenExercises: z.number().min(0),
 };
 
-// STS parameters schema without strict
+// STS parameters schema without refine
 const stsParameters = z.object({
   scheme: z.literal("STS"),
   minSets: z.number().min(1),
@@ -39,13 +39,7 @@ const stsParameters = z.object({
   minReps: z.number().min(1),
   maxReps: z.number().min(1),
   ...commonParameters,
-}).refine(data => data.minSets <= data.maxSets, {
-  message: "minSets must be less than or equal to maxSets",
-  path: ["minSets"],
-}).refine(data => data.minReps <= data.maxReps, {
-  message: "minReps must be less than or equal to maxReps",
-  path: ["minReps"],
-});
+}).strict();
 
 const doubleProgressionParameters = z.object({
   scheme: z.literal("Double Progression"),
