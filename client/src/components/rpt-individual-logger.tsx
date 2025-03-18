@@ -36,11 +36,10 @@ export function RPTIndividualLogger({
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string }>>([]);
 
-  // Get base weight from suggestions
-  const baseWeight = suggestions[0]?.weight || 20;
-
-  // Current set configuration
+  // Get weights for each set from suggestions
+  const setWeights = suggestions.map(s => s.weight);
   const currentSetConfig = parameters.setConfigs[currentSetIndex];
+  const currentWeight = setWeights[currentSetIndex] || suggestions[0]?.weight || 20;
   const isLastSet = currentSetIndex >= parameters.sets - 1;
 
   useEffect(() => {
@@ -63,7 +62,7 @@ export function RPTIndividualLogger({
   const handleRepSelection = async (reps: number, exceededMax: boolean = false) => {
     const newSet = {
       reps,
-      weight: baseWeight,
+      weight: currentWeight,
       timestamp: new Date().toISOString()
     };
 
@@ -129,11 +128,11 @@ export function RPTIndividualLogger({
               </div>
             </div>
           )}
-          Target Weight: {baseWeight}kg ({currentSetConfig.min}-{currentSetConfig.max} reps)
+          Target Weight: {currentWeight}kg ({currentSetConfig.min}-{currentSetConfig.max} reps)
           <br />
           {loggedSets.length > 0 && (
             <div className="mt-2 text-sm text-muted-foreground">
-              Previous sets: {loggedSets.map((set, idx) => `${set.reps} reps`).join(', ')}
+              Previous sets: {loggedSets.map((set, idx) => `${set.reps} reps @ ${set.weight}kg`).join(', ')}
             </div>
           )}
           <br />

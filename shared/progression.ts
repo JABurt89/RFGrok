@@ -174,12 +174,34 @@ export class RPTIndividualProgression implements ProgressionScheme {
 
   getNextSuggestion(lastWeight: number, increment: number, failureFlags?: boolean[]): ProgressionSuggestion[] {
     const baseWeight = lastWeight || increment;
+    const suggestions: ProgressionSuggestion[] = [];
 
-    return [{
-      sets: this.sets,
-      reps: this.setConfigs[0].min,
-      weight: baseWeight,
-      calculated1RM: baseWeight * (1 + 0.025 * this.setConfigs[0].min)
-    }];
+    // Progress each set individually based on its previous performance
+    for (let i = 0; i < this.sets; i++) {
+      const setConfig = this.setConfigs[i];
+      const shouldProgress = !failureFlags?.[i];
+      const weight = shouldProgress ? baseWeight + increment : baseWeight;
+
+      suggestions.push({
+        sets: 1, // Individual progress for each set
+        reps: setConfig.min,
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
+        calculated1RM: weight * (1 + 0.025 * setConfig.min)
+      });
+    }
+
+    return suggestions;
+  }
+
+  calculate1RM(sets: ExerciseSet[]): number {
+    if (sets.length === 0) return 0;
+
+    // Use the strongest set for 1RM calculation
+    const strongestSet = sets.reduce((max, set) => {
+      const current1RM = set.weight * (1 + 0.025 * set.reps);
+      return current1RM > max ? current1RM : max;
+    }, 0);
+
+    return Math.round(strongestSet * 100) / 100;
   }
 }
