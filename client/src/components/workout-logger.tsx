@@ -622,7 +622,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               Skip Extra Set
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 try {
                   if (!loggedSets || loggedSets.length === 0) {
                     toast({
@@ -633,17 +633,27 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     return;
                   }
                   if (typeof extraSetReps === 'number') {
-                    const stsProgression = new STSProgression();
+                    // First update the workout log
+                    const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+                      sets: [{
+                        exerciseId,
+                        sets: loggedSets.map(set => ({
+                          reps: set.reps,
+                          weight: set.weight,
+                          timestamp: set.timestamp || new Date().toISOString()
+                        })),
+                        parameters,
+                        extraSetReps: extraSetReps  // Use the actual extra set reps value
+                      }],
+                      isComplete: true
+                    });
 
-                    const workoutSetData = {
-                      exerciseId,
-                      sets: prepareWorkoutLog(loggedSets),
-                      extraSetReps: extraSetReps, // Use actual extraSetReps when not skipping
-                      parameters
-                    };
+                    if (!updateResponse.ok) {
+                      const error = await updateResponse.json();
+                      throw new Error(error.message || "Failed to update workout log");
+                    }
 
-                    console.log("Final workout set data:", JSON.stringify(workoutSetData, null, 2));
-
+                    console.log("Successfully logged extra set with reps:", extraSetReps);
                     onComplete();
                   } else {
                     toast({
