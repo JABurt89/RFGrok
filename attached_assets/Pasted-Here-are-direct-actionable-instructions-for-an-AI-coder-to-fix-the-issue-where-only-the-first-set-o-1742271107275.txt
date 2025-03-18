@@ -1,0 +1,110 @@
+Here are direct, actionable instructions for an AI coder to fix the issue where only the first set of an RPT Top-Set Dependent workout displays in `workout-logger.tsx`:
+
+---
+
+1. **Open `client/src/components/workout-logger.tsx`.**
+
+2. **Locate the `WorkoutLogger` component and find the state declarations.**
+   - Add `currentSetIndex` state if not present:
+     ```tsx
+     const [currentSetIndex, setCurrentSetIndex] = useState(0);
+     ```
+
+3. **Find the logic that initializes the workout or exercise data (e.g., `startWorkout` or `useEffect`).**
+   - Ensure all sets for RPT Top-Set Dependent are generated:
+     ```tsx
+     if (exercise.parameters.scheme === "RPT Top-Set") {
+       const topSetWeight = suggestion.weight || exercise.startingWeight || 20;
+       const sets = [{
+         weight: topSetWeight,
+         reps: exercise.parameters.minReps,
+         timestamp: new Date()
+       }];
+       for (let i = 1; i < exercise.parameters.sets; i++) {
+         const dropPercentage = exercise.parameters.dropPercentages[i] || 0;
+         const backOffWeight = topSetWeight * (1 - dropPercentage / 100);
+         sets.push({
+           weight: backOffWeight,
+           reps: exercise.parameters.minReps,
+           timestamp: new Date()
+         });
+       }
+       exercise.sets = sets;
+     }
+     ```
+
+4. **Locate the rendering logic for the current exercise’s sets.**
+   - Replace it with:
+     ```tsx
+     const renderCurrentSet = () => {
+       if (!currentExercise || !currentExercise.sets) return null;
+       const set = currentExercise.sets[currentSetIndex];
+       return (
+         <div className="set-display">
+           <h3>{currentExercise.name} - Set {currentSetIndex + 1} of {currentExercise.sets.length}</h3>
+           <p>Weight: {set.weight.toFixed(1)} {currentExercise.units}</p>
+           <p>Target Reps: {set.reps}</p>
+           {/* Rep logging buttons */}
+           {renderRepButtons()}
+         </div>
+       );
+     };
+     ```
+
+5. **Update `renderRepButtons` to use the correct rep range:**
+   - Ensure it reflects `minReps` and `maxReps`:
+     ```tsx
+     const renderRepButtons = () => {
+       const { minReps, maxReps } = currentExercise.parameters;
+       return Array.from({ length: maxReps - minReps + 1 }, (_, i) => minReps + i).map(reps => (
+         <Button key={reps} onClick={() => handleSetCompletion(reps)}>
+           {reps}
+         </Button>
+       ));
+     };
+     ```
+
+6. **Modify `handleSetCompletion` to advance sets:**
+   - Update it to:
+     ```tsx
+     const handleSetCompletion = async (reps: number) => {
+       const setData = {
+         reps,
+         weight: currentExercise.sets[currentSetIndex].weight,
+         timestamp: new Date()
+       };
+       const updatedSets = [...currentExercise.sets];
+       updatedSets[currentSetIndex] = setData;
+       setCurrentExercise({ ...currentExercise, sets: updatedSets });
+
+       if (currentSetIndex + 1 < currentExercise.sets.length) {
+         setCurrentSetIndex(currentSetIndex + 1);
+       } else {
+         // Save workout and move to next exercise
+         const logData = {
+           exerciseId: currentExercise.id,
+           sets: updatedSets,
+           parameters: currentExercise.parameters,
+           extraSetReps: 0
+         };
+         await handleSave(logData);
+         setCurrentSetIndex(0);
+         // Logic to advance to next exercise
+       }
+     };
+     ```
+
+7. **Add console logging to verify sets:**
+   - Before rendering, add:
+     ```tsx
+     console.log("Current exercise sets:", currentExercise?.sets);
+     ```
+
+8. **Save and test:**
+   - Run the app, start a workout with an RPT Top-Set Dependent exercise, and confirm all sets display and log correctly.
+
+9. **Redeploy the application.**
+
+--- 
+
+These steps ensure all sets are calculated, stored, and rendered sequentially for the RPT Top-Set Dependent scheme.
