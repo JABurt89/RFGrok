@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Timer, Loader2 } from "lucide-react";
@@ -28,10 +28,12 @@ export function RPTIndividualLogger({
   totalExercises
 }: RPTIndividualLoggerProps) {
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
-  const [showRepsInput, setShowRepsInput] = useState(true);
   const [restTimer, setRestTimer] = useState<number | null>(null);
 
-  const currentSet = suggestions[currentSetIndex];
+  // Get base weight from suggestions
+  const baseWeight = suggestions[0]?.weight || 20;
+
+  // Current set configuration
   const currentSetConfig = parameters.setConfigs[currentSetIndex];
   const isLastSet = currentSetIndex >= parameters.sets - 1;
 
@@ -52,19 +54,10 @@ export function RPTIndividualLogger({
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
-  useEffect(() => {
-    if (restTimer === 0) {
-      setRestTimer(null);
-      setShowRepsInput(true);
-    }
-  }, [restTimer]);
-
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-    const weight = currentSet.weight;
-    
     onLogSet({
       reps,
-      weight,
+      weight: baseWeight,
       timestamp: new Date().toISOString()
     });
 
@@ -72,12 +65,11 @@ export function RPTIndividualLogger({
       onComplete();
     } else {
       setCurrentSetIndex(prev => prev + 1);
-      setShowRepsInput(false);
       setRestTimer(parameters.restBetweenSets);
     }
   };
 
-  if (!suggestions?.length) {
+  if (!suggestions?.length || !currentSetConfig) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -87,62 +79,51 @@ export function RPTIndividualLogger({
   }
 
   return (
-    <div className="space-y-4">
-      {restTimer !== null && restTimer > 0 && (
-        <Alert>
-          <AlertDescription className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Timer className="h-5 w-5" />
-              <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+    <Dialog open={true}>
+      <DialogContent>
+        <DialogTitle className="text-xl font-semibold">
+          {exerciseName}
+        </DialogTitle>
+        <DialogDescription>
+          {restTimer !== null && restTimer > 0 && (
+            <div className="mb-4 p-2 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Timer className="h-5 w-5" />
+                <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+              </div>
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
-        <DialogContent>
-          <DialogTitle className="text-xl font-semibold">
-            {exerciseName}
-          </DialogTitle>
-          <DialogDescription>
-            Target Weight: {currentSet.weight}kg
-            <br />
-            Select the number of repetitions completed for this set.
-          </DialogDescription>
-          <div className="space-y-2">
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from(
-                { length: currentSetConfig.max - currentSetConfig.min + 1 },
-                (_, i) => currentSetConfig.min + i
-              ).map((rep) => (
-                <Button
-                  key={rep}
-                  variant={rep === currentSetConfig.max ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    handleRepSelection(rep);
-                    setShowRepsInput(false);
-                  }}
-                  className={rep === currentSetConfig.max ? "bg-primary text-primary-foreground" : ""}
-                >
-                  {rep}
-                </Button>
-              ))}
+          )}
+          Target Weight: {baseWeight}kg
+          <br />
+          Select the number of repetitions completed for this set.
+        </DialogDescription>
+        <div className="space-y-2">
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from(
+              { length: currentSetConfig.max - currentSetConfig.min + 1 },
+              (_, i) => currentSetConfig.min + i
+            ).map((rep) => (
               <Button
-                variant="outline"
+                key={rep}
+                variant={rep === currentSetConfig.max ? "default" : "outline"}
                 size="sm"
-                onClick={() => {
-                  handleRepSelection(currentSetConfig.max + 1, true);
-                  setShowRepsInput(false);
-                }}
-                className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+                onClick={() => handleRepSelection(rep)}
+                className={rep === currentSetConfig.max ? "bg-primary text-primary-foreground" : ""}
               >
-                Max Range Exceeded ({currentSetConfig.max + 1}+ reps)
+                {rep}
               </Button>
-            </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRepSelection(currentSetConfig.max + 1, true)}
+              className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+            >
+              Max Range Exceeded ({currentSetConfig.max + 1}+ reps)
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
