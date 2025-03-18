@@ -5,6 +5,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Timer, Loader2 } from "lucide-react";
 import { RPTIndividualParameters } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface RPTIndividualLoggerProps {
   exerciseId: number;
@@ -27,8 +29,10 @@ export function RPTIndividualLogger({
   exerciseName,
   totalExercises
 }: RPTIndividualLoggerProps) {
+  const { toast } = useToast();
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
   const [restTimer, setRestTimer] = useState<number | null>(null);
+  const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string }>>([]);
 
   // Get base weight from suggestions
   const baseWeight = suggestions[0]?.weight || 20;
@@ -54,15 +58,41 @@ export function RPTIndividualLogger({
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
-  const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-    onLogSet({
+  const handleRepSelection = async (reps: number, exceededMax: boolean = false) => {
+    const newSet = {
       reps,
       weight: baseWeight,
       timestamp: new Date().toISOString()
-    });
+    };
+
+    setLoggedSets(prev => [...prev, newSet]);
+    onLogSet(newSet);
 
     if (isLastSet) {
-      onComplete();
+      try {
+        // Update the workout log with all completed sets
+        const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutDayId}`, {
+          sets: [{
+            exerciseId,
+            sets: [...loggedSets, newSet],
+            parameters,
+          }],
+          isComplete: true
+        });
+
+        if (!updateResponse.ok) {
+          throw new Error("Failed to update workout log");
+        }
+
+        onComplete();
+      } catch (error) {
+        console.error("Error updating workout log:", error);
+        toast({
+          title: "Error",
+          description: "Failed to save workout log",
+          variant: "destructive"
+        });
+      }
     } else {
       setCurrentSetIndex(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
@@ -83,6 +113,9 @@ export function RPTIndividualLogger({
       <DialogContent>
         <DialogTitle className="text-xl font-semibold">
           {exerciseName}
+          <span className="text-muted-foreground text-sm ml-2">
+            Set {currentSetIndex + 1} of {parameters.sets}
+          </span>
         </DialogTitle>
         <DialogDescription>
           {restTimer !== null && restTimer > 0 && (
@@ -93,7 +126,13 @@ export function RPTIndividualLogger({
               </div>
             </div>
           )}
-          Target Weight: {baseWeight}kg
+          Target Weight: {baseWeight}kg ({currentSetConfig.min}-{currentSetConfig.max} reps)
+          <br />
+          {loggedSets.length > 0 && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              Previous sets: {loggedSets.map((set, idx) => `${set.reps} reps`).join(', ')}
+            </div>
+          )}
           <br />
           Select the number of repetitions completed for this set.
         </DialogDescription>
