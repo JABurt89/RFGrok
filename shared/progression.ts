@@ -16,7 +16,38 @@ export interface ProgressionSuggestion {
 
 export interface ProgressionScheme {
   calculate1RM?(sets: ExerciseSet[], extraSetReps?: number): number;
-  getNextSuggestion(lastWeight: number, increment: number, previousFailures?: number | boolean[]): ProgressionSuggestion[];
+  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures?: number | boolean[]): ProgressionSuggestion[];
+}
+
+export class RPTTopSetDependent implements ProgressionScheme {
+  private sets: number;
+  private minReps: number;
+  private maxReps: number;
+  private dropPercentages: number[];
+
+  constructor(sets: number = 3, minReps: number = 6, maxReps: number = 8, dropPercentages: number[] = [0, 10, 10]) {
+    this.sets = sets;
+    this.minReps = minReps;
+    this.maxReps = maxReps;
+    this.dropPercentages = dropPercentages;
+  }
+
+  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
+    const baseWeight = lastWeight || increment;
+    const topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
+
+    const suggestions: ProgressionSuggestion[] = [];
+    for (let i = 0; i < this.sets; i++) {
+      const weight = topSetWeight * (1 - (this.dropPercentages[i] || 0) / 100);
+      suggestions.push({
+        sets: 1, // One suggestion per set
+        reps: this.minReps,
+        weight,
+        calculated1RM: weight * (1 + 0.025 * this.minReps)
+      });
+    }
+    return suggestions;
+  }
 }
 
 export class STSProgression implements ProgressionScheme {
@@ -116,33 +147,6 @@ export class DoubleProgression implements ProgressionScheme {
   }
 }
 
-export class RPTTopSetDependent implements ProgressionScheme {
-  private sets: number;
-  private minReps: number;
-  private maxReps: number;
-
-  constructor(
-    sets: number = 3,
-    minReps: number = 6,
-    maxReps: number = 8
-  ) {
-    this.sets = sets;
-    this.minReps = minReps;
-    this.maxReps = maxReps;
-  }
-
-  getNextSuggestion(lastWeight: number, increment: number, consecutiveFailures: number = 0): ProgressionSuggestion[] {
-    const baseWeight = lastWeight || increment;
-    const topSetWeight = consecutiveFailures >= 2 ? Math.max(increment, baseWeight * 0.9) : baseWeight;
-
-    return [{
-      sets: this.sets,
-      reps: this.minReps,
-      weight: topSetWeight,
-      calculated1RM: topSetWeight * (1 + 0.025 * this.minReps)
-    }];
-  }
-}
 
 export class RPTIndividualProgression implements ProgressionScheme {
   private sets: number;
