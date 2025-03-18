@@ -394,6 +394,53 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
+  const handleSkipExtraSet = async () => {
+    try {
+      console.log("Starting skip extra set handler");
+      console.log("Current logged sets:", loggedSets);
+      console.log("Exercise ID:", exerciseId);
+      console.log("Parameters:", parameters);
+
+      const stsProgression = new STSProgression();
+
+      // Calculate 1RM only if we have logged sets
+      const oneRm = loggedSets.length > 0 ? stsProgression.calculate1RM(
+        loggedSets.map(set => ({
+          reps: set.reps,
+          weight: set.weight,
+          isFailure: set.isFailure || false
+        }))
+      ) : undefined;
+
+      console.log("Calculated 1RM:", oneRm);
+
+      // Create the final set data
+      const workoutSetData = {
+        exerciseId,
+        sets: loggedSets.map(set => ({
+          reps: set.reps,
+          weight: set.weight,
+          timestamp: set.timestamp
+        })),
+        oneRm,
+        parameters
+      };
+
+      console.log("Final workout set data:", workoutSetData);
+
+      // Complete the workout without logging an extra set
+      setExtraSetReps(undefined);
+      onComplete();
+    } catch (error) {
+      console.error("Error in skipping extra set:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to skip extra set",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Rest Timer */}
@@ -560,39 +607,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           <CardFooter className="flex justify-end space-x-2">
             <Button
               variant="outline"
-              onClick={() => {
-                try {
-                  const stsProgression = new STSProgression();
-                  const oneRm = stsProgression.calculate1RM(loggedSets.map(set => ({
-                    reps: set.reps,
-                    weight: set.weight,
-                    isFailure: set.isFailure || false
-                  } as ExerciseSet)));
-
-                  // Update workout log data
-                  const workoutLogData = {
-                    exerciseId,
-                    sets: loggedSets.map(set => ({
-                      reps: set.reps,
-                      weight: set.weight,
-                      timestamp: set.timestamp
-                    })),
-                    extraSetReps: undefined,
-                    oneRm,
-                    parameters
-                  };
-
-                  setExtraSetReps(undefined);
-                  onComplete();
-                } catch (error) {
-                  console.error("Error in skipping extra set:", error);
-                  toast({
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Failed to skip extra set",
-                    variant: "destructive"
-                  });
-                }
-              }}
+              onClick={handleSkipExtraSet}
             >
               Skip Extra Set
             </Button>
