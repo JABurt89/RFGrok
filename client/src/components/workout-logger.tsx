@@ -4,16 +4,14 @@ import { RPTTopSetLogger } from "./rpt-top-set-logger";
 import { STSLogger } from "./sts-logger";
 import { DoubleProgressionLogger } from "./double-progression-logger";
 import { RPTIndividualLogger } from "./rpt-individual-logger";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -29,11 +27,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
   const [workoutLogId, setWorkoutLogId] = useState<number | null>(null);
   const [loggedSets, setLoggedSets] = useState<Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean; exceededMax?: boolean }>>([]);
-  const [restTimer, setRestTimer] = useState<number | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editWeight, setEditWeight] = useState<number | null>(null);
-  const [editReps, setEditReps] = useState<number | null>(null);
-  const [extraSetReps, setExtraSetReps] = useState<number | undefined>(undefined);
+  const [adjustedWeight, setAdjustedWeight] = useState<number | null>(null);
 
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
@@ -86,33 +80,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     setLoggedSets(prev => [...prev, set]);
   };
 
-  useEffect(() => {
-    let interval: number;
-    if (restTimer !== null && restTimer > 0) {
-      interval = window.setInterval(() => {
-        setRestTimer(prev => {
-          if (prev === null || prev <= 0) return null;
-          return prev - 1;
-        });
-      }, 1000);
-
-      if (restTimer === 1) {
-        new Audio('/chime.mp3').play().catch(console.error);
-      }
-    }
-    return () => window.clearInterval(interval);
-  }, [restTimer]);
-
-
   const getExerciseName = () => {
     const exercise = exercises.find((e: any) => e.id === exerciseId);
     return exercise?.name || "Exercise";
-  };
-
-  const handleSetFailed = (setIndex: number) => {
-    const updatedSets = [...loggedSets];
-    updatedSets[setIndex] = {...updatedSets[setIndex], isFailure: true};
-    setLoggedSets(updatedSets);
   };
 
   if (!user) {
@@ -133,7 +103,66 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="ml-2">Loading workout...</span>
+      </div>
+    );
+  }
+
   if (!isWorkoutActive) {
+    if (parameters.scheme === "RPT Top-Set") {
+      const suggestion = Array.isArray(suggestions) ? suggestions[0] : suggestions;
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Preview Exercise</CardTitle>
+            <CardDescription>
+              Review and adjust your top set weight if needed
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Exercise</div>
+              <div className="text-lg">{getExerciseName()}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Top Set Weight</div>
+              <Input
+                type="number"
+                step={2.5}
+                value={adjustedWeight ?? suggestion?.weight ?? 0}
+                onChange={(e) => setAdjustedWeight(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Set Structure</div>
+              <div className="text-muted-foreground">
+                {parameters.sets} sets × {parameters.minReps}-{parameters.maxReps} reps
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full" 
+              onClick={() => {
+                const adjustedSuggestion = {
+                  ...suggestion,
+                  weight: adjustedWeight ?? suggestion.weight
+                };
+                handleStartWorkout(adjustedSuggestion);
+              }}
+            >
+              Start Exercise
+            </Button>
+          </CardFooter>
+        </Card>
+      );
+    }
+
     return (
       <Card>
         <CardHeader>
@@ -143,12 +172,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading suggestions...</span>
-            </div>
-          ) : Array.isArray(suggestions) ? (
+          {Array.isArray(suggestions) ? (
             <div className="space-y-4">
               {suggestions.map((suggestion, idx) => (
                 <Button
@@ -199,10 +223,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           exerciseId={exerciseId}
           workoutDayId={workoutDayId}
           parameters={parameters}
-          suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
+          suggestions={selectedSuggestion}
           onComplete={onComplete}
           onLogSet={handleLogSet}
-          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          exerciseName={getExerciseName()}
           totalExercises={totalExercises}
         />
       );
@@ -215,7 +239,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           suggestion={selectedSuggestion}
           onComplete={onComplete}
           onLogSet={handleLogSet}
-          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          exerciseName={getExerciseName()}
           workoutLogId={workoutLogId!}
         />
       );
@@ -228,7 +252,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           suggestion={selectedSuggestion}
           onComplete={onComplete}
           onLogSet={handleLogSet}
-          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          exerciseName={getExerciseName()}
         />
       );
     case "RPT Individual":
@@ -240,7 +264,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
           onComplete={onComplete}
           onLogSet={handleLogSet}
-          exerciseName={exercises.find((e: any) => e.id === exerciseId)?.name || "Exercise"}
+          exerciseName={getExerciseName()}
           totalExercises={totalExercises}
         />
       );

@@ -10,7 +10,7 @@ interface RPTTopSetLoggerProps {
   exerciseId: number;
   workoutDayId: number;
   parameters: RPTTopSetParameters;
-  suggestions: any[];
+  suggestions: any;
   onComplete: () => void;
   onLogSet: (set: { reps: number; weight: number; timestamp: string }) => void;
   exerciseName: string;
@@ -31,8 +31,16 @@ export function RPTTopSetLogger({
   const [showRepsInput, setShowRepsInput] = useState(true);
   const [restTimer, setRestTimer] = useState<number | null>(null);
 
-  const currentSet = suggestions[currentSetIndex];
+  // Calculate weights for all sets based on top set weight and drop percentages
+  const setWeights = parameters.dropPercentages.map((dropPercentage, index) => {
+    const topSetWeight = suggestions.weight;
+    const weight = topSetWeight * (1 - (dropPercentage || 0) / 100);
+    return Math.round(weight * 2) / 2; // Round to nearest 0.5
+  });
+
+  const currentWeight = setWeights[currentSetIndex];
   const isLastSet = currentSetIndex >= parameters.sets - 1;
+  const isDropSet = currentSetIndex > 0;
 
   useEffect(() => {
     let interval: number;
@@ -60,11 +68,9 @@ export function RPTTopSetLogger({
   }, [restTimer]);
 
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
-    const weight = currentSet.weight;
-    
     onLogSet({
       reps,
-      weight,
+      weight: currentWeight,
       timestamp: new Date().toISOString()
     });
 
@@ -77,7 +83,7 @@ export function RPTTopSetLogger({
     }
   };
 
-  if (!suggestions?.length) {
+  if (!suggestions) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -103,14 +109,14 @@ export function RPTTopSetLogger({
         <DialogContent>
           <DialogTitle className="text-xl font-semibold">
             {exerciseName}
-            {currentSetIndex > 0 && (
+            {isDropSet && (
               <span className="text-muted-foreground text-sm ml-2">
                 (Drop Set: {parameters.dropPercentages[currentSetIndex]}% less)
               </span>
             )}
           </DialogTitle>
           <DialogDescription>
-            Target Weight: {currentSet.weight}kg
+            Target Weight: {currentWeight}kg
             <br />
             Select the number of repetitions completed for this set.
           </DialogDescription>
