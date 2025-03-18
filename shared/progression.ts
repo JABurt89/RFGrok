@@ -42,7 +42,7 @@ export class RPTTopSetDependent implements ProgressionScheme {
       suggestions.push({
         sets: 1, // One suggestion per set
         reps: this.minReps,
-        weight,
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         calculated1RM: weight * (1 + 0.025 * this.minReps)
       });
     }
