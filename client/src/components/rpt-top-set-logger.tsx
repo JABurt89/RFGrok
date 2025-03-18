@@ -83,61 +83,56 @@ export function RPTTopSetLogger({
   }
 
   return (
-    <div className="space-y-4">
-      {restTimer !== null && restTimer > 0 && (
-        <Alert>
-          <AlertDescription className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Timer className="h-5 w-5" />
-              <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+    <Dialog open={true}>
+      <DialogContent>
+        <DialogTitle className="text-xl font-semibold">
+          {exerciseName}
+          {isDropSet && (
+            <span className="text-muted-foreground text-sm ml-2">
+              (Drop Set: {parameters.dropPercentages[currentSetIndex]}% less)
+            </span>
+          )}
+        </DialogTitle>
+        <DialogDescription>
+          {restTimer !== null && restTimer > 0 && (
+            <div className="mb-4 p-2 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Timer className="h-5 w-5" />
+                <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
+              </div>
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Dialog open={true}>
-        <DialogContent>
-          <DialogTitle className="text-xl font-semibold">
-            {exerciseName}
-            {isDropSet && (
-              <span className="text-muted-foreground text-sm ml-2">
-                (Drop Set: {parameters.dropPercentages[currentSetIndex]}% less)
-              </span>
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            Target Weight: {currentWeight}kg
-            <br />
-            Select the number of repetitions completed for this set.
-          </DialogDescription>
-          <div className="space-y-2">
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from(
-                { length: parameters.maxReps - parameters.minReps + 1 },
-                (_, i) => parameters.minReps + i
-              ).map((rep) => (
-                <Button
-                  key={rep}
-                  variant={rep === parameters.maxReps ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleRepSelection(rep)}
-                  className={rep === parameters.maxReps ? "bg-primary text-primary-foreground" : ""}
-                >
-                  {rep}
-                </Button>
-              ))}
+          )}
+          Target Weight: {currentWeight}kg
+          <br />
+          Select the number of repetitions completed for this set.
+        </DialogDescription>
+        <div className="space-y-2">
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from(
+              { length: parameters.maxReps - parameters.minReps + 1 },
+              (_, i) => parameters.minReps + i
+            ).map((rep) => (
               <Button
-                variant="outline"
+                key={rep}
+                variant={rep === parameters.maxReps ? "default" : "outline"}
                 size="sm"
-                onClick={() => handleRepSelection(parameters.maxReps + 1, true)}
-                className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+                onClick={() => handleRepSelection(rep)}
+                className={rep === parameters.maxReps ? "bg-primary text-primary-foreground" : ""}
               >
-                Max Range Exceeded ({parameters.maxReps + 1}+ reps)
+                {rep}
               </Button>
-            </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRepSelection(parameters.maxReps + 1, true)}
+              className="w-full col-span-4 bg-primary/10 hover:bg-primary/20 border-primary"
+            >
+              Max Range Exceeded ({parameters.maxReps + 1}+ reps)
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
