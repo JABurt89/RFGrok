@@ -401,7 +401,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       console.log("Exercise ID:", exerciseId);
       console.log("Parameters:", parameters);
 
-      const stsProgression = new STSProgression();
+      const stsProgression = new STSProgression(
+        parameters.scheme === "STS" ? parameters.minSets : 3,
+        parameters.scheme === "STS" ? parameters.maxSets : 5,
+        parameters.scheme === "STS" ? parameters.minReps : 5,
+        parameters.scheme === "STS" ? parameters.maxReps : 8
+      );
 
       // Calculate 1RM only if we have logged sets
       const oneRm = loggedSets.length > 0 ? stsProgression.calculate1RM(
