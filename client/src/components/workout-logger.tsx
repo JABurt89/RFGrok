@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,7 @@ import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { STSProgression, ExerciseSet } from "@shared/progression";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { STSProgression } from "@shared/progression";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -22,7 +21,6 @@ interface WorkoutLoggerProps {
 }
 
 export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, onComplete, totalExercises = 3 }: WorkoutLoggerProps) {
-  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
@@ -58,42 +56,27 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     queryKey: ["/api/exercises"],
   });
 
-  const createLogMutation = useMutation({
-    mutationFn: async () => {
-      if (!user || !selectedSuggestion) throw new Error("Invalid workout setup");
+  const handleStartWorkout = async (suggestion: any) => {
+    try {
+      setSelectedSuggestion(suggestion);
       const response = await apiRequest("POST", "/api/workout-logs", {
-        userId: user.id,
+        userId: user!.id,
         date: new Date().toISOString(),
         sets: [{
           exerciseId,
           sets: [],
-          parameters: parameters,
+          parameters,
         }],
         isComplete: false
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }));
-        throw new Error(errorData.error || "Failed to create workout log");
-      }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setWorkoutLogId(data.id);
-      queryClient.invalidateQueries({ queryKey: ["/api/workout-logs"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
-  const handleStartWorkout = async (suggestion: any) => {
-    try {
-      setSelectedSuggestion(suggestion);
-      await createLogMutation.mutateAsync();
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create workout log");
+      }
+
+      const data = await response.json();
+      setWorkoutLogId(data.id);
       setIsWorkoutActive(true);
     } catch (error) {
       console.error("Error starting workout:", error);
@@ -197,19 +180,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     setEditReps(target.reps);
   };
 
-  const handleEditToggle = () => {
-    if (!selectedSuggestion) return;
-
-    const target = getCurrentSetTarget();
-    if (!target) return;
-
-    if (!isEditing) {
-      setEditWeight(target.weight);
-      setEditReps(target.reps);
-    }
-    setIsEditing(!isEditing);
-  };
-
   useEffect(() => {
     let interval: number;
     if (restTimer !== null && restTimer > 0) {
@@ -275,7 +245,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   };
 
   const isLastSet = currentSet >= selectedSuggestion?.sets;
-  const hasFailedCurrentSet = loggedSets[currentSet - 1]?.isFailure;
 
   useEffect(() => {
     if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
@@ -382,48 +351,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       </Card>
     );
   }
-
-  const handleSkipExtraSet = async () => {
-    try {
-      if (!loggedSets || loggedSets.length === 0) {
-        toast({
-          title: "Error",
-          description: "Please log at least one set before completing the workout.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
-        sets: [{
-          exerciseId,
-          sets: loggedSets.map(set => ({
-            reps: set.reps,
-            weight: set.weight,
-            timestamp: set.timestamp || new Date().toISOString()
-          })),
-          parameters,
-          extraSetReps: 0
-        }],
-        isComplete: true
-      });
-
-      if (!updateResponse.ok) {
-        const error = await updateResponse.json();
-        throw new Error(error.message || "Failed to update workout log");
-      }
-
-      setExtraSetReps(0);
-      onComplete();
-    } catch (error) {
-      console.error("Error in skipping extra set:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to skip extra set",
-        variant: "destructive"
-      });
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -544,7 +471,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
-                  onClick={handleEditToggle}
+                  onClick={() => setIsEditing(true)}
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
                   Edit Set
@@ -555,7 +482,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             {isEditing && (
               <>
                 <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
-                <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancel</Button>
               </>
             )}
 
@@ -589,7 +516,47 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           <CardFooter className="flex justify-end space-x-2">
             <Button
               variant="outline"
-              onClick={handleSkipExtraSet}
+              onClick={async () => {
+                try {
+                  if (!loggedSets || loggedSets.length === 0) {
+                    toast({
+                      title: "Error",
+                      description: "Please log at least one set before completing the workout.",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
+
+                  const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+                    sets: [{
+                      exerciseId,
+                      sets: loggedSets.map(set => ({
+                        reps: set.reps,
+                        weight: set.weight,
+                        timestamp: set.timestamp || new Date().toISOString()
+                      })),
+                      parameters,
+                      extraSetReps: 0
+                    }],
+                    isComplete: true
+                  });
+
+                  if (!updateResponse.ok) {
+                    const error = await updateResponse.json();
+                    throw new Error(error.message || "Failed to update workout log");
+                  }
+
+                  setExtraSetReps(0);
+                  onComplete();
+                } catch (error) {
+                  console.error("Error in skipping extra set:", error);
+                  toast({
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Failed to skip extra set",
+                    variant: "destructive"
+                  });
+                }
+              }}
             >
               Skip Extra Set
             </Button>
@@ -624,7 +591,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                       throw new Error(error.message || "Failed to update workout log");
                     }
 
-                    console.log("Successfully logged extra set with reps:", extraSetReps);
                     onComplete();
                   } else {
                     toast({
