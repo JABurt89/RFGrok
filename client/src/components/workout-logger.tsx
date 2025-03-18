@@ -129,7 +129,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    const weight = editWeight ?? target.weight;
+    const weight = target.weight;
 
     setLoggedSets(prev => [...prev, {
       weight,
@@ -146,16 +146,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       onComplete();
     } else {
       setCurrentSet(prev => prev + 1);
-      if (parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") {
-        setCurrentSetIndex(prev => prev + 1);
-      }
+      setCurrentSetIndex(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
       setShowRepsInput(false);
     }
-
-    setIsEditing(false);
-    setEditWeight(null);
-    setEditReps(null);
   };
 
   const handleSetFailed = (completedReps: number) => {
