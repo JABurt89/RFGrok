@@ -146,8 +146,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             </div>
           </CardContent>
           <CardFooter>
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               onClick={() => {
                 const adjustedSuggestion = {
                   ...suggestion,
@@ -260,6 +260,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         <RPTIndividualLogger
           exerciseId={exerciseId}
           workoutDayId={workoutDayId}
+          workoutLogId={workoutLogId!}
           parameters={parameters}
           suggestions={Array.isArray(suggestions) ? suggestions : [suggestions]}
           onComplete={onComplete}

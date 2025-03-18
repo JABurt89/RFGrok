@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 interface RPTIndividualLoggerProps {
   exerciseId: number;
   workoutDayId: number;
+  workoutLogId: number;
   parameters: RPTIndividualParameters;
   suggestions: any[];
   onComplete: () => void;
@@ -22,6 +23,7 @@ interface RPTIndividualLoggerProps {
 export function RPTIndividualLogger({
   exerciseId,
   workoutDayId,
+  workoutLogId,
   parameters,
   suggestions,
   onComplete,
@@ -71,7 +73,7 @@ export function RPTIndividualLogger({
     if (isLastSet) {
       try {
         // Update the workout log with all completed sets
-        const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutDayId}`, {
+        const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
           sets: [{
             exerciseId,
             sets: [...loggedSets, newSet],
@@ -81,7 +83,8 @@ export function RPTIndividualLogger({
         });
 
         if (!updateResponse.ok) {
-          throw new Error("Failed to update workout log");
+          const error = await updateResponse.json();
+          throw new Error(error.message || "Failed to update workout log");
         }
 
         onComplete();
@@ -89,7 +92,7 @@ export function RPTIndividualLogger({
         console.error("Error updating workout log:", error);
         toast({
           title: "Error",
-          description: "Failed to save workout log",
+          description: error instanceof Error ? error.message : "Failed to save workout log",
           variant: "destructive"
         });
       }
