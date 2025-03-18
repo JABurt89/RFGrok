@@ -38,18 +38,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [showRepsInput, setShowRepsInput] = useState(parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual");
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
 
-
-  const prepareWorkoutLog = (sets: Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>) => {
-    if (!sets || sets.length === 0) {
-      throw new Error("Please log at least one set before completing the workout.");
-    }
-    return sets.map(set => ({
-      ...set,
-      timestamp: set.timestamp || new Date().toISOString()
-    }));
-  };
-
-
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
     queryFn: async () => {
@@ -118,8 +106,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
-
-    if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
+    if (parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") {
       setShowRepsInput(true);
       return;
     }
