@@ -410,6 +410,16 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       // Prepare workout data with validated timestamps
       const validatedSets = prepareWorkoutLog(loggedSets);
 
+      // Check if we have at least one set logged
+      if (validatedSets.length === 0) {
+        toast({
+          title: "Error",
+          description: "Please log at least one set before completing the workout.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       // Create the workout set data with extraSetReps explicitly set to 0
       const workoutSetData = {
         exerciseId,
