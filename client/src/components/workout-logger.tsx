@@ -106,8 +106,32 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const handleStartWorkout = async (suggestion: any) => {
     try {
       setSelectedSuggestion(suggestion);
+
+      // Initialize sets for RPT Top-Set workout
+      if (parameters.scheme === "RPT Top-Set") {
+        const topSetWeight = suggestion.weight;
+        const sets = [{
+          weight: topSetWeight,
+          reps: parameters.minReps,
+          timestamp: new Date().toISOString()
+        }];
+
+        // Generate subsequent sets with drop percentages
+        for (let i = 1; i < parameters.sets; i++) {
+          const dropPercentage = parameters.dropPercentages[i] || 0;
+          const backOffWeight = topSetWeight * (1 - dropPercentage / 100);
+          sets.push({
+            weight: Math.round(backOffWeight * 2) / 2, // Round to nearest 0.5
+            reps: parameters.minReps,
+            timestamp: new Date().toISOString()
+          });
+        }
+        suggestion.sets = sets;
+      }
+
       await createLogMutation.mutateAsync();
       setIsWorkoutActive(true);
+
       // For RPT workouts, immediately show rep selection
       if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
         setShowRepsInput(true);
@@ -164,6 +188,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     const weight = editWeight ?? target.weight;
 
+    // Add the completed set to logged sets
     setLoggedSets(prev => [...prev, {
       weight,
       reps,
@@ -173,7 +198,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }]);
 
     // Check if we've completed all sets
-    if (currentSet + 1 >= selectedSuggestion.sets) {
+    if (currentSet + 1 >= (parameters.scheme === "RPT Top-Set" ? parameters.sets : selectedSuggestion.sets)) {
       setCurrentSet(prev => prev + 1);
       setShowRepsInput(false);
       onComplete(); // Move to next exercise
@@ -257,11 +282,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const position = `${exercisePosition} of ${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
+      // For RPT Top-Set, calculate weight based on drop percentage
       const dropPercentage = parameters.dropPercentages[currentSet] || 0;
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
+
       return {
-        weight: Math.round(weight * 2) / 2,
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
@@ -279,6 +306,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         position
       };
     }
+
     return {
       weight: selectedSuggestion.weight,
       reps: selectedSuggestion.reps,
@@ -318,6 +346,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   }, [parameters.scheme, isWorkoutActive, currentSet, restTimer, isLastSet, showRepsInput]);
 
+
+  useEffect(() => {
+    if (selectedSuggestion && parameters.scheme === "RPT Top-Set") {
+      console.log("Current set:", currentSet);
+      console.log("Selected suggestion:", selectedSuggestion);
+      console.log("Target:", getCurrentSetTarget());
+      console.log("Logged sets:", loggedSets);
+    }
+  }, [currentSet, selectedSuggestion, parameters.scheme]);
 
   if (!user) {
     return (
