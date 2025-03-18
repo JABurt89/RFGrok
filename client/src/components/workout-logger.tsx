@@ -402,21 +402,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       console.log("Exercise ID:", exerciseId);
       console.log("Parameters:", parameters);
 
-      const stsProgression = new STSProgression();
-
-      // Calculate 1RM only if we have logged sets
-      const oneRm = loggedSets.length > 0 ? stsProgression.calculate1RM(
-        loggedSets.map(set => ({
-          reps: set.reps,
-          weight: set.weight,
-          isFailure: set.isFailure || false
-        })),
-        0  // Explicitly pass 0 for extraSetReps when skipping
-      ) : undefined;
-
-      console.log("Calculated 1RM:", oneRm);
-
-      // Create the final set data
+      // Create the workout set data with extraSetReps explicitly set to 0
       const workoutSetData = {
         exerciseId,
         sets: loggedSets.map(set => ({
@@ -425,11 +411,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           timestamp: set.timestamp
         })),
         extraSetReps: 0,  // Explicitly set to 0 when skipping
-        oneRm,
         parameters
       };
 
       console.log("Final workout set data:", workoutSetData);
+
+      // Update the state to reflect the skipped extra set
+      setExtraSetReps(0);
 
       // Complete the workout and move to next exercise
       onComplete();
