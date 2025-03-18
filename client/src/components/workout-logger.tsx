@@ -37,6 +37,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [editReps, setEditReps] = useState<number | null>(null);
   const [showRepsInput, setShowRepsInput] = useState(false);
 
+  const prepareWorkoutLog = (sets: Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>) => {
+    return sets.map(set => ({
+      ...set,
+      timestamp: set.timestamp || new Date().toISOString()
+    }));
+  };
+
+
   // Fetch workout suggestion
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
@@ -398,18 +406,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const handleSkipExtraSet = async () => {
     try {
       console.log("Starting skip extra set handler");
-      console.log("Current logged sets:", loggedSets);
-      console.log("Exercise ID:", exerciseId);
-      console.log("Parameters:", parameters);
+
+      // Prepare workout data with validated timestamps
+      const validatedSets = prepareWorkoutLog(loggedSets);
 
       // Create the workout set data with extraSetReps explicitly set to 0
       const workoutSetData = {
         exerciseId,
-        sets: loggedSets.map(set => ({
-          reps: set.reps,
-          weight: set.weight,
-          timestamp: set.timestamp
-        })),
+        sets: validatedSets,
         extraSetReps: 0,  // Explicitly set to 0 when skipping
         parameters
       };
