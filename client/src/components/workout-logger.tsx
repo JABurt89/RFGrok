@@ -10,6 +10,7 @@ import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { STSProgression } from "@shared/progression";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -560,27 +561,80 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             <Button
               variant="outline"
               onClick={() => {
-                setExtraSetReps(undefined);
-                onComplete();
+                try {
+                  const stsProgression = new STSProgression();
+                  const oneRm = stsProgression.calculate1RM(loggedSets.map(set => ({
+                    reps: set.reps,
+                    weight: set.weight,
+                    isFailure: set.isFailure || false
+                  })));
+
+                  // Update workout log data
+                  const workoutLogData = {
+                    exerciseId,
+                    sets: loggedSets.map(set => ({
+                      reps: set.reps,
+                      weight: set.weight,
+                      timestamp: set.timestamp
+                    })),
+                    extraSetReps: undefined,
+                    oneRm,
+                    parameters
+                  };
+
+                  console.log("Workout log data before submission:", JSON.stringify(workoutLogData, null, 2));
+
+                  setExtraSetReps(undefined);
+                  onComplete();
+                } catch (error) {
+                  console.error("Error in skipping extra set:", error);
+                  toast({
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Failed to skip extra set",
+                    variant: "destructive"
+                  });
+                }
               }}
             >
               Skip Extra Set
             </Button>
             <Button
               onClick={() => {
-                if (typeof extraSetReps === 'number') {
-                  setLoggedSets(prev => [...prev, {
-                    weight: getCurrentSetTarget()?.weight || 0,
-                    reps: extraSetReps,
-                    timestamp: new Date().toISOString(),
-                    isFailure: false
-                  }]);
-                  onComplete();
-                } else {
+                try {
+                  if (typeof extraSetReps === 'number') {
+                    const stsProgression = new STSProgression();
+
+                    // Calculate 1RM with extra set
+                    const oneRm = stsProgression.calculate1RM(
+                      loggedSets.map(set => ({
+                        reps: set.reps,
+                        weight: set.weight,
+                        isFailure: set.isFailure || false
+                      })),
+                      extraSetReps
+                    );
+
+                    setLoggedSets(prev => [...prev, {
+                      weight: getCurrentSetTarget()?.weight || 0,
+                      reps: extraSetReps,
+                      timestamp: new Date().toISOString(),
+                      isFailure: false
+                    }]);
+
+                    onComplete();
+                  } else {
+                    toast({
+                      title: "Error",
+                      description: "Please enter the number of reps completed",
+                      variant: "destructive"
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error logging extra set:", error);
                   toast({
                     title: "Error",
-                    description: "Please enter the number of reps completed",
-                    variant: "destructive",
+                    description: error instanceof Error ? error.message : "Failed to log extra set",
+                    variant: "destructive"
                   });
                 }
               }}
