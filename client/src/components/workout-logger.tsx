@@ -33,7 +33,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [isEditing, setIsEditing] = useState(false);
   const [editWeight, setEditWeight] = useState<number | null>(null);
   const [editReps, setEditReps] = useState<number | null>(null);
-  const [showRepsInput, setShowRepsInput] = useState(parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual");
+  const [showRepsInput, setShowRepsInput] = useState(parameters.scheme === "RPT Top-Set");
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
 
   const { data: suggestions, isLoading, error: queryError } = useQuery({
@@ -83,56 +83,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   };
 
-  const handleSetComplete = () => {
-    if (!selectedSuggestion) return;
-
-    const target = getCurrentSetTarget();
-    if (!target) return;
-
-    if (parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") {
-      setShowRepsInput(true);
-      return;
-    }
-
-    const weight = editWeight ?? target.weight;
-    const reps = editReps ?? target.reps;
-
-    setLoggedSets(prev => [...prev, {
-      weight,
-      reps,
-      timestamp: new Date().toISOString(),
-      isFailure: false
-    }]);
-
-    if (currentSet + 1 >= selectedSuggestion.sets) {
-      setCurrentSet(prev => prev + 1);
-      setCurrentSetIndex(0);
-      if (parameters.scheme !== "STS") {
-        onComplete();
-      }
-    } else {
-      setCurrentSet(prev => prev + 1);
-      if (parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") {
-        setCurrentSetIndex(prev => prev + 1);
-      }
-      setRestTimer(parameters.restBetweenSets);
-    }
-
-    setIsEditing(false);
-    setEditWeight(null);
-    setEditReps(null);
-  };
-
   const handleRepSelection = (reps: number, exceededMax: boolean = false) => {
     if (!selectedSuggestion) return;
 
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    const weight = target.weight;
-
     setLoggedSets(prev => [...prev, {
-      weight,
+      weight: target.weight,
       reps,
       timestamp: new Date().toISOString(),
       isFailure: false,
@@ -152,28 +110,44 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   };
 
-  const handleSetFailed = (completedReps: number) => {
+  // Handle set completion for non-RPT workouts
+  const handleSetComplete = () => {
     if (!selectedSuggestion) return;
 
     const target = getCurrentSetTarget();
     if (!target) return;
 
+    if (parameters.scheme === "RPT Top-Set") {
+      setShowRepsInput(true);
+      return;
+    }
+
+    const weight = editWeight ?? target.weight;
+    const reps = editReps ?? target.reps;
+
     setLoggedSets(prev => [...prev, {
-      weight: target.weight,
-      reps: completedReps,
+      weight,
+      reps,
       timestamp: new Date().toISOString(),
-      isFailure: true
+      isFailure: false
     }]);
 
-    setCurrentSet(prev => prev + 1);
-    setRestTimer(parameters.restBetweenSets);
-    setShowRepsInput(false);
+    if (currentSet + 1 >= selectedSuggestion.sets) {
+      setCurrentSet(prev => prev + 1);
+      if (parameters.scheme !== "STS") {
+        onComplete();
+      }
+    } else {
+      setCurrentSet(prev => prev + 1);
+      setRestTimer(parameters.restBetweenSets);
+    }
 
-    setIsEditing(true);
-    setEditWeight(target.weight);
-    setEditReps(target.reps);
+    setIsEditing(false);
+    setEditWeight(null);
+    setEditReps(null);
   };
 
+  // Rest timer effect
   useEffect(() => {
     let interval: number;
     if (restTimer !== null && restTimer > 0) {
@@ -191,6 +165,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
+  // Show rep selection dialog after rest timer for RPT Top-Set
   useEffect(() => {
     if (restTimer === 0 && parameters.scheme === "RPT Top-Set") {
       setRestTimer(null);
@@ -199,7 +174,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   }, [restTimer, parameters.scheme]);
 
   const getExerciseName = () => {
-    const exercise = exercises.find(e => e.id === exerciseId);
+    const exercise = exercises.find((e: any) => e.id === exerciseId);
     return exercise?.name || "Exercise";
   };
 
@@ -211,29 +186,18 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const position = `${exercisePosition} of ${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
-      const dropPercentage = parameters.dropPercentages[currentSetIndex] || 0;
-      const baseWeight = selectedSuggestion.weight;
-      const weight = baseWeight * (1 - dropPercentage / 100);
+      const suggestions = Array.isArray(selectedSuggestion) ? selectedSuggestion : [selectedSuggestion];
+      const currentSuggestion = suggestions[currentSetIndex] || suggestions[0];
 
       return {
-        weight: Math.round(weight * 2) / 2,
+        weight: currentSuggestion.weight,
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
         name: exerciseName,
         position,
-        isDropSet: currentSetIndex > 0
-      };
-    } else if (parameters.scheme === "RPT Individual") {
-      const setConfig = parameters.setConfigs[currentSetIndex];
-      if (!setConfig) return null;
-
-      return {
-        weight: selectedSuggestion.weight,
-        minReps: setConfig.min,
-        maxReps: setConfig.max,
-        name: exerciseName,
-        position
+        isDropSet: currentSetIndex > 0,
+        dropPercentage: parameters.dropPercentages[currentSetIndex]
       };
     }
 
@@ -245,20 +209,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     };
   };
 
-  const isLastSet = currentSet >= selectedSuggestion?.sets;
+  const isLastSet = currentSet >= (parameters.scheme === "RPT Top-Set" ? parameters.sets : selectedSuggestion?.sets);
 
+  // Initialize RPT Top-Set workout
   useEffect(() => {
-    if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
-      const defaultSuggestion = {
-        sets: parameters.sets,
-        reps: parameters.maxReps,
-        weight: suggestions?.[0]?.weight || 20,
-        calculated1RM: suggestions?.[0]?.calculated1RM,
-        name: getExerciseName(),
-      };
-      handleStartWorkout(defaultSuggestion);
+    if (!isWorkoutActive && parameters.scheme === "RPT Top-Set" && suggestions) {
+      handleStartWorkout(suggestions);
     }
-  }, [isWorkoutActive, parameters.scheme, suggestions, exercises]);
+  }, [isWorkoutActive, parameters.scheme, suggestions]);
 
   if (!user) {
     return (
@@ -278,7 +236,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
-  if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
+  // Loading state for RPT Top-Set
+  if (!isWorkoutActive && parameters.scheme === "RPT Top-Set") {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -287,7 +246,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
-  if (!isWorkoutActive && parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") {
+  // Suggestion selection for non-RPT workouts
+  if (!isWorkoutActive && parameters.scheme !== "RPT Top-Set") {
     return (
       <Card>
         <CardHeader>
@@ -358,14 +318,15 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Alert>
       )}
 
-      {(parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") && (
+      {/* RPT Top-Set Rep Selection Dialog */}
+      {parameters.scheme === "RPT Top-Set" && (
         <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
           <DialogContent>
             <DialogTitle className="text-xl font-semibold">
               {getCurrentSetTarget()?.name}
               {getCurrentSetTarget()?.isDropSet && (
                 <span className="text-muted-foreground text-sm ml-2">
-                  (Drop Set: {parameters.dropPercentages[currentSetIndex]}% less)
+                  (Drop Set: {getCurrentSetTarget()?.dropPercentage}% less)
                 </span>
               )}
             </DialogTitle>
@@ -413,7 +374,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Dialog>
       )}
 
-      {(parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
+      {/* Standard Workout Display (non-RPT) */}
+      {parameters.scheme !== "RPT Top-Set" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
@@ -456,7 +418,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                 <Button
                   variant="destructive"
                   className="flex-1 sm:flex-none"
-                  onClick={() => setShowRepsInput(true)}
+                  onClick={() => handleSetFailed(0)} //Added to handle set failure
                 >
                   <XCircle className="h-4 w-4 mr-2" />
                   Set Failed
@@ -491,6 +453,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Card>
       )}
 
+      {/* Extra Set for STS */}
       {isLastSet && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
