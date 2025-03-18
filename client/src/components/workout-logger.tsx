@@ -36,6 +36,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const [editWeight, setEditWeight] = useState<number | null>(null);
   const [editReps, setEditReps] = useState<number | null>(null);
   const [showRepsInput, setShowRepsInput] = useState(false);
+  const [currentSetIndex, setCurrentSetIndex] = useState(0);
+
 
   const prepareWorkoutLog = (sets: Array<{ reps: number; weight: number; timestamp: string; isFailure?: boolean }>) => {
     if (!sets || sets.length === 0) {
@@ -142,12 +144,14 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
+      setCurrentSetIndex(0); // Reset set index when exercise is complete
       // Don't call onComplete() here for STS - wait for extra set
       if (parameters.scheme !== "STS") {
         onComplete();
       }
     } else {
       setCurrentSet(prev => prev + 1);
+      setCurrentSetIndex(prev => prev + 1);
       setRestTimer(parameters.restBetweenSets);
     }
 
@@ -177,6 +181,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       // Check if we've completed all sets
       if (currentSet + 1 >= selectedSuggestion.sets) {
         setCurrentSet(prev => prev + 1);
+        setCurrentSetIndex(0); // Reset set index for next exercise
         setShowRepsInput(false);
 
         // For STS, don't complete yet - wait for extra set
@@ -185,6 +190,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         }
       } else {
         setCurrentSet(prev => prev + 1);
+        setCurrentSetIndex(prev => prev + 1);
         setRestTimer(parameters.restBetweenSets);
         setShowRepsInput(false); // Hide dialog during rest
       }
@@ -272,11 +278,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     if (parameters.scheme === "RPT Top-Set") {
       // Calculate weight drop for current set
-      const dropPercentage = parameters.dropPercentages[currentSet] || 0;
+      const dropPercentage = parameters.dropPercentages[currentSetIndex] || 0;
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
 
-      // Ensure we're returning all necessary properties
       return {
         weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         reps: parameters.maxReps,
@@ -284,10 +289,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         maxReps: parameters.maxReps,
         name: exerciseName,
         position,
-        isDropSet: currentSet > 0
+        isDropSet: currentSetIndex > 0
       };
     } else if (parameters.scheme === "RPT Individual") {
-      const setConfig = parameters.setConfigs[currentSet];
+      const setConfig = parameters.setConfigs[currentSetIndex];
       if (!setConfig) return null;
 
       return {
@@ -328,7 +333,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   useEffect(() => {
     if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
       // Show dialog when workout starts
-      if (isWorkoutActive && currentSet === 0 && !showRepsInput) {
+      if (isWorkoutActive && currentSetIndex === 0 && !showRepsInput) {
         setShowRepsInput(true);
       }
       // Show dialog after rest timer ends
@@ -337,7 +342,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         setRestTimer(null); // Reset timer after showing input
       }
     }
-  }, [parameters.scheme, isWorkoutActive, currentSet, restTimer, isLastSet, showRepsInput]);
+  }, [parameters.scheme, isWorkoutActive, currentSetIndex, restTimer, isLastSet, showRepsInput]);
 
 
   if (!user) {
@@ -500,7 +505,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             {getCurrentSetTarget()?.name}
             {getCurrentSetTarget()?.isDropSet && (
               <span className="text-muted-foreground text-sm ml-2">
-                (Drop Set: {parameters.dropPercentages[currentSet]}% less)
+                (Drop Set: {parameters.dropPercentages[currentSetIndex]}% less)
               </span>
             )}
           </div>
