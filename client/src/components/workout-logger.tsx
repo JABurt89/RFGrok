@@ -10,7 +10,7 @@ import { Loader2, CheckCircle2, XCircle, Edit2, Timer } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { STSParameters, DoubleProgressionParameters, RPTTopSetParameters, RPTIndividualParameters } from "@shared/schema";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { STSProgression } from "@shared/progression";
+import { STSProgression, ExerciseSet } from "@shared/progression";
 
 interface WorkoutLoggerProps {
   exerciseId: number;
@@ -567,7 +567,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     reps: set.reps,
                     weight: set.weight,
                     isFailure: set.isFailure || false
-                  })));
+                  } as ExerciseSet)));
 
                   // Update workout log data
                   const workoutLogData = {
@@ -581,8 +581,6 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     oneRm,
                     parameters
                   };
-
-                  console.log("Workout log data before submission:", JSON.stringify(workoutLogData, null, 2));
 
                   setExtraSetReps(undefined);
                   onComplete();
