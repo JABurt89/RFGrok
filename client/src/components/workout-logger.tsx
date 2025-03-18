@@ -428,7 +428,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         parameters
       };
 
-      console.log("Final workout set data:", workoutSetData);
+      console.log("Final workout set data:", JSON.stringify(workoutSetData, null, 2));
 
       // Update the state to reflect the skipped extra set
       setExtraSetReps(0);
@@ -624,7 +624,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                         weight: set.weight,
                         isFailure: set.isFailure || false
                       })),
-                      extraSetReps
+                      extraSetReps // Use actual extraSetReps when not skipping
                     );
 
                     setLoggedSets(prev => [...prev, {
