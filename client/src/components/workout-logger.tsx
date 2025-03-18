@@ -49,6 +49,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }));
   };
 
+
   // Fetch workout suggestion
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
@@ -143,7 +144,11 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
-      onComplete();
+      setCurrentSetIndex(0); // Reset set index when exercise is complete
+      // Don't call onComplete() here for STS - wait for extra set
+      if (parameters.scheme !== "STS") {
+        onComplete();
+      }
     } else {
       setCurrentSet(prev => prev + 1);
       setCurrentSetIndex(prev => prev + 1);
@@ -176,14 +181,18 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       // Check if we've completed all sets
       if (currentSet + 1 >= selectedSuggestion.sets) {
         setCurrentSet(prev => prev + 1);
-        setCurrentSetIndex(0);
+        setCurrentSetIndex(0); // Reset set index for next exercise
         setShowRepsInput(false);
-        onComplete();
+
+        // For STS, don't complete yet - wait for extra set
+        if (parameters.scheme !== "STS") {
+          onComplete();
+        }
       } else {
         setCurrentSet(prev => prev + 1);
         setCurrentSetIndex(prev => prev + 1);
         setRestTimer(parameters.restBetweenSets);
-        setShowRepsInput(false);
+        setShowRepsInput(false); // Hide dialog during rest
       }
 
       setIsEditing(false);
@@ -323,13 +332,17 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   // Show rep selection dialog automatically for RPT workouts
   useEffect(() => {
     if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
-      // Show dialog when rest timer ends
-      if (restTimer === 0) {
+      // Show dialog when workout starts
+      if (isWorkoutActive && currentSetIndex === 0 && !showRepsInput) {
         setShowRepsInput(true);
-        setRestTimer(null);
+      }
+      // Show dialog after rest timer ends
+      if (restTimer === 0 && !isLastSet && !showRepsInput) {
+        setShowRepsInput(true);
+        setRestTimer(null); // Reset timer after showing input
       }
     }
-  }, [parameters.scheme, restTimer]);
+  }, [parameters.scheme, isWorkoutActive, currentSetIndex, restTimer, isLastSet, showRepsInput]);
 
 
   if (!user) {
@@ -475,7 +488,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         <Alert>
           <AlertDescription className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Timer className="h-5 w-4" />
+              <Timer className="h-5 w-5" />
               <span>Rest Time: {Math.floor(restTimer / 60)}:{(restTimer % 60).toString().padStart(2, '0')}</span>
             </div>
           </AlertDescription>
@@ -539,82 +552,168 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </DialogContent>
       </Dialog>
 
-      {/* Exercise Status Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
-          <CardDescription className="text-lg font-semibold mt-2">
-            <span className="text-primary">
-              Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.reps} reps
-            </span>
-          </CardDescription>
-        </CardHeader>
+      {/* Only show the workout status card for non-RPT workouts */}
+      {(parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Set {currentSet + 1} of {selectedSuggestion?.sets}</CardTitle>
+            <CardDescription className="text-lg font-semibold mt-2">
+              <span className="text-primary">
+                Target: {getCurrentSetTarget()?.weight}kg × {getCurrentSetTarget()?.reps} reps
+              </span>
+            </CardDescription>
+          </CardHeader>
 
-        <CardContent>
-          {/* Previous Sets Summary */}
-          {loggedSets.length > 0 && (
-            <div className="space-y-2 mb-4">
-              <h3 className="text-sm font-medium">Previous Sets:</h3>
-              <div className="grid gap-2">
-                {loggedSets.map((set, idx) => (
-                  <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
-                    <span>
-                      Set {idx + 1}: {set.reps} reps @ {set.weight}kg
-                      {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
-                      {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
-                    </span>
-                  </div>
-                ))}
+          <CardContent>
+            {/* Previous Sets Summary */}
+            {loggedSets.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <h3 className="text-sm font-medium">Previous Sets:</h3>
+                <div className="grid gap-2">
+                  {loggedSets.map((set, idx) => (
+                    <div key={idx} className="text-sm flex justify-between items-center p-2 bg-muted rounded-md">
+                      <span>
+                        Set {idx + 1}: {set.reps} reps @ {set.weight}kg
+                        {set.isFailure && <span className="text-destructive ml-2">(Failed)</span>}
+                        {set.exceededMax && <span className="text-primary ml-2">(Exceeded Max)</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
+          </CardContent>
 
-        <CardFooter className="flex flex-wrap gap-2">
-          {!isLastSet && (
-            <>
-              <Button
-                className="flex-1 sm:flex-none"
-                onClick={() => {
-                  if (parameters.scheme === "RPT Top-Set" || parameters.scheme === "RPT Individual") {
-                    setShowRepsInput(true);
-                  } else {
-                    handleSetComplete();
-                  }
-                }}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Set Complete
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 sm:flex-none"
-                onClick={() => setShowRepsInput(true)}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Set Failed
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 sm:flex-none"
-                onClick={handleEditToggle}
-              >
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit Set
-              </Button>
-            </>
-          )}
+          <CardFooter className="flex flex-wrap gap-2">
+            {/* Show regular set completion buttons for other workout types */}
+            {!isLastSet && !showRepsInput && !isEditing && (
+              <>
+                <Button
+                  className="flex-1 sm:flex-none"
+                  onClick={handleSetComplete}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Set Complete
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setShowRepsInput(true)}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Set Failed
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={handleEditToggle}
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit Set
+                </Button>
+              </>
+            )}
 
-          {isLastSet && !showRepsInput && (
-            <Button
+            {/* Edit mode buttons */}
+            {isEditing && (
+              <>
+                <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
+                <Button variant="outline" onClick={handleEditToggle} className="flex-1">Cancel</Button>
+              </>
+            )}
+
+            {/* Next Exercise button */}
+            {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== undefined) ? (
+              <Button
+                className="w-full"
+                onClick={() => onComplete()}
+              >
+                Next Exercise
+              </Button>
+            ) : null}
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* Extra Set for STS */}
+      {isLastSet && parameters.scheme === "STS" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Extra Set to Failure</CardTitle>
+            <CardDescription>Optional: Perform one more set to failure</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input
+              type="number"
+              placeholder="Number of reps"
+              value={extraSetReps ?? ''}
+              onChange={(e) => setExtraSetReps(Number(e.target.value))}
               className="w-full"
-              onClick={onComplete}
+            />
+          </CardContent>
+          <CardFooter className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={handleSkipExtraSet}
             >
-              Next Exercise
+              Skip Extra Set
             </Button>
-          )}
-        </CardFooter>
-      </Card>
+            <Button
+              onClick={async () => {
+                try {
+                  if (!loggedSets || loggedSets.length === 0) {
+                    toast({
+                      title: "Error",
+                      description: "Please log at least one set before completing the workout.",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
+                  if (typeof extraSetReps === 'number') {
+                    // First update the workout log
+                    const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
+                      sets: [{
+                        exerciseId,
+                        sets: loggedSets.map(set => ({
+                          reps: set.reps,
+                          weight: set.weight,
+                          timestamp: set.timestamp || new Date().toISOString()
+                        })),
+                        parameters,
+                        extraSetReps: extraSetReps  // Use the actual extra set reps value
+                      }],
+                      isComplete: true
+                    });
+
+                    if (!updateResponse.ok) {
+                      const error = await updateResponse.json();
+                      throw new Error(error.message || "Failed to update workout log");
+                    }
+
+                    console.log("Successfully logged extra set with reps:", extraSetReps);
+                    onComplete();
+                  } else {
+                    toast({
+                      title: "Error",
+                      description: "Please enter the number of reps completed",
+                      variant: "destructive"
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error logging extra set:", error);
+                  toast({
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Failed to log extra set",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              Log Extra Set
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 }
