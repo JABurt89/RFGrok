@@ -50,6 +50,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   };
 
 
+  // Fetch workout suggestion
   const { data: suggestions, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/workout-suggestion', exerciseId],
     queryFn: async () => {
@@ -66,10 +67,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     enabled: Boolean(exerciseId) && Boolean(user),
   });
 
+  // Add exercise query
   const { data: exercises = [] } = useQuery({
     queryKey: ["/api/exercises"],
   });
 
+  // Create workout log mutation
   const createLogMutation = useMutation({
     mutationFn: async () => {
       if (!user || !selectedSuggestion) throw new Error("Invalid workout setup");
@@ -107,6 +110,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       setSelectedSuggestion(suggestion);
       await createLogMutation.mutateAsync();
       setIsWorkoutActive(true);
+      // For RPT workouts, immediately show rep selection
       if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
         setShowRepsInput(true);
       }
@@ -121,11 +125,13 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
+    // For RPT workouts, always show rep selection UI
     if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
       setShowRepsInput(true);
       return;
     }
 
+    // For other schemes like STS, directly log the set
     const weight = editWeight ?? target.weight;
     const reps = editReps ?? target.reps;
 
@@ -138,7 +144,8 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
     if (currentSet + 1 >= selectedSuggestion.sets) {
       setCurrentSet(prev => prev + 1);
-      setCurrentSetIndex(0);
+      setCurrentSetIndex(0); // Reset set index when exercise is complete
+      // Don't call onComplete() here for STS - wait for extra set
       if (parameters.scheme !== "STS") {
         onComplete();
       }
@@ -159,31 +166,46 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const target = getCurrentSetTarget();
     if (!target) return;
 
-    const weight = editWeight ?? target.weight;
+    try {
+      // Get the correct weight based on the current set
+      const weight = editWeight ?? target.weight;
 
-    setLoggedSets(prev => [...prev, {
-      weight,
-      reps,
-      timestamp: new Date().toISOString(),
-      isFailure: false,
-      exceededMax
-    }]);
+      setLoggedSets(prev => [...prev, {
+        weight,
+        reps,
+        timestamp: new Date().toISOString(),
+        isFailure: false,
+        exceededMax
+      }]);
 
-    if (currentSet + 1 >= selectedSuggestion.sets) {
-      setCurrentSet(prev => prev + 1);
-      setCurrentSetIndex(0);
-      setShowRepsInput(false);
-      onComplete();
-    } else {
-      setCurrentSet(prev => prev + 1);
-      setCurrentSetIndex(prev => prev + 1);
-      setRestTimer(parameters.restBetweenSets);
-      setShowRepsInput(false);
+      // Check if we've completed all sets
+      if (currentSet + 1 >= selectedSuggestion.sets) {
+        setCurrentSet(prev => prev + 1);
+        setCurrentSetIndex(0); // Reset set index for next exercise
+        setShowRepsInput(false);
+
+        // For STS, don't complete yet - wait for extra set
+        if (parameters.scheme !== "STS") {
+          onComplete();
+        }
+      } else {
+        setCurrentSet(prev => prev + 1);
+        setCurrentSetIndex(prev => prev + 1);
+        setRestTimer(parameters.restBetweenSets);
+        setShowRepsInput(false); // Hide dialog during rest
+      }
+
+      setIsEditing(false);
+      setEditWeight(null);
+      setEditReps(null);
+    } catch (error) {
+      console.error("Error in handleRepSelection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log the set. Please try again.",
+        variant: "destructive"
+      });
     }
-
-    setIsEditing(false);
-    setEditWeight(null);
-    setEditReps(null);
   };
 
   const handleSetFailed = (completedReps: number) => {
@@ -199,10 +221,12 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
       isFailure: true
     }]);
 
+    // Continue to next set after failure
     setCurrentSet(prev => prev + 1);
     setRestTimer(parameters.restBetweenSets);
     setShowRepsInput(false);
 
+    // Automatically enable editing for the next set after a failure
     setIsEditing(true);
     setEditWeight(target.weight);
     setEditReps(target.reps);
@@ -231,6 +255,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         });
       }, 1000);
 
+      // Play sound when timer reaches 0
       if (restTimer === 1) {
         new Audio('/chime.mp3').play().catch(console.error);
       }
@@ -238,6 +263,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     return () => window.clearInterval(interval);
   }, [restTimer]);
 
+  // Get exercise name and position
   const getExerciseName = () => {
     const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || "Exercise";
@@ -251,18 +277,30 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     const position = `${exercisePosition} of ${totalExercises}`;
 
     if (parameters.scheme === "RPT Top-Set") {
+      // Calculate weight drop for current set
       const dropPercentage = parameters.dropPercentages[currentSetIndex] || 0;
       const baseWeight = selectedSuggestion.weight;
       const weight = baseWeight * (1 - dropPercentage / 100);
 
       return {
-        weight: Math.round(weight * 2) / 2,
+        weight: Math.round(weight * 2) / 2, // Round to nearest 0.5
         reps: parameters.maxReps,
         minReps: parameters.minReps,
         maxReps: parameters.maxReps,
         name: exerciseName,
         position,
         isDropSet: currentSetIndex > 0
+      };
+    } else if (parameters.scheme === "RPT Individual") {
+      const setConfig = parameters.setConfigs[currentSetIndex];
+      if (!setConfig) return null;
+
+      return {
+        weight: selectedSuggestion.weight,
+        minReps: setConfig.min,
+        maxReps: setConfig.max,
+        name: exerciseName,
+        position
       };
     }
 
@@ -277,6 +315,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
   const isLastSet = currentSet >= selectedSuggestion?.sets;
   const hasFailedCurrentSet = loggedSets[currentSet - 1]?.isFailure;
 
+  // Initialize RPT workout
   useEffect(() => {
     if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
       const defaultSuggestion = {
@@ -290,14 +329,17 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     }
   }, [isWorkoutActive, parameters.scheme, suggestions, exercises]);
 
+  // Show rep selection dialog automatically for RPT workouts
   useEffect(() => {
-    if (parameters.scheme === "RPT Top-Set") {
+    if (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set") {
+      // Show dialog when workout starts
       if (isWorkoutActive && currentSetIndex === 0 && !showRepsInput) {
         setShowRepsInput(true);
       }
+      // Show dialog after rest timer ends
       if (restTimer === 0 && !isLastSet && !showRepsInput) {
         setShowRepsInput(true);
-        setRestTimer(null);
+        setRestTimer(null); // Reset timer after showing input
       }
     }
   }, [parameters.scheme, isWorkoutActive, currentSetIndex, restTimer, isLastSet, showRepsInput]);
@@ -321,6 +363,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
+  // Show loading state while RPT workout is being initialized
   if (!isWorkoutActive && (parameters.scheme === "RPT Individual" || parameters.scheme === "RPT Top-Set")) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -330,6 +373,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
     );
   }
 
+  // Show suggestion selection only for non-RPT workouts
   if (!isWorkoutActive && parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") {
     return (
       <Card>
@@ -390,6 +434,9 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
   const handleSkipExtraSet = async () => {
     try {
+      console.log("Starting skip extra set handler");
+
+      // Check if we have any sets logged
       if (!loggedSets || loggedSets.length === 0) {
         toast({
           title: "Error",
@@ -399,6 +446,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         return;
       }
 
+      // First update the workout log
       const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
         sets: [{
           exerciseId,
@@ -408,7 +456,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
             timestamp: set.timestamp || new Date().toISOString()
           })),
           parameters,
-          extraSetReps: 0
+          extraSetReps: 0  // Explicitly set to 0 when skipping
         }],
         isComplete: true
       });
@@ -418,7 +466,10 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         throw new Error(error.message || "Failed to update workout log");
       }
 
+      // Update local state
       setExtraSetReps(0);
+
+      // Only complete after successful update
       onComplete();
     } catch (error) {
       console.error("Error in skipping extra set:", error);
@@ -432,6 +483,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
 
   return (
     <div className="space-y-4">
+      {/* Rest Timer */}
       {restTimer !== null && restTimer > 0 && (
         <Alert>
           <AlertDescription className="flex items-center justify-between">
@@ -443,6 +495,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Alert>
       )}
 
+      {/* Rep Selection Dialog */}
       <Dialog open={showRepsInput} onOpenChange={setShowRepsInput}>
         <DialogContent>
           <VisuallyHidden>
@@ -499,6 +552,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </DialogContent>
       </Dialog>
 
+      {/* Only show the workout status card for non-RPT workouts */}
       {(parameters.scheme !== "RPT Individual" && parameters.scheme !== "RPT Top-Set") && (
         <Card>
           <CardHeader>
@@ -511,6 +565,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           </CardHeader>
 
           <CardContent>
+            {/* Previous Sets Summary */}
             {loggedSets.length > 0 && (
               <div className="space-y-2 mb-4">
                 <h3 className="text-sm font-medium">Previous Sets:</h3>
@@ -530,6 +585,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
           </CardContent>
 
           <CardFooter className="flex flex-wrap gap-2">
+            {/* Show regular set completion buttons for other workout types */}
             {!isLastSet && !showRepsInput && !isEditing && (
               <>
                 <Button
@@ -558,6 +614,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               </>
             )}
 
+            {/* Edit mode buttons */}
             {isEditing && (
               <>
                 <Button onClick={handleSetComplete} className="flex-1">Save Changes</Button>
@@ -565,6 +622,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
               </>
             )}
 
+            {/* Next Exercise button */}
             {(isLastSet && !showRepsInput && !isEditing && parameters.scheme !== "STS") || (isLastSet && parameters.scheme === "STS" && extraSetReps !== undefined) ? (
               <Button
                 className="w-full"
@@ -577,6 +635,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
         </Card>
       )}
 
+      {/* Extra Set for STS */}
       {isLastSet && parameters.scheme === "STS" && (
         <Card>
           <CardHeader>
@@ -611,6 +670,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                     return;
                   }
                   if (typeof extraSetReps === 'number') {
+                    // First update the workout log
                     const updateResponse = await apiRequest("PATCH", `/api/workout-logs/${workoutLogId}`, {
                       sets: [{
                         exerciseId,
@@ -620,7 +680,7 @@ export default function WorkoutLogger({ exerciseId, workoutDayId, parameters, on
                           timestamp: set.timestamp || new Date().toISOString()
                         })),
                         parameters,
-                        extraSetReps: extraSetReps
+                        extraSetReps: extraSetReps  // Use the actual extra set reps value
                       }],
                       isComplete: true
                     });
